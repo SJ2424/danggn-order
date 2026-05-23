@@ -165,7 +165,14 @@ let PRODUCTS = load('products', [
 ]);
 let ORDERS = [];
 let curFilter='all', curSearch='';
-const FILTERS=[{k:'all',l:'전체'},{k:'pending',l:'발주대기'},{k:'unpaid',l:'미입금'},{k:'ordered',l:'발주완료'},{k:'shipped',l:'발송완료'}];
+const FILTERS=[
+  {k:'all',l:'전체'},
+  {k:'received',l:'접수'},      // 신규, 봇이 처리할 것
+  {k:'pending',l:'발주대기'},   // 봇이 OMS 등록 끝, 본인이 일괄주문할 것
+  {k:'unpaid',l:'미입금'},
+  {k:'ordered',l:'발주완료'},
+  {k:'shipped',l:'발송완료'}
+];
 
 const SIDO = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주','충청','전라','경상'];
 const LABELS = ['성함','이름','성명','연락처','전화번호','전화','휴대폰','핸드폰','번호','주소','수령','받는분','받는','수취인'];
@@ -320,8 +327,9 @@ async function togglePaid(id){
 }
 async function toggleStatus(id){
   const o=ORDERS.find(x=>x.id===id); if(!o) return;
-  const seq=['접수','발주완료','발송완료'];
-  const next=seq[(seq.indexOf(o.status||'접수')+1)%seq.length];
+  const seq=['접수','발주대기','발주완료','발송완료'];
+  const cur=seq.indexOf(o.status||'접수');
+  const next=seq[((cur<0?0:cur)+1)%seq.length];
   await sb.from('orders').update({ status:next }).eq('id',id);
 }
 async function delRow(id){
@@ -336,14 +344,16 @@ async function updateTracking(id,val){
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function countFor(k){
   if(k==='all') return ORDERS.length;
-  if(k==='pending') return ORDERS.filter(o=>(o.status||'접수')==='접수').length;
+  if(k==='received') return ORDERS.filter(o=>(o.status||'접수')==='접수').length;
+  if(k==='pending') return ORDERS.filter(o=>o.status==='발주대기').length;
   if(k==='unpaid') return ORDERS.filter(o=>!o.paid).length;
   if(k==='ordered') return ORDERS.filter(o=>o.status==='발주완료').length;
   if(k==='shipped') return ORDERS.filter(o=>o.status==='발송완료').length;
   return 0;
 }
 function filterMatch(o){
-  if(curFilter==='pending' && (o.status||'접수')!=='접수') return false;
+  if(curFilter==='received' && (o.status||'접수')!=='접수') return false;
+  if(curFilter==='pending' && o.status!=='발주대기') return false;
   if(curFilter==='unpaid' && o.paid) return false;
   if(curFilter==='ordered' && o.status!=='발주완료') return false;
   if(curFilter==='shipped' && o.status!=='발송완료') return false;
@@ -392,9 +402,10 @@ function renderList(){
     ? items.map(cardHtml).join('')
     : '<div class="empty">표시할 주문이 없습니다</div>';
   $('#cnt').textContent = ORDERS.length?'('+ORDERS.length+'건)':'';
+  const recv=ORDERS.filter(o=>(o.status||'접수')==='접수').length;
+  const pend=ORDERS.filter(o=>o.status==='발주대기').length;
   const unpaid=ORDERS.filter(o=>!o.paid).length;
-  const wait=ORDERS.filter(o=>(o.status||'접수')==='접수').length;
-  $('#summary').textContent = ORDERS.length?('미입금 '+unpaid+'건 · 발주대기 '+wait+'건'):'';
+  $('#summary').textContent = ORDERS.length?('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'):'';
 }
 
 // 모드 / 발주서 / CSV
@@ -439,7 +450,7 @@ function saveProducts(){
 const ALARM_START='12:30', CUTOFF='12:50', REPEAT_MIN=5;
 let lastAlarm=0;
 const toMin=s=>{const a=s.split(':');return +a[0]*60+ +a[1];};
-function pendingCount(){ return ORDERS.filter(o=>(o.status||'접수')==='접수').length; }
+function pendingCount(){ return ORDERS.filter(o=>{ const s=o.status||'접수'; return s==='접수'||s==='발주대기'; }).length; }
 function beep(){
   try{
     const C=window.AudioContext||window.webkitAudioContext, ctx=new C();

@@ -1,0 +1,51 @@
+name: Register OMS orders
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '시험 모드 (실제 등록 X, 화면 캡처만)'
+        type: boolean
+        default: true
+
+# 일일 자동 실행은 안정화 후 활성화 (지금은 수동 트리거만)
+#  schedule:
+#    - cron: '0 3 * * 1-5'   # 12:00 KST 평일
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install bot dependencies
+        working-directory: bot
+        run: npm install
+
+      - name: Install Playwright Chromium
+        working-directory: bot
+        run: npx playwright install --with-deps chromium
+
+      - name: Run register bot
+        working-directory: bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OMS_USERNAME: ${{ secrets.OMS_USERNAME }}
+          OMS_PASSWORD: ${{ secrets.OMS_PASSWORD }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node register-orders.js
+
+      - name: Upload screenshots (성공·실패 모두)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_id }}
+          path: bot/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
