@@ -152,20 +152,39 @@ async function registerOrder(page, order, idx) {
   }
 
   if (usedPopup) {
-    // 주소검색 팝업 (Daum 우편번호 API 가능성 큼)
     console.log('  주소 직접 입력 불가 → 주소검색 팝업 시도');
-    await page.screenshot({ path: `screenshots/${tag}-2-addr-before.png` });
-    await page.getByRole('button', { name: /주소 검색|주소검색/ }).click();
-    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `screenshots/${tag}-2-addr-before.png`, fullPage: true });
 
-    // 팝업이 새 창인지, iframe인지, 모달인지 자동 감지
-    const popup = page.context().pages().find(p => p !== page && p.url().includes('postcode'));
-    const iframeEl = await page.locator('iframe').first().elementHandle().catch(() => null);
+    const searchBtn = page.getByRole('button', { name: /주소 검색|주소검색/ });
+    await searchBtn.scrollIntoViewIfNeeded();
+
+    // 새창 열림 감지 + 클릭 동시
+    const [newPage] = await Promise.all([
+      page.context().waitForEvent('page', { timeout: 4000 }).catch(() => null),
+      searchBtn.click()
+    ]);
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: `screenshots/${tag}-2-after-click.png`, fullPage: true });
+
+    // 진단: 페이지 구조 로깅
+    const iframeCount = await page.locator('iframe').count();
+    const dialogCount = await page.locator('[role="dialog"], .modal, .popup, .layer, [class*="postcode"], [class*="address"]').count();
+    const allPages = page.context().pages().length;
+    console.log(`  진단: iframe=${iframeCount}, dialog=${dialogCount}, pages=${allPages}, newPage=${newPage?newPage.url():'없음'}`);
+
+    const popup = newPage;
+    const iframeEl = iframeCount > 0 ? await page.locator('iframe').first().elementHandle() : null;
 
     if (popup) {
+      try {
+        await popup.waitForLoadState('domcontentloaded', { timeout: 5000 });
+      } catch {}
+      await popup.waitForTimeout(800);
+      await popup.screenshot({ path: `screenshots/${tag}-2-popup.png`, fullPage: true }).catch(()=>{});
       await popup.getByPlaceholder(/도로명|지번|건물|주소/).first().fill(base);
       await popup.keyboard.press('Enter');
       await popup.waitForTimeout(1500);
+      await popup.screenshot({ path: `screenshots/${tag}-2-popup-results.png`, fullPage: true }).catch(()=>{});
       await popup.locator('li, .result, .list_item').first().click();
     } else if (iframeEl) {
       const frame = await iframeEl.contentFrame();
@@ -176,8 +195,10 @@ async function registerOrder(page, order, idx) {
         await frame.locator('li, .result, .list_item').first().click();
       }
     } else {
-      await page.screenshot({ path: `screenshots/${tag}-2-addr-popup-unknown.png` });
-      throw new Error('주소 팝업 구조 확인 필요 (스크린샷 확인)');
+      // 같은 페이지 모달일 가능성 — 더 기다리고 fullPage 캡처
+      await page.waitForTimeout(2000);
+      await page.screenshot({ path: `screenshots/${tag}-2-modal-fullpage.png`, fullPage: true });
+      throw new Error(`주소 팝업/모달 못 찾음 (iframe=${iframeCount}, dialog=${dialogCount}, newPage=${newPage?'있음':'없음'}) — 캡처 확인 필요`);
     }
     await page.waitForTimeout(800);
   }
