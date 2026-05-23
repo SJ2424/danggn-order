@@ -8,11 +8,12 @@
 :root{--bg:#f4f5f7;--card:#fff;--line:#e3e5e9;--pri:#ff6f0f;--txt:#1c1f23;--mut:#6b7280}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;font-size:15px;line-height:1.5}
-header{background:var(--pri);color:#fff;padding:14px 16px;font-weight:700;font-size:17px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+header{background:var(--pri);color:#fff;padding:14px 16px;font-weight:700;font-size:17px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px}
 header small{font-weight:400;opacity:.85;font-size:12px;margin-left:6px}
-header .who{font-size:12px;font-weight:400;display:flex;gap:8px;align-items:center}
+header .who{font-size:12px;font-weight:400;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 header .who span{opacity:.9}
 header button{background:rgba(0,0,0,.2);color:#fff;border:0;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600}
+.pending-badge{background:#fbbf24!important;color:#7c2d12!important;font-weight:700;font-size:11px;padding:4px 9px;border-radius:999px;cursor:pointer;border:0}
 main{max-width:760px;margin:0 auto;padding:14px}
 @media (min-width:760px){main{max-width:1100px}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
@@ -27,6 +28,7 @@ button{border:0;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:6
 .btn-pri{background:var(--pri);color:#fff;width:100%;margin-top:12px;padding:13px}
 .btn-sec{background:#eef0f3;color:var(--txt)}
 .btn-sm{padding:5px 9px;font-size:12px;font-weight:500}
+.btn-pri-sm{background:var(--pri);color:#fff;padding:5px 9px;font-size:12px;font-weight:600}
 .preview{background:#fff7f0;border:1px dashed var(--pri);border-radius:8px;padding:10px;margin-top:10px}
 .preview .ttl{font-size:12px;color:var(--pri);font-weight:700;margin-bottom:6px}
 .modes{display:flex;gap:8px;margin-bottom:14px}
@@ -64,12 +66,39 @@ body[data-mode="manage"] #inputCard{display:none}
 .empty{color:var(--mut);text-align:center;padding:18px;font-size:13px}
 details summary{cursor:pointer;font-weight:600;font-size:14px}
 .login-bg{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#fff7f0,#f4f5f7)}
-.login-card{background:#fff;border-radius:14px;padding:30px;max-width:380px;width:100%;box-shadow:0 4px 30px rgba(0,0,0,.08)}
-.login-card h1{margin:0 0 6px;font-size:22px;color:var(--pri)}
-.login-card p{margin:0 0 18px;color:var(--mut);font-size:13px}
+.login-card{background:#fff;border-radius:14px;padding:28px;max-width:380px;width:100%;box-shadow:0 4px 30px rgba(0,0,0,.08)}
+.login-card h1{margin:0 0 14px;font-size:22px;color:var(--pri);text-align:center}
+.auth-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.auth-tab{flex:1;background:transparent;color:var(--mut);padding:10px 0;border:0;border-bottom:2px solid transparent;border-radius:0;font-weight:600;cursor:pointer}
+.auth-tab.active{color:var(--pri);border-bottom-color:var(--pri)}
+.login-card p{margin:0 0 14px;color:var(--mut);font-size:13px}
 .login-card input{margin-bottom:10px;padding:11px}
-.login-card button{width:100%;background:var(--pri);color:#fff;padding:13px;margin-top:6px}
-#loginMsg{margin-top:10px;color:#c5221f;font-size:12.5px;min-height:18px}
+.login-card .auth-form button{width:100%;background:var(--pri);color:#fff;padding:13px;margin-top:6px}
+#loginMsg,#signupMsg{margin-top:10px;font-size:12.5px;min-height:18px}
+#loginMsg{color:#c5221f}
+#signupMsg{color:#137333}
+#pendingView{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;background:linear-gradient(135deg,#fff7f0,#f4f5f7);text-align:center}
+.pending-card{background:#fff;border-radius:14px;padding:32px;max-width:440px;width:100%;box-shadow:0 4px 30px rgba(0,0,0,.08)}
+.pending-card h1{color:var(--pri);margin:0 0 10px;font-size:22px}
+.pending-card p{color:var(--txt);margin:8px 0;line-height:1.6;font-size:14px}
+.pending-card .em{font-weight:700;color:var(--pri)}
+.pending-card button{margin-top:20px;background:#eef0f3;color:var(--txt);padding:11px 20px}
+.modal{display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px}
+.modal.open{display:flex}
+.modal-content{background:#fff;border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto}
+.modal-content h2{margin:0 0 12px;font-size:17px}
+.pend-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);gap:8px}
+.pend-row:last-child{border-bottom:0}
+.pend-info{flex:1;min-width:0}
+.pend-info .e{font-weight:600;font-size:13.5px;word-break:break-all}
+.pend-info .t{font-size:11.5px;color:var(--mut);margin-top:2px}
+.pend-actions button{padding:6px 10px;font-size:12px;margin-left:6px;border-radius:6px}
+.pend-approve{background:#137333;color:#fff}
+.pend-reject{background:#c5221f;color:#fff}
+body[data-role="input"] .admin-only{display:none !important}
+body[data-role="input"] #inputCard{display:block !important}
+body[data-role="input"] .pill{pointer-events:none;cursor:default}
+body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-events:none}
 </style>
 </head>
 <body>
@@ -77,23 +106,50 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 <div id="loginView" class="login-bg" style="display:none">
   <div class="login-card">
     <h1>당근 판매·발주 관리</h1>
-    <p>관리자가 발급한 이메일·비번으로 로그인하세요.</p>
-    <input id="loginEmail" type="email" placeholder="이메일" autocomplete="username">
-    <input id="loginPass" type="password" placeholder="비밀번호" autocomplete="current-password">
-    <button id="btnLogin">로그인</button>
-    <div id="loginMsg"></div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin">로그인</button>
+      <button class="auth-tab" id="tabSignup">회원가입</button>
+    </div>
+    <div class="auth-form" id="loginForm">
+      <p>이메일·비번으로 로그인하세요.</p>
+      <input id="loginEmail" type="email" placeholder="이메일" autocomplete="username">
+      <input id="loginPass" type="password" placeholder="비밀번호" autocomplete="current-password">
+      <button id="btnLogin">로그인</button>
+      <div id="loginMsg"></div>
+    </div>
+    <div class="auth-form" id="signupForm" style="display:none">
+      <p>회원가입 후 관리자 승인을 받으면 사용 가능합니다.</p>
+      <input id="signupEmail" type="email" placeholder="이메일" autocomplete="email">
+      <input id="signupPass" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
+      <button id="btnSignup">회원가입 신청</button>
+      <div id="signupMsg"></div>
+    </div>
+  </div>
+</div>
+
+<div id="pendingView">
+  <div class="pending-card">
+    <h1>승인 대기 중</h1>
+    <p>가입이 완료됐어요.</p>
+    <p><span class="em" id="pendingEmail"></span> 계정으로 관리자 승인을 기다리는 중입니다.</p>
+    <p>승인되면 다음 로그인부터 바로 입력 화면으로 들어갑니다.</p>
+    <button id="btnPendingLogout">로그아웃</button>
   </div>
 </div>
 
 <div id="appView" style="display:none">
 <header>
-  <div>당근 판매·발주 관리 <small>v1</small></div>
-  <div class="who"><span id="whoEmail"></span><button id="btnLogout">로그아웃</button></div>
+  <div>당근 판매·발주 관리 <small>v2</small></div>
+  <div class="who">
+    <span id="whoEmail"></span>
+    <button class="pending-badge admin-only" id="btnPending" style="display:none">승인대기 0</button>
+    <button id="btnLogout">로그아웃</button>
+  </div>
 </header>
 <div id="alarm"><span class="alarm-msg"></span><button id="btnAck">발주 확인 →</button></div>
 <main>
 
-<div class="modes">
+<div class="modes admin-only">
   <button id="mInput" class="mode-btn active">입력 모드</button>
   <button id="mManage" class="mode-btn">관리 모드</button>
 </div>
@@ -126,25 +182,36 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
   <div id="summary" class="muted" style="margin-bottom:8px"></div>
   <div class="toolbar">
-    <button class="btn-sec btn-sm" id="btnPoAll">발주대기 발주서 복사</button>
-    <button class="btn-sec btn-sm" id="btnCopyAll">전체 복사 (시트 붙여넣기용)</button>
-    <button class="btn-sec btn-sm" id="btnCsv">CSV 내보내기</button>
+    <button class="btn-pri-sm admin-only" id="btnBulkDone">일괄 발주완료 처리</button>
+    <button class="btn-sec btn-sm admin-only" id="btnPoAll">발주대기 발주서 복사</button>
+    <button class="btn-sec btn-sm admin-only" id="btnCopyAll">전체 복사 (시트 붙여넣기용)</button>
+    <button class="btn-sec btn-sm admin-only" id="btnCsv">CSV 내보내기</button>
   </div>
   <div class="list-tools"><input id="search" placeholder="검색 (이름·닉네임·연락처·휴대폰별칭)"></div>
   <div class="chips" id="filters"></div>
   <div class="order-list" id="list"></div>
 </section>
 
-<details class="card">
+<details class="card admin-only">
   <summary>설정 — 상품 키워드 / 마감 알람</summary>
   <label style="margin-top:10px">상품 키워드 (JSON)</label>
   <textarea id="prodJson" style="min-height:90px;font-family:monospace;font-size:12px"></textarea>
   <button class="btn-sec btn-sm" style="margin-top:6px" id="btnSaveProd">상품 저장</button>
   <label style="margin-top:16px">발주 마감 알람</label>
-  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다 (접수·미발주 주문이 있을 때).</p>
+  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다 (접수·발주대기 주문이 있을 때).</p>
   <button class="btn-sec btn-sm" id="btnTestAlarm">알람 테스트</button>
 </details>
 </main>
+</div>
+
+<div id="approveModal" class="modal">
+  <div class="modal-content">
+    <h2>승인 대기 사용자</h2>
+    <div id="pendingList"></div>
+    <div style="text-align:right;margin-top:16px">
+      <button class="btn-sec btn-sm" id="btnCloseModal">닫기</button>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -164,11 +231,12 @@ let PRODUCTS = load('products', [
   {name:'핸드카트', keywords:['핸드카트','핸드카','카트']}
 ]);
 let ORDERS = [];
+let userRole = null;
 let curFilter='all', curSearch='';
 const FILTERS=[
   {k:'all',l:'전체'},
-  {k:'received',l:'접수'},      // 신규, 봇이 처리할 것
-  {k:'pending',l:'발주대기'},   // 봇이 OMS 등록 끝, 본인이 일괄주문할 것
+  {k:'received',l:'접수'},
+  {k:'pending',l:'발주대기'},
   {k:'unpaid',l:'미입금'},
   {k:'ordered',l:'발주완료'},
   {k:'shipped',l:'발송완료'}
@@ -254,21 +322,61 @@ function autoParse(){
   $('#pProduct').style.borderColor = (has && !r.product) ? '#e0382b' : '';
 }
 
-// 인증
+function setAuthTab(tab){
+  $('#tabLogin').classList.toggle('active', tab==='login');
+  $('#tabSignup').classList.toggle('active', tab==='signup');
+  $('#loginForm').style.display = tab==='login' ? 'block' : 'none';
+  $('#signupForm').style.display = tab==='signup' ? 'block' : 'none';
+  $('#loginMsg').textContent=''; $('#signupMsg').textContent='';
+}
+
 async function checkAuth(){
   const { data:{ session } } = await sb.auth.getSession();
-  if(session) await showApp(session); else showLogin();
+  if(session) await loadProfileAndShow(session); else showLogin();
 }
-function showLogin(){ $('#loginView').style.display='flex'; $('#appView').style.display='none'; }
+
+async function loadProfileAndShow(session){
+  let role = 'pending';
+  try {
+    const { data: profile, error } = await sb.from('profiles').select('role').eq('id', session.user.id).maybeSingle();
+    if(error) console.warn('profile fetch error:', error.message);
+    if(profile) role = profile.role;
+  } catch(e){ console.warn('profile fetch failed:', e); }
+  userRole = role;
+  document.body.dataset.role = role;
+  if(role === 'pending') showPending(session);
+  else await showApp(session);
+}
+
+function showLogin(){
+  $('#loginView').style.display='flex';
+  $('#pendingView').style.display='none';
+  $('#appView').style.display='none';
+  setAuthTab('login');
+}
+
+function showPending(session){
+  $('#loginView').style.display='none';
+  $('#appView').style.display='none';
+  $('#pendingView').style.display='flex';
+  $('#pendingEmail').textContent = session.user.email;
+}
+
 async function showApp(session){
   $('#loginView').style.display='none';
+  $('#pendingView').style.display='none';
   $('#appView').style.display='block';
   $('#whoEmail').textContent = session.user.email;
   await loadOrders();
   subscribeOrders();
   setMode('input');
   autoParse();
+  if(userRole === 'admin'){
+    await refreshPendingCount();
+    subscribePending();
+  }
 }
+
 async function doLogin(){
   $('#loginMsg').textContent='';
   const email=$('#loginEmail').value.trim(), password=$('#loginPass').value;
@@ -280,11 +388,85 @@ async function doLogin(){
     $('#loginMsg').textContent='로그인 실패: '+(error.message==='Invalid login credentials'?'이메일·비번이 맞지 않습니다':error.message);
     return;
   }
-  await showApp(data.session);
+  await loadProfileAndShow(data.session);
 }
-async function doLogout(){ await sb.auth.signOut(); ORDERS=[]; showLogin(); }
 
-// 주문 CRUD
+async function doSignup(){
+  $('#signupMsg').style.color='#c5221f';
+  $('#signupMsg').textContent='';
+  const email=$('#signupEmail').value.trim(), password=$('#signupPass').value;
+  if(!email || password.length<6){
+    $('#signupMsg').textContent='이메일·비밀번호(6자 이상)를 입력하세요.';
+    return;
+  }
+  $('#btnSignup').disabled=true; $('#btnSignup').textContent='가입 중...';
+  const { data, error } = await sb.auth.signUp({ email, password });
+  $('#btnSignup').disabled=false; $('#btnSignup').textContent='회원가입 신청';
+  if(error){
+    $('#signupMsg').textContent='가입 실패: '+error.message;
+    return;
+  }
+  $('#signupMsg').style.color='#137333';
+  if(data.session){
+    $('#signupMsg').textContent='가입 완료! 관리자 승인 화면으로 이동합니다...';
+    setTimeout(()=>loadProfileAndShow(data.session), 800);
+  } else {
+    $('#signupMsg').textContent='가입 완료! 이메일을 확인하고 인증한 뒤 로그인하세요.';
+    setTimeout(()=>setAuthTab('login'), 1500);
+  }
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  ORDERS=[]; userRole=null;
+  document.body.dataset.role='';
+  showLogin();
+}
+
+let pendingChan=null;
+async function refreshPendingCount(){
+  const { count } = await sb.from('profiles').select('id',{count:'exact',head:true}).eq('role','pending');
+  const btn=$('#btnPending');
+  if(count && count>0){
+    btn.textContent='승인대기 '+count;
+    btn.style.display='inline-block';
+  } else {
+    btn.style.display='none';
+  }
+}
+function subscribePending(){
+  if(pendingChan) sb.removeChannel(pendingChan);
+  pendingChan = sb.channel('profiles-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'profiles'}, () => {
+      refreshPendingCount();
+      if($('#approveModal').classList.contains('open')) loadPendingUsers();
+    })
+    .subscribe();
+}
+async function loadPendingUsers(){
+  const { data } = await sb.from('profiles').select('id, email, created_at').eq('role','pending').order('created_at',{ascending:true});
+  const list = data || [];
+  $('#pendingList').innerHTML = list.length === 0
+    ? '<div class="empty">승인 대기 중인 사용자가 없습니다</div>'
+    : list.map(u =>
+        '<div class="pend-row">'
+        +'<div class="pend-info"><div class="e">'+esc(u.email)+'</div><div class="t">'+(new Date(u.created_at)).toLocaleString('ko-KR')+'</div></div>'
+        +'<div class="pend-actions">'
+          +'<button class="pend-approve" data-pact="approve" data-id="'+u.id+'">승인</button>'
+          +'<button class="pend-reject" data-pact="reject" data-id="'+u.id+'">거부</button>'
+        +'</div>'
+        +'</div>'
+      ).join('');
+}
+async function openApproveModal(){ await loadPendingUsers(); $('#approveModal').classList.add('open'); }
+async function approveUser(id){
+  await sb.from('profiles').update({ role:'input', approved_at: new Date().toISOString() }).eq('id', id);
+}
+async function rejectUser(id){
+  if(!confirm('이 사용자를 거부합니다. 계속할까요?')) return;
+  await sb.from('profiles').delete().eq('id', id);
+}
+
 async function loadOrders(){
   const { data, error } = await sb.from('orders').select('*').order('created_at',{ascending:false});
   if(error){ console.error(error); return; }
@@ -295,7 +477,7 @@ let realtimeChan=null;
 function subscribeOrders(){
   if(realtimeChan) sb.removeChannel(realtimeChan);
   realtimeChan = sb.channel('orders-changes')
-    .on('postgres_changes', { event:'*', schema:'public', table:'orders' }, () => loadOrders())
+    .on('postgres_changes',{event:'*',schema:'public',table:'orders'}, () => loadOrders())
     .subscribe();
 }
 async function addOrder(){
@@ -322,10 +504,12 @@ async function addOrder(){
   autoParse();
 }
 async function togglePaid(id){
+  if(userRole!=='admin') return;
   const o=ORDERS.find(x=>x.id===id); if(!o) return;
   await sb.from('orders').update({ paid:!o.paid }).eq('id',id);
 }
 async function toggleStatus(id){
+  if(userRole!=='admin') return;
   const o=ORDERS.find(x=>x.id===id); if(!o) return;
   const seq=['접수','발주대기','발주완료','발송완료'];
   const cur=seq.indexOf(o.status||'접수');
@@ -333,14 +517,22 @@ async function toggleStatus(id){
   await sb.from('orders').update({ status:next }).eq('id',id);
 }
 async function delRow(id){
+  if(userRole!=='admin') return;
   if(!confirm('이 주문을 삭제할까요?')) return;
   await sb.from('orders').delete().eq('id',id);
 }
 async function updateTracking(id,val){
+  if(userRole!=='admin') return;
   await sb.from('orders').update({ tracking:val }).eq('id',id);
 }
+async function bulkOrderComplete(){
+  if(userRole!=='admin') return;
+  const cnt = ORDERS.filter(o=>o.status==='발주대기').length;
+  if(cnt===0){ alert('발주대기 상태인 주문이 없습니다.'); return; }
+  if(!confirm('발주대기 '+cnt+'건을 모두 발주완료로 변경합니다. 계속할까요?')) return;
+  await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기');
+}
 
-// 렌더
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function countFor(k){
   if(k==='all') return ORDERS.length;
@@ -374,6 +566,8 @@ function renderFilters(){
 }
 function cardHtml(o){
   const id=o.id;
+  const trackPh = (userRole==='admin') ? '입력 또는 자동 수집' : '오후 17시 이후 자동 수집';
+  const trackRO = (userRole==='admin') ? '' : 'readonly';
   return '<div class="card-order">'
     +'<div class="oc-top">'
       +'<div class="oc-name">'+esc(o.name||'(이름없음)')+(o.nick?'<span class="oc-nick">@'+esc(o.nick)+'</span>':'')+'</div>'
@@ -385,12 +579,12 @@ function cardHtml(o){
     +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
     +'<div class="oc-line oc-item"><b>'+esc(o.product)+' '+esc(o.color)+' '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
-    +'<div class="oc-line oc-track-line">송장: <input class="oc-track" data-id="'+id+'" placeholder="입력 또는 자동 수집(예정)" value="'+esc(o.tracking||'')+'"></div>'
+    +'<div class="oc-line oc-track-line">송장: <input class="oc-track" data-id="'+id+'" placeholder="'+trackPh+'" value="'+esc(o.tracking||'')+'" '+trackRO+'></div>'
     +'<div class="oc-foot">'
       +'<span class="muted">'+esc(o.date)+(o.phone?' · '+esc(o.phone):'')+'</span>'
       +'<span class="oc-actions">'
-        +'<button class="btn-sec btn-sm" data-act="po" data-id="'+id+'">발주서</button>'
-        +'<button class="btn-sec btn-sm" data-act="del" data-id="'+id+'">삭제</button>'
+        +'<button class="btn-sec btn-sm admin-only" data-act="po" data-id="'+id+'">발주서</button>'
+        +'<button class="btn-sec btn-sm admin-only" data-act="del" data-id="'+id+'">삭제</button>'
       +'</span>'
     +'</div>'
   +'</div>';
@@ -408,7 +602,6 @@ function renderList(){
   $('#summary').textContent = ORDERS.length?('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'):'';
 }
 
-// 모드 / 발주서 / CSV
 function setMode(m){
   document.body.dataset.mode=m;
   $('#mInput').classList.toggle('active',m==='input');
@@ -424,8 +617,8 @@ function copyPo(id){
   navigator.clipboard.writeText(poText(o)).then(()=>alert('발주서가 복사되었습니다.'));
 }
 function copyPoAll(){
-  const list=ORDERS.filter(o=>(o.status||'접수')==='접수');
-  if(!list.length){ alert('발주 대기(접수) 주문이 없습니다.'); return; }
+  const list=ORDERS.filter(o=>{ const s=o.status||'접수'; return s==='접수'||s==='발주대기'; });
+  if(!list.length){ alert('발주 대기 주문이 없습니다.'); return; }
   navigator.clipboard.writeText(list.map(poText).join('\n\n')).then(()=>alert(list.length+'건 발주서를 복사했습니다.'));
 }
 function copyAll(){
@@ -446,11 +639,10 @@ function saveProducts(){
   catch(e){ alert('JSON 형식 오류'); }
 }
 
-// 알람
 const ALARM_START='12:30', CUTOFF='12:50', REPEAT_MIN=5;
 let lastAlarm=0;
 const toMin=s=>{const a=s.split(':');return +a[0]*60+ +a[1];};
-function pendingCount(){ return ORDERS.filter(o=>{ const s=o.status||'접수'; return s==='접수'||s==='발주대기'; }).length; }
+function pendingCount(){ return ORDERS.filter(o=>{const s=o.status||'접수'; return s==='접수'||s==='발주대기';}).length; }
 function beep(){
   try{
     const C=window.AudioContext||window.webkitAudioContext, ctx=new C();
@@ -464,6 +656,7 @@ function showAlarm(msg){
   const a=$('#alarm'); a.querySelector('.alarm-msg').textContent=msg; a.style.display='flex'; beep();
 }
 function checkDeadline(){
+  if(userRole!=='admin') return;
   const now=new Date(), today=now.toISOString().slice(0,10);
   const wd=now.getDay(), nowMin=now.getHours()*60+now.getMinutes();
   const inWindow = wd>=1 && wd<=5 && nowMin>=toMin(ALARM_START) && nowMin<=toMin(CUTOFF);
@@ -471,7 +664,7 @@ function checkDeadline(){
   if(active){
     if(Date.now()-lastAlarm > REPEAT_MIN*60000-5000){
       lastAlarm=Date.now();
-      showAlarm('발주 마감 임박 — 접수 '+pendingCount()+'건 미발주. '+CUTOFF+' 전에 발주·입금하세요.');
+      showAlarm('발주 마감 임박 — 처리 대기 '+pendingCount()+'건. '+CUTOFF+' 전에 OMS에서 일괄주문·입금하세요.');
     }
   } else { $('#alarm').style.display='none'; }
 }
@@ -481,16 +674,21 @@ function ackDeadline(){
   setMode('manage');
 }
 function testAlarm(){
-  showAlarm('[테스트] 발주 마감 임박 — 접수 '+pendingCount()+'건. 확인 후 발주하세요.');
+  showAlarm('[테스트] 발주 마감 임박 — 처리 대기 '+pendingCount()+'건. 확인 후 OMS에서 일괄주문하세요.');
 }
 
-// 이벤트
+$('#tabLogin').addEventListener('click', ()=>setAuthTab('login'));
+$('#tabSignup').addEventListener('click', ()=>setAuthTab('signup'));
 $('#btnLogin').addEventListener('click', doLogin);
+$('#btnSignup').addEventListener('click', doSignup);
 $('#loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
-$('#loginEmail').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#loginPass').focus(); });
+$('#signupPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doSignup(); });
 $('#btnLogout').addEventListener('click', doLogout);
+$('#btnPendingLogout').addEventListener('click', doLogout);
+
 $('#tAll').addEventListener('input', autoParse);
 $('#btnAdd').addEventListener('click', addOrder);
+$('#btnBulkDone').addEventListener('click', bulkOrderComplete);
 $('#btnCopyAll').addEventListener('click', copyAll);
 $('#btnCsv').addEventListener('click', exportCsv);
 $('#btnPoAll').addEventListener('click', copyPoAll);
@@ -499,6 +697,19 @@ $('#mInput').addEventListener('click', ()=>setMode('input'));
 $('#mManage').addEventListener('click', ()=>setMode('manage'));
 $('#btnAck').addEventListener('click', ackDeadline);
 $('#btnTestAlarm').addEventListener('click', testAlarm);
+
+$('#btnPending').addEventListener('click', openApproveModal);
+$('#btnCloseModal').addEventListener('click', ()=>$('#approveModal').classList.remove('open'));
+$('#approveModal').addEventListener('click', e=>{
+  if(e.target.id==='approveModal') $('#approveModal').classList.remove('open');
+});
+$('#pendingList').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-pact]'); if(!b) return;
+  const id=b.dataset.id, act=b.dataset.pact;
+  if(act==='approve') approveUser(id);
+  else if(act==='reject') rejectUser(id);
+});
+
 $('#list').addEventListener('click', e=>{
   const b=e.target.closest('button[data-act]'); if(!b) return;
   const id=b.dataset.id, act=b.dataset.act;
