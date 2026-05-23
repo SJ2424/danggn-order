@@ -99,6 +99,23 @@ body[data-role="input"] .admin-only{display:none !important}
 body[data-role="input"] #inputCard{display:block !important}
 body[data-role="input"] .pill{pointer-events:none;cursor:default}
 body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-events:none}
+/* 장부 카드는 관리 모드에서만 */
+#ledgerCard{display:none}
+body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
+.ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.ls-row{background:#f4f5f7;padding:10px 12px;border-radius:8px;font-size:12.5px;color:var(--mut);display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap}
+.ls-row b{color:var(--txt);font-size:15px;font-weight:700}
+.ls-row.big{grid-column:1/-1;background:#fff7f0;border:1px solid var(--pri)}
+.ls-row.big b{color:var(--pri);font-size:18px}
+.ls-row .gray{color:var(--mut);font-weight:400;font-size:11.5px}
+/* 카탈로그/가격 관리 */
+.cat-row,.pr-row{display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.cat-row:last-child,.pr-row:last-child{border-bottom:0}
+.cat-row input,.pr-row input{padding:5px 7px;font-size:12px}
+.cat-label{font-weight:600}
+.cat-add,.pr-add{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.cat-add input,.pr-add input,.pr-add select{padding:8px;font-size:13px}
+.cat-add button,.pr-add button{grid-column:1/-1;background:var(--pri);color:#fff;padding:9px}
 </style>
 </head>
 <body>
@@ -178,13 +195,29 @@ body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-ev
   <button class="btn-pri" id="btnAdd">주문 목록에 추가</button>
 </section>
 
+<section class="card" id="ledgerCard">
+  <h2>📒 장부 (관리자)</h2>
+  <div class="chips">
+    <button class="chip-flt" data-period="today">오늘</button>
+    <button class="chip-flt active" data-period="month">이번달</button>
+    <button class="chip-flt" data-period="all">전체</button>
+  </div>
+  <div class="ledger-stats">
+    <div class="ls-row"><span>판매</span><span><b id="lsCount">0</b> 건</span></div>
+    <div class="ls-row"><span>수량</span><span><b id="lsQty">0</b> 개</span></div>
+    <div class="ls-row"><span>매출 <span class="gray">(납품가 합)</span></span><span><b id="lsRevenue">0</b> 원</span></div>
+    <div class="ls-row"><span>원가 <span class="gray">(OMS 단가 합)</span></span><span><b id="lsCost">0</b> 원</span></div>
+    <div class="ls-row big"><span>마진</span><span><b id="lsMargin">0</b> 원 (<span id="lsRate">0%</span>)</span></div>
+  </div>
+</section>
+
 <section class="card">
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
   <div id="summary" class="muted" style="margin-bottom:8px"></div>
   <div class="toolbar">
+    <button class="btn-pri-sm admin-only" id="btnRunBot">🤖 지금 발주 실행</button>
     <button class="btn-pri-sm admin-only" id="btnBulkDone">일괄 발주완료 처리</button>
-    <button class="btn-sec btn-sm admin-only" id="btnPoAll">발주대기 발주서 복사</button>
-    <button class="btn-sec btn-sm admin-only" id="btnCopyAll">전체 복사 (시트 붙여넣기용)</button>
+    <button class="btn-sec btn-sm admin-only" id="btnPoAll">발주서 수동복사</button>
     <button class="btn-sec btn-sm admin-only" id="btnCsv">CSV 내보내기</button>
   </div>
   <div class="list-tools"><input id="search" placeholder="검색 (이름·닉네임·연락처·휴대폰별칭)"></div>
@@ -193,12 +226,37 @@ body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-ev
 </section>
 
 <details class="card admin-only">
-  <summary>설정 — 상품 키워드 / 마감 알람</summary>
-  <label style="margin-top:10px">상품 키워드 (JSON)</label>
+  <summary>⚙️ 상품 카탈로그 + 단가</summary>
+  <p class="muted" style="margin-top:10px">원가 = OMS에서 본인이 지불하는 단가. 기본 납품가 = 일반 입력자에게 받는 가격. 마진 = (납품가 − 원가) × 수량.</p>
+  <div id="catalogList"></div>
+  <div class="cat-add">
+    <input id="newCatName" placeholder="상품명 (예: 선반랙)">
+    <input id="newCatColor" placeholder="색상 (예: 화이트)">
+    <input id="newCatCost" type="number" placeholder="원가 (원)">
+    <input id="newCatRep" type="number" placeholder="기본 납품가 (원)">
+    <button id="btnAddCat">+ 상품 추가</button>
+  </div>
+</details>
+
+<details class="card admin-only">
+  <summary>👥 사용자별 특별 단가</summary>
+  <p class="muted" style="margin-top:10px">설정 안 한 사용자는 위 기본 납품가 적용. 특별 가격 받는 사람만 등록.</p>
+  <div id="priceList"></div>
+  <div class="pr-add">
+    <select id="newPrUser"><option value="">사용자 선택</option></select>
+    <select id="newPrProduct"><option value="">상품 선택</option></select>
+    <input id="newPrPrice" type="number" placeholder="특별 단가 (원)">
+    <button id="btnAddPrice">+ 추가</button>
+  </div>
+</details>
+
+<details class="card admin-only">
+  <summary>🛠 파싱 키워드 + 알람 테스트</summary>
+  <label style="margin-top:10px">상품 키워드 (텍스트 자동 분석용 JSON — 카탈로그와 별개, 채팅에서 상품 인식)</label>
   <textarea id="prodJson" style="min-height:90px;font-family:monospace;font-size:12px"></textarea>
-  <button class="btn-sec btn-sm" style="margin-top:6px" id="btnSaveProd">상품 저장</button>
+  <button class="btn-sec btn-sm" style="margin-top:6px" id="btnSaveProd">키워드 저장</button>
   <label style="margin-top:16px">발주 마감 알람</label>
-  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다 (접수·발주대기 주문이 있을 때).</p>
+  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다 (접수·발주대기 있을 때).</p>
   <button class="btn-sec btn-sm" id="btnTestAlarm">알람 테스트</button>
 </details>
 </main>
@@ -376,6 +434,9 @@ async function showApp(session){
   if(userRole === 'admin'){
     await refreshPendingCount();
     subscribePending();
+    await loadCatalog();
+    await loadInputUsers();
+    await loadUserPrices();
   }
 }
 
@@ -605,12 +666,14 @@ function renderList(){
   const pend=ORDERS.filter(o=>o.status==='발주대기').length;
   const unpaid=ORDERS.filter(o=>!o.paid).length;
   $('#summary').textContent = ORDERS.length?('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'):'';
+  if(userRole==='admin') renderLedger();
 }
 
 function setMode(m){
   document.body.dataset.mode=m;
   $('#mInput').classList.toggle('active',m==='input');
   $('#mManage').classList.toggle('active',m==='manage');
+  if(m==='manage' && userRole==='admin') renderLedger();
 }
 function poText(o){
   return '[발주] '+o.product+' '+o.color+' '+o.qty+'개 ('+o.type+')\n'
@@ -682,6 +745,133 @@ function testAlarm(){
   showAlarm('[테스트] 발주 마감 임박 — 처리 대기 '+pendingCount()+'건. 확인 후 OMS에서 일괄주문하세요.');
 }
 
+// ====== 카탈로그·단가·장부 (관리자) ======
+let CATALOG = [], USER_PRICES = [], INPUT_USERS = [];
+let ledgerPeriod = 'month';
+const wonInt = n => Number(n||0).toLocaleString('ko-KR');
+
+async function loadCatalog(){
+  const { data } = await sb.from('products').select('*').order('name').order('color');
+  CATALOG = data || [];
+  renderCatalog();
+}
+function renderCatalog(){
+  const list=$('#catalogList'); if(!list) return;
+  list.innerHTML = CATALOG.length===0
+    ? '<div class="empty">등록된 상품이 없습니다 (아래 추가)</div>'
+    : CATALOG.map(p =>
+        '<div class="cat-row" data-id="'+p.id+'">'
+        +'<span class="cat-label">'+esc(p.name)+' / '+esc(p.color||'-')+'</span>'
+        +'<input type="number" class="cat-cost" value="'+(p.default_cost||0)+'">'
+        +'<input type="number" class="cat-rep" value="'+(p.default_rep_price||0)+'">'
+        +'<button class="btn-sec btn-sm" data-cact="save">저장</button>'
+        +'<button class="btn-sec btn-sm" data-cact="del">삭제</button>'
+        +'</div>'
+      ).join('');
+  const sel=$('#newPrProduct');
+  if(sel) sel.innerHTML='<option value="">상품 선택</option>'+CATALOG.map(p =>
+    '<option value="'+esc(p.name)+'|'+esc(p.color||'')+'">'+esc(p.name)+' / '+esc(p.color||'-')+'</option>'
+  ).join('');
+}
+async function addCatalog(){
+  const name=$('#newCatName').value.trim(), color=$('#newCatColor').value.trim();
+  const cost=+$('#newCatCost').value||0, rep=+$('#newCatRep').value||0;
+  if(!name) return alert('상품명 필수');
+  const { error } = await sb.from('products').insert({ name, color: color||null, default_cost:cost, default_rep_price:rep });
+  if(error) return alert('추가 실패: '+error.message);
+  ['newCatName','newCatColor','newCatCost','newCatRep'].forEach(id=>$('#'+id).value='');
+  await loadCatalog();
+}
+async function saveCatalogRow(id, cost, rep){
+  const { error } = await sb.from('products').update({ default_cost:+cost, default_rep_price:+rep }).eq('id', id);
+  if(error) return alert('저장 실패: '+error.message);
+  await loadCatalog();
+}
+async function deleteCatalog(id){
+  if(!confirm('이 상품을 삭제할까요?')) return;
+  await sb.from('products').delete().eq('id', id);
+  await loadCatalog();
+}
+
+async function loadInputUsers(){
+  const { data } = await sb.from('profiles').select('id, email').in('role',['input','admin']).order('email');
+  INPUT_USERS = data || [];
+  const sel=$('#newPrUser');
+  if(sel) sel.innerHTML='<option value="">사용자 선택</option>'+INPUT_USERS.map(u =>
+    '<option value="'+u.id+'">'+esc(u.email)+'</option>'
+  ).join('');
+}
+async function loadUserPrices(){
+  const { data } = await sb.from('user_prices').select('*');
+  USER_PRICES = data || [];
+  renderUserPrices();
+}
+function renderUserPrices(){
+  const list=$('#priceList'); if(!list) return;
+  list.innerHTML = USER_PRICES.length===0
+    ? '<div class="empty">설정된 특별 단가 없음</div>'
+    : USER_PRICES.map(p => {
+        const u = INPUT_USERS.find(x=>x.id===p.user_id);
+        return '<div class="pr-row" data-id="'+p.id+'">'
+          +'<span>'+esc(u?u.email:p.user_id.slice(0,8))+'</span>'
+          +'<span>'+esc(p.product_name)+' / '+esc(p.color||'-')+'</span>'
+          +'<input type="number" class="pr-price" value="'+p.rep_price+'">'
+          +'<button class="btn-sec btn-sm" data-pract="save">저장</button>'
+          +'<button class="btn-sec btn-sm" data-pract="del">삭제</button>'
+          +'</div>';
+      }).join('');
+}
+async function addUserPrice(){
+  const uid=$('#newPrUser').value, pv=$('#newPrProduct').value, price=+$('#newPrPrice').value;
+  if(!uid||!pv||!price) return alert('사용자·상품·단가 모두 입력하세요');
+  const [name, color] = pv.split('|');
+  const { error } = await sb.from('user_prices').insert({ user_id:uid, product_name:name, color:color||null, rep_price:price });
+  if(error) return alert('추가 실패: '+error.message);
+  $('#newPrPrice').value='';
+  await loadUserPrices();
+}
+async function saveUserPriceRow(id, price){
+  await sb.from('user_prices').update({ rep_price:+price }).eq('id', id);
+  await loadUserPrices();
+}
+async function deleteUserPrice(id){
+  if(!confirm('삭제할까요?')) return;
+  await sb.from('user_prices').delete().eq('id', id);
+  await loadUserPrices();
+}
+
+function computeLedger(period){
+  const now=new Date();
+  let since=null;
+  if(period==='today'){ since=new Date(now); since.setHours(0,0,0,0); }
+  else if(period==='month'){ since=new Date(now.getFullYear(), now.getMonth(), 1); }
+  const list = ORDERS.filter(o => !since || new Date(o.created_at||o.date) >= since);
+  let qty=0, revenue=0, cost=0;
+  list.forEach(o=>{
+    const q=+o.qty||1; qty+=q;
+    revenue += (+o.rep_price||0) * q;
+    cost    += (+o.cost_price||0) * q;
+  });
+  const margin = revenue - cost;
+  const rate = revenue>0 ? Math.round(margin/revenue*1000)/10 : 0;
+  return { count:list.length, qty, revenue, cost, margin, rate };
+}
+function renderLedger(){
+  if(userRole!=='admin') return;
+  const r = computeLedger(ledgerPeriod);
+  $('#lsCount').textContent = wonInt(r.count);
+  $('#lsQty').textContent   = wonInt(r.qty);
+  $('#lsRevenue').textContent = wonInt(r.revenue);
+  $('#lsCost').textContent  = wonInt(r.cost);
+  $('#lsMargin').textContent = wonInt(r.margin);
+  $('#lsRate').textContent  = r.rate + '%';
+}
+
+function manualRunBot(){
+  if(!confirm('GitHub Actions 페이지가 열립니다.\n거기서 [Run workflow] 버튼 → [Run workflow] 한 번 더 클릭하면 봇이 즉시 실행됩니다 (2~3분 소요).')) return;
+  window.open('https://github.com/SJ2424/danggn-order/actions/workflows/register-orders.yml','_blank');
+}
+
 $('#tabLogin').addEventListener('click', ()=>setAuthTab('login'));
 $('#tabSignup').addEventListener('click', ()=>setAuthTab('signup'));
 $('#btnLogin').addEventListener('click', doLogin);
@@ -732,6 +922,40 @@ $('#filters').addEventListener('click', e=>{
   curFilter=b.dataset.flt; renderList();
 });
 $('#search').addEventListener('input', e=>{ curSearch=e.target.value.trim(); renderList(); });
+
+// 수동 발주 + 일괄 발주완료 + CSV + 발주서수동복사
+$('#btnRunBot').addEventListener('click', manualRunBot);
+
+// 카탈로그·단가 추가 버튼
+$('#btnAddCat').addEventListener('click', addCatalog);
+$('#btnAddPrice').addEventListener('click', addUserPrice);
+
+// 카탈로그 행 (저장/삭제)
+$('#catalogList').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-cact]'); if(!b) return;
+  const row=b.closest('.cat-row'); const id=row.dataset.id;
+  if(b.dataset.cact==='save'){
+    const cost=row.querySelector('.cat-cost').value;
+    const rep=row.querySelector('.cat-rep').value;
+    saveCatalogRow(id, cost, rep);
+  } else if(b.dataset.cact==='del') deleteCatalog(id);
+});
+// 사용자 단가 행 (저장/삭제)
+$('#priceList').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-pract]'); if(!b) return;
+  const row=b.closest('.pr-row'); const id=row.dataset.id;
+  if(b.dataset.pract==='save'){
+    const price=row.querySelector('.pr-price').value;
+    saveUserPriceRow(id, price);
+  } else if(b.dataset.pract==='del') deleteUserPrice(id);
+});
+// 장부 기간 칩
+$('#ledgerCard .chips').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-period]'); if(!b) return;
+  ledgerPeriod = b.dataset.period;
+  $('#ledgerCard .chips button').forEach(x=>x.classList.toggle('active', x===b));
+  renderLedger();
+});
 
 $('#prodJson').value=JSON.stringify(PRODUCTS,null,1);
 
