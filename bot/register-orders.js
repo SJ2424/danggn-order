@@ -176,22 +176,38 @@ async function registerOrder(page, order, idx) {
     const iframeEl = iframeCount > 0 ? await page.locator('iframe').first().elementHandle() : null;
 
     if (popup) {
-      try {
-        await popup.waitForLoadState('domcontentloaded', { timeout: 8000 });
-      } catch {}
-      await popup.waitForTimeout(1800);
+      try { await popup.waitForLoadState('domcontentloaded', { timeout: 10000 }); } catch {}
+      try { await popup.waitForLoadState('networkidle', { timeout: 8000 }); } catch {}
+      await popup.waitForTimeout(2000);
       await popup.screenshot({ path: `screenshots/${tag}-2-popup.png`, fullPage: true }).catch(()=>{});
-      // 카카오 우편번호 서비스: 첫 번째 텍스트 input이 검색창 (placeholder가 "예) ...")
-      const searchInput = popup.locator('input[type="text"], input:not([type])').first();
-      await searchInput.waitFor({ state: 'visible', timeout: 8000 });
-      await searchInput.fill(base);
-      await searchInput.press('Enter');
+
+      // 진단: popup 내부 frame 구조
+      const frames = popup.frames();
+      console.log(`  popup URL: ${popup.url()}, frames: ${frames.length}`);
+      let searchFrame = null;
+      let searchLocator = null;
+      // 모든 프레임에서 input 찾기
+      for (const f of frames) {
+        try {
+          const cnt = await f.locator('input').count();
+          console.log(`    frame ${f.url().slice(0,80)}: ${cnt} inputs`);
+          if (cnt > 0 && !searchFrame) {
+            searchFrame = f;
+            searchLocator = f.locator('input').first();
+          }
+        } catch(e) { /* cross-origin frame might error */ }
+      }
+      if (!searchLocator) throw new Error('카카오 우편번호 popup에 input 없음');
+
+      await searchLocator.waitFor({ state: 'visible', timeout: 8000 });
+      await searchLocator.fill(base);
+      await searchLocator.press('Enter');
       await popup.waitForTimeout(2500);
       await popup.screenshot({ path: `screenshots/${tag}-2-popup-results.png`, fullPage: true }).catch(()=>{});
-      // 검색 결과 첫 줄 클릭 (Kakao postcode는 결과를 li/dl/.result 형태로 보여줌)
-      await popup.locator('li, dl, .result_item, [class*="result"]').first().click({ timeout: 8000 });
+
+      // 검색 결과 첫 줄 (같은 frame에서)
+      await searchFrame.locator('li, dl, .result_item, [class*="result"]').first().click({ timeout: 8000 });
       await page.waitForTimeout(1500);
-      // 팝업이 자동 닫히면서 메인 페이지에 주소가 채워짐
     } else if (iframeEl) {
       const frame = await iframeEl.contentFrame();
       if (frame) {
