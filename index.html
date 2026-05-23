@@ -232,6 +232,7 @@ let PRODUCTS = load('products', [
 ]);
 let ORDERS = [];
 let userRole = null;
+let myUserId = null;
 let curFilter='all', curSearch='';
 const FILTERS=[
   {k:'all',l:'전체'},
@@ -367,6 +368,7 @@ async function showApp(session){
   $('#pendingView').style.display='none';
   $('#appView').style.display='block';
   $('#whoEmail').textContent = session.user.email;
+  myUserId = session.user.id;
   await loadOrders();
   subscribeOrders();
   setMode('input');
@@ -468,7 +470,10 @@ async function rejectUser(id){
 }
 
 async function loadOrders(){
-  const { data, error } = await sb.from('orders').select('*').order('created_at',{ascending:false});
+  let q = sb.from('orders').select('*').order('created_at',{ascending:false});
+  // 입력자는 본인이 입력한 주문만 (관리자는 전부)
+  if(userRole === 'input' && myUserId) q = q.eq('created_by', myUserId);
+  const { data, error } = await q;
   if(error){ console.error(error); return; }
   ORDERS = data || [];
   renderList();
