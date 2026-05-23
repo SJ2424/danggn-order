@@ -177,15 +177,21 @@ async function registerOrder(page, order, idx) {
 
     if (popup) {
       try {
-        await popup.waitForLoadState('domcontentloaded', { timeout: 5000 });
+        await popup.waitForLoadState('domcontentloaded', { timeout: 8000 });
       } catch {}
-      await popup.waitForTimeout(800);
+      await popup.waitForTimeout(1800);
       await popup.screenshot({ path: `screenshots/${tag}-2-popup.png`, fullPage: true }).catch(()=>{});
-      await popup.getByPlaceholder(/도로명|지번|건물|주소/).first().fill(base);
-      await popup.keyboard.press('Enter');
-      await popup.waitForTimeout(1500);
+      // 카카오 우편번호 서비스: 첫 번째 텍스트 input이 검색창 (placeholder가 "예) ...")
+      const searchInput = popup.locator('input[type="text"], input:not([type])').first();
+      await searchInput.waitFor({ state: 'visible', timeout: 8000 });
+      await searchInput.fill(base);
+      await searchInput.press('Enter');
+      await popup.waitForTimeout(2500);
       await popup.screenshot({ path: `screenshots/${tag}-2-popup-results.png`, fullPage: true }).catch(()=>{});
-      await popup.locator('li, .result, .list_item').first().click();
+      // 검색 결과 첫 줄 클릭 (Kakao postcode는 결과를 li/dl/.result 형태로 보여줌)
+      await popup.locator('li, dl, .result_item, [class*="result"]').first().click({ timeout: 8000 });
+      await page.waitForTimeout(1500);
+      // 팝업이 자동 닫히면서 메인 페이지에 주소가 채워짐
     } else if (iframeEl) {
       const frame = await iframeEl.contentFrame();
       if (frame) {
