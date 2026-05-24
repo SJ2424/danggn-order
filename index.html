@@ -39,15 +39,11 @@ button{border:0;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:6
 .modes{display:flex;gap:8px;margin-bottom:14px}
 .mode-btn{flex:1;background:#fff;border:1px solid var(--line);color:var(--mut);padding:11px}
 .mode-btn.active{background:var(--pri);color:#fff;border-color:var(--pri)}
-/* 3개 모드: 입력 / 주문 / 장부 — 각각 하나의 섹션만 표시 */
+/* 2개 모드: ✏️입력 / 📋관리 */
 body[data-mode="input"] #ordersSection,
 body[data-mode="input"] #ledgerCard,
 body[data-mode="input"] details.card{display:none !important}
-body[data-mode="orders"] #inputCard,
-body[data-mode="orders"] #ledgerCard,
-body[data-mode="orders"] details.card{display:none !important}
-body[data-mode="ledger"] #inputCard,
-body[data-mode="ledger"] #ordersSection{display:none !important}
+body[data-mode="manage"] #inputCard{display:none !important}
 /* input-only (입력자 전용 요소) */
 .input-only{display:none}
 body[data-role="input"] .input-only{display:block}
@@ -147,7 +143,6 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 .pend-approve{background:#137333;color:#fff}
 .pend-reject{background:#c5221f;color:#fff}
 body[data-role="input"] .admin-only{display:none !important}
-body[data-role="input"] #inputCard{display:block !important}
 body[data-role="input"] .pill{pointer-events:none;cursor:default}
 body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-events:none}
 /* 글씨 크기 */
@@ -180,9 +175,9 @@ body[data-font="large"]{zoom:1.12}
 /* 장부 필터 */
 .ledger-filters{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 4px;padding:8px;background:#f9fafb;border-radius:8px}
 .ledger-filters select,.ledger-filters input{padding:7px 9px;font-size:12.5px}
-/* 장부 카드: 장부 모드일 때만 표시 */
+/* 장부 카드: 관리 모드에서 주문 위에 표시 */
 #ledgerCard{display:none}
-body[data-mode="ledger"] #ledgerCard{display:block}
+body[data-mode="manage"] #ledgerCard{display:block}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .ls-row{background:#f4f5f7;padding:10px 12px;border-radius:8px;font-size:12.5px;color:var(--mut);display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap}
 .ls-row b{color:var(--txt);font-size:15px;font-weight:700}
@@ -258,9 +253,8 @@ body[data-mode="ledger"] #ledgerCard{display:block}
 <main>
 
 <div class="modes">
-  <button id="mInput" class="mode-btn active">✏️ 입력</button>
-  <button id="mOrders" class="mode-btn">📦 주문</button>
-  <button id="mLedger" class="mode-btn">📒 장부</button>
+  <button id="mInput" class="mode-btn active">✏️ 주문 입력</button>
+  <button id="mManage" class="mode-btn">📋 주문 관리·장부</button>
 </div>
 
 <section class="card" id="inputCard">
@@ -601,10 +595,9 @@ async function showApp(session){
   $('#pendingView').style.display='none';
   $('#appView').style.display='block';
   $('#whoEmail').textContent = userDisplayName;
-  // 역할별 탭 라벨 — 관리자는 (전체), 입력자는 (내)
-  $('#mOrders').textContent = (userRole==='admin') ? '📦 주문 (전체)' : '📦 내 주문';
-  $('#mLedger').textContent = (userRole==='admin') ? '📒 장부 (전체)' : '📒 내 장부';
-  $('#ledgerTitle').textContent = (userRole==='admin') ? '📒 장부 (전체)' : '📒 내 장부';
+  // 역할별 탭 라벨
+  $('#mManage').textContent = (userRole==='admin') ? '📋 전체 관리·장부' : '📋 내 주문·정산';
+  $('#ledgerTitle').textContent = (userRole==='admin') ? '📒 장부 요약 (전체)' : '📒 내 장부 요약';
   myUserId = session.user.id;
   await loadOrders();
   subscribeOrders();
@@ -914,9 +907,8 @@ function renderList(){
 function setMode(m){
   document.body.dataset.mode=m;
   $('#mInput').classList.toggle('active', m==='input');
-  $('#mOrders').classList.toggle('active', m==='orders');
-  $('#mLedger').classList.toggle('active', m==='ledger');
-  if(m==='ledger') renderLedger();
+  $('#mManage').classList.toggle('active', m==='manage');
+  if(m==='manage') renderLedger();
 }
 const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는선풍기','날개없는 선풍기','철제선반'];
 function isCartProduct(p){ return CART_PRODUCTS.includes((p||'').replace(/\s+/g,'')); }
@@ -995,7 +987,7 @@ function checkDeadline(){
 function ackDeadline(){
   save('ackDate', new Date().toISOString().slice(0,10));
   $('#alarm').style.display='none';
-  setMode('orders');
+  setMode('manage');
 }
 function testAlarm(){
   showAlarm('[테스트] 발주 마감 임박 — 처리 대기 '+pendingCount()+'건. 확인 후 OMS에서 일괄주문하세요.');
@@ -1261,8 +1253,7 @@ $('#btnCsv').addEventListener('click', exportCsv);
 $('#btnPoAll').addEventListener('click', copyPoAll);
 $('#btnSaveProd').addEventListener('click', saveProducts);
 $('#mInput').addEventListener('click', ()=>setMode('input'));
-$('#mOrders').addEventListener('click', ()=>setMode('orders'));
-$('#mLedger').addEventListener('click', ()=>setMode('ledger'));
+$('#mManage').addEventListener('click', ()=>setMode('manage'));
 $('#btnAck').addEventListener('click', ackDeadline);
 $('#btnTestAlarm').addEventListener('click', testAlarm);
 
