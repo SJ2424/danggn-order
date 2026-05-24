@@ -8,7 +8,8 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: '30 3 * * 1-5'   # 12:30 KST 평일 (= 03:30 UTC, 한국시간 -9)
+    # 12:51 KST 평일 (입력 마감 12:50 직후 자동 발주 → 12:55 OMS 마감 전 완료)
+    - cron: '51 3 * * 1-5'
 
 jobs:
   register:

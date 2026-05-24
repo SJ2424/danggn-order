@@ -302,7 +302,8 @@ body[data-mode="manage"] #ledgerCard{display:block}
     <b>📌 안내</b><br>
     • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
     • <b>같은 색상·같은 상품 여러 개만 묶고</b>, 다른 색이나 다른 상품은 따로 입력해 주세요 (배송이 따로 나갑니다).<br>
-    • <b>영업일 오후 12:30 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).
+    • <b>영업일 오후 12:50 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).<br>
+    • 12:50 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (12:55 OMS 마감).
   </div>
 </section>
 
@@ -402,7 +403,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <textarea id="prodJson" style="min-height:90px;font-family:monospace;font-size:12px"></textarea>
   <button class="btn-sec btn-sm" style="margin-top:6px" id="btnSaveProd">키워드 저장</button>
   <label style="margin-top:16px">발주 마감 알람</label>
-  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다 (접수·발주대기 있을 때).</p>
+  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다. 입력 마감 12:50 / OMS 일괄주문 마감 12:55.</p>
   <button class="btn-sec btn-sm" id="btnTestAlarm">알람 테스트</button>
 </details>
 </main>
@@ -978,7 +979,7 @@ function saveProducts(){
   catch(e){ alert('JSON 형식 오류'); }
 }
 
-const ALARM_START='12:30', CUTOFF='12:50', REPEAT_MIN=5;
+const ALARM_START='12:30', CUTOFF='12:55', REPEAT_MIN=5;
 let lastAlarm=0;
 const toMin=s=>{const a=s.split(':');return +a[0]*60+ +a[1];};
 function pendingCount(){ return ORDERS.filter(o=>{const s=o.status||'접수'; return s==='접수'||s==='발주대기';}).length; }
