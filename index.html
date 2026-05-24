@@ -464,8 +464,46 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <div id="csvMsg" style="margin-top:8px;font-size:12px"></div>
 </details>
 
+<details class="card admin-only" id="myAccountCard" open>
+  <summary>👤 내 계정 (관리자 아이디·이름)</summary>
+  <div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:6px">
+    <div style="font-size:12.5px;line-height:1.7">
+      <b>현재 로그인 이메일:</b> <span id="meEmail" style="font-family:monospace">-</span><br>
+      <b>현재 표시 이름:</b> <span id="meName">-</span>
+    </div>
+  </div>
+
+  <h3 style="margin:14px 0 6px;font-size:13.5px">📝 내 표시 이름 변경 (즉시 적용)</h3>
+  <p class="muted" style="margin:0 0 6px">앱 곳곳에 보이는 본인 이름을 바꿉니다. 로그인 정보는 안 바뀜.</p>
+  <div style="display:flex;gap:6px;align-items:center">
+    <input id="newMyName" type="text" placeholder="새 표시 이름" style="flex:1;padding:8px">
+    <button class="btn-sec btn-sm" id="btnSaveMyName">저장</button>
+  </div>
+  <div id="myNameMsg" class="muted" style="font-size:12px;margin-top:6px"></div>
+
+  <h3 style="margin:18px 0 6px;font-size:13.5px">🔑 로그인 이메일·비밀번호 변경</h3>
+  <p class="muted" style="margin:0 0 6px">Supabase Auth에서 처리합니다 (보안상 앱 내부에서는 불가).</p>
+  <ol style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
+    <li>아래 버튼 → Authentication → Users → 본인 행 점 3개</li>
+    <li><b>Change email</b> → 새 이메일 입력 → 인증 메일 확인 → 클릭</li>
+    <li>또는 <b>Reset password</b> → 새 비밀번호 입력</li>
+    <li>다음 로그인부터 새 정보 사용</li>
+  </ol>
+  <a class="btn-sec btn-sm" href="https://supabase.com/dashboard/project/zmvllgztbqymwwfeprxy/auth/users" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;margin-top:8px">↗ Supabase 사용자 관리 열기</a>
+
+  <h3 style="margin:18px 0 6px;font-size:13.5px">👑 관리자 권한 다른 사람한테 넘기기</h3>
+  <p class="muted" style="margin:0 0 6px">새 사람을 일반 회원가입 → 위에서 권한 변경.</p>
+  <ol style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
+    <li>새 관리자가 앱에서 회원가입 (이름·비밀번호) → 「승인 대기」 떠야 함</li>
+    <li>Supabase SQL Editor에서:<br>
+    <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px;font-size:11px;display:inline-block;margin-top:4px">update profiles set role='admin' where display_name='새관리자이름';</code><br>
+    <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px;font-size:11px;display:inline-block;margin-top:4px">update profiles set role='input' where display_name='기존관리자이름';</code></li>
+    <li>새 관리자가 재로그인하면 관리자 화면 뜸</li>
+  </ol>
+</details>
+
 <details class="card admin-only">
-  <summary>📦 백업 / 유지보수 / 관리자 변경</summary>
+  <summary>📦 백업 / 유지보수 / 코드 수정</summary>
   <h3 style="margin:12px 0 6px;font-size:13.5px">💾 데이터 위치</h3>
   <ul style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
     <li><b>코드</b>: GitHub (자동 버전관리, 영구) → <a href="https://github.com/SJ2424/danggn-order" target="_blank" rel="noopener">danggn-order</a></li>
@@ -475,17 +513,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <h3 style="margin:14px 0 6px;font-size:13.5px">📥 권장 월별 수동 백업</h3>
   <p class="muted" style="margin:0">매월 말 [주문 관리·장부] → 도구바 [CSV 내보내기] → 본인 PC/구글드라이브에 보관.</p>
 
-  <h3 style="margin:14px 0 6px;font-size:13.5px">🔑 관리자 이메일 변경</h3>
-  <ol style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
-    <li>Supabase 대시보드 → Authentication → Users → 본인 행 점 3개 → <b>Send password recovery</b> 또는 <b>Change email</b></li>
-    <li>새 이메일로 인증 메일 옴 → 클릭</li>
-    <li>다음 로그인부터 새 이메일 사용</li>
-    <li>관리자 권한도 같이 옮기려면: SQL Editor에서<br>
-    <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px;font-size:11px">update profiles set role='admin' where email='새이메일'; update profiles set role='input' where email='lidekorea@gmail.com';</code></li>
-  </ol>
-
-  <h3 style="margin:14px 0 6px;font-size:13.5px">📝 표시 이름 변경 (본인 또는 입력자)</h3>
-  <p class="muted" style="margin:0">Supabase → Table Editor → profiles → 해당 행 → display_name 셀 더블클릭 → 새 이름 입력.</p>
+  <p class="muted" style="margin:6px 0 0;font-size:12px">계정·아이디 변경은 위쪽 <b>「👤 내 계정」</b> 카드에서.</p>
 
   <h3 style="margin:14px 0 6px;font-size:13.5px">🛠 코드 수정 (개발자/외주)</h3>
   <p class="muted" style="margin:0">GitHub 저장소(<code style="background:#f4f5f7;padding:1px 5px;border-radius:3px;font-size:11px">SJ2424/danggn-order</code>)에서 <code style="background:#f4f5f7;padding:1px 5px;border-radius:3px;font-size:11px">index.html</code> 또는 <code style="background:#f4f5f7;padding:1px 5px;border-radius:3px;font-size:11px">bot/*.js</code> 수정 → commit하면 Vercel 자동 재배포. 봇 변경은 GitHub Actions에서 자동 반영.</p>
@@ -581,6 +609,7 @@ function normalizeProductName(raw){
 let ORDERS = [];
 let userRole = null;
 let myUserId = null;
+let myEmail = '';
 let userDisplayName = '';
 // 이름을 안전한 이메일 형태로 변환 (Supabase Auth는 이메일 형식 필요)
 function nameToEmail(name){
@@ -756,6 +785,8 @@ async function showApp(session){
   $('#mManage').textContent = (userRole==='admin') ? '📋 전체 관리·장부' : '📋 내 주문·정산';
   $('#ledgerTitle').textContent = (userRole==='admin') ? '📒 장부 요약 (전체)' : '📒 내 장부 요약';
   myUserId = session.user.id;
+  myEmail = session.user.email || '';
+  renderMyAccount();
   await loadOrders();
   subscribeOrders();
   setMode('input');
@@ -869,7 +900,11 @@ async function rejectUser(id){
 }
 
 async function loadOrders(){
-  let q = sb.from('orders').select('*').order('created_at',{ascending:false});
+  // 날짜 DESC 1순위, 같은 날짜 안에서는 입력시각 DESC (최신이 위)
+  // 과거 임포트 데이터도 자기 날짜에 맞게 정렬돼서 뒤죽박죽 안 됨
+  let q = sb.from('orders').select('*')
+    .order('date', {ascending:false})
+    .order('created_at', {ascending:false});
   // 입력자는 본인이 입력한 주문만 (관리자는 전부)
   if(userRole === 'input' && myUserId) q = q.eq('created_by', myUserId);
   const { data, error } = await q;
@@ -1173,6 +1208,35 @@ function ackDeadline(){
 }
 function testAlarm(){
   showAlarm('[테스트] 발주 마감 임박 — 처리 대기 '+pendingCount()+'건. 확인 후 주문 사이트에서 일괄주문하세요.');
+}
+
+// ====== 내 계정 카드 (관리자 본인 표시 이름 변경) ======
+function renderMyAccount(){
+  const e = $('#meEmail'); if(e){
+    // 한글 이름으로 가입한 경우 (nameToEmail) 디코딩해서 보여줌
+    let shown = myEmail || '-';
+    if(shown.endsWith('@danggn.local')){
+      try { shown = decodeURIComponent(shown.split('@')[0]) + '@danggn.local (이름기반)'; }
+      catch(_){}
+    }
+    e.textContent = shown;
+  }
+  const n = $('#meName'); if(n) n.textContent = userDisplayName || '(미설정)';
+  const inp = $('#newMyName'); if(inp && !inp.value) inp.value = userDisplayName || '';
+}
+async function saveMyName(){
+  const newName = ($('#newMyName').value||'').trim();
+  if(!newName){ $('#myNameMsg').textContent = '이름을 입력하세요'; return; }
+  if(newName === userDisplayName){ $('#myNameMsg').textContent = '변경된 내용 없음'; return; }
+  $('#myNameMsg').textContent = '저장 중...';
+  const { error } = await sb.from('profiles').update({ display_name: newName }).eq('id', myUserId);
+  if(error){ $('#myNameMsg').textContent = '실패: '+error.message; return; }
+  userDisplayName = newName;
+  $('#whoEmail').textContent = newName;  // 상단 우측 표시 즉시 갱신
+  renderMyAccount();
+  // 입력자 목록도 다시 (관리자 모드면)
+  if(userRole === 'admin') await loadInputUsers();
+  $('#myNameMsg').textContent = '✅ 저장됨';
 }
 
 // ====== 카탈로그·단가·장부 (관리자) ======
@@ -1923,6 +1987,11 @@ $('#search').addEventListener('input', e=>{ curSearch=e.target.value.trim(); ren
 // 수동 발주 + 일괄 발주완료 + CSV + 발주서수동복사
 $('#btnRunBot').addEventListener('click', manualRunBot);
 
+// 내 계정 — 표시 이름 변경
+$('#btnSaveMyName') && $('#btnSaveMyName').addEventListener('click', saveMyName);
+$('#newMyName') && $('#newMyName').addEventListener('keydown', e=>{
+  if(e.key==='Enter') saveMyName();
+});
 // 카탈로그·단가 추가 버튼
 $('#btnAddCat').addEventListener('click', addCatalog);
 $('#btnAddPrice').addEventListener('click', addUserPrice);
