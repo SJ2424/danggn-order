@@ -1459,9 +1459,9 @@ function mapCsvRow(r){
   const amount = amountRaw ? +amountRaw : null;
   const costRaw = pick('원가','개당단가','개당 단가','매입가','매입 단가','cost_price').replace(/[^\d\-]/g,'');
   const cost_price = costRaw ? +costRaw : null;
-  // 납품가: CSV에 있으면 사용, 없으면 금액(=과거 데이터의 실제 판매가)으로 가정
+  // 납품가(개당): CSV에 있으면 사용, 없으면 총금액÷수량으로 추정 (과거 시트는 총금액만 있음)
   const repRaw = pick('납품가','공급가','rep_price').replace(/[^\d\-]/g,'');
-  const rep_price = repRaw ? +repRaw : (amount || null);
+  const rep_price = repRaw ? +repRaw : (amount && qty ? Math.round(amount/qty) : (amount||null));
   // 입금: 옛 시트의 '입금' 칸에 이름이 있으면 = 입금됐다는 뜻
   const paid = !!depositor || /완료|true|✓|1/i.test(pick('paid','입금완료'));
   const paid_by = depositor || pick('paid_by') || null;
@@ -1743,6 +1743,7 @@ $('#priceList').addEventListener('click', e=>{
 document.querySelectorAll('#ledgerCard .chips button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     ledgerPeriod = btn.dataset.period;
+    ledgerListLimit = 20;
     document.querySelectorAll('#ledgerCard .chips button').forEach(x=>x.classList.toggle('active', x===btn));
     renderLedger();
   });
