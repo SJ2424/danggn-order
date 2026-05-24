@@ -94,6 +94,8 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .order-list{display:flex;flex-direction:column;gap:10px}
 @media (min-width:760px){.order-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
 .card-order{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+.card-order.overdue{border-color:#fbbf24;border-width:2px;background:linear-gradient(135deg,#fff7ed 0%,#fff 60%)}
+.overdue-badge{display:inline-block;background:#fbbf24;color:#7c2d12;font-weight:700;font-size:10.5px;padding:2px 8px;border-radius:999px;margin-left:6px}
 .oc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
 .oc-name{font-size:15px;font-weight:700;line-height:1.3}
 .oc-nick{font-size:12px;color:var(--mut);font-weight:400;margin-left:6px}
@@ -857,7 +859,12 @@ async function toggleStatus(id){
   const seq=['접수','발주대기','발주완료','발송완료'];
   const cur=seq.indexOf(o.status||'접수');
   const next=seq[((cur<0?0:cur)+1)%seq.length];
-  await sb.from('orders').update({ status:next }).eq('id',id);
+  const updates = { status: next };
+  // 발송완료로 진입: 발송 시각 자동 기록 (72시간 미입금 알림 기준)
+  if(next === '발송완료' && !o.shipped_at) updates.shipped_at = new Date().toISOString();
+  // 발송완료에서 나가면(되돌리기) 발송 시각 초기화
+  if(next !== '발송완료' && o.shipped_at) updates.shipped_at = null;
+  await sb.from('orders').update(updates).eq('id',id);
 }
 async function delRow(id){
   if(userRole!=='admin') return;
@@ -968,10 +975,16 @@ function cardHtml(o){
   const paidByLine = '<div class="oc-line paid-by-line admin-only">'
     + '💰 입금자명: <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="기본: 구매자명">'
     + '</div>';
-  return '<div class="card-order">'
+  // 72시간+ 미입금: 시각적 경고
+  const isOverdue = !o.paid && status==='발송완료' && o.shipped_at &&
+    (Date.now() - new Date(o.shipped_at).getTime()) > 72*3600*1000;
+  const overdueCls = isOverdue ? ' overdue' : '';
+  const overdueBadge = isOverdue ? '<span class="overdue-badge">🚨 72H+ 미입금</span>' : '';
+  return '<div class="card-order'+overdueCls+'">'
     +'<div class="oc-top">'
       +'<div class="oc-name">'+esc(o.name||'(이름없음)')+(o.nick?'<span class="oc-nick">@'+esc(o.nick)+'</span>':'')+'</div>'
       +'<div class="oc-tags">'
+        +overdueBadge
         +'<button class="pill '+(o.paid?'pill-paid':'pill-unpaid')+'" data-act="paid" data-id="'+id+'">'+(o.paid?'입금완료':'미입금')+'</button>'
         +'<button class="pill pill-status" data-act="status" data-id="'+id+'">'+esc(status)+'</button>'
       +'</div>'
@@ -1000,7 +1013,10 @@ function renderList(){
   const recv=ORDERS.filter(o=>(o.status||'접수')==='접수').length;
   const pend=ORDERS.filter(o=>o.status==='발주대기').length;
   const unpaid=ORDERS.filter(o=>!o.paid).length;
-  $('#summary').textContent = ORDERS.length?('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'):'';
+  const overdue=ORDERS.filter(o=>!o.paid && o.status==='발송완료' && o.shipped_at && (Date.now()-new Date(o.shipped_at).getTime())>72*3600*1000).length;
+  $('#summary').textContent = ORDERS.length
+    ? ('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'+(overdue?' (🚨 '+overdue+'건 72H+)':''))
+    : '';
   renderLedger();
 }
 
