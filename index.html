@@ -417,6 +417,44 @@ body[data-mode="manage"] #ledgerCard{display:block}
 </details>
 
 <details class="card admin-only">
+  <summary>📥 과거 주문 일괄 가져오기 (CSV)</summary>
+  <p class="muted" style="margin-top:10px"><b>예전 주문 데이터를 한 번에 등록</b>합니다. 구글 시트 → CSV 저장 → 여기에 업로드.</p>
+  <p class="muted" style="margin-top:8px"><b>지원 컬럼명</b> (한글/영문 자동 인식, 일부 누락 OK):<br>
+  날짜, 성함(또는 받는사람·구매자), 연락처, 주소, 상품, 색상, 수량, 거래방식, 금액, 입금, 상태, 송장, 휴대폰별칭, 닉네임</p>
+  <input type="file" id="csvFile" accept=".csv,text/csv" style="margin-top:8px">
+  <div id="csvPreview" style="margin-top:8px;font-size:12px"></div>
+  <button class="btn-sec btn-sm" id="btnCsvImport" disabled style="margin-top:6px">가져오기 실행</button>
+  <div id="csvMsg" style="margin-top:8px;font-size:12px"></div>
+</details>
+
+<details class="card admin-only">
+  <summary>📦 백업 / 유지보수 / 관리자 변경</summary>
+  <h3 style="margin:12px 0 6px;font-size:13.5px">💾 데이터 위치</h3>
+  <ul style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
+    <li><b>코드</b>: GitHub (자동 버전관리, 영구) → <a href="https://github.com/SJ2424/danggn-order" target="_blank" rel="noopener">danggn-order</a></li>
+    <li><b>데이터(주문/사용자)</b>: Supabase Postgres (매일 자동 백업, 7일 보관)</li>
+    <li><b>비밀 키</b>: GitHub Secrets (암호화 저장)</li>
+  </ul>
+  <h3 style="margin:14px 0 6px;font-size:13.5px">📥 권장 월별 수동 백업</h3>
+  <p class="muted" style="margin:0">매월 말 [주문 관리·장부] → 도구바 [CSV 내보내기] → 본인 PC/구글드라이브에 보관.</p>
+
+  <h3 style="margin:14px 0 6px;font-size:13.5px">🔑 관리자 이메일 변경</h3>
+  <ol style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
+    <li>Supabase 대시보드 → Authentication → Users → 본인 행 점 3개 → <b>Send password recovery</b> 또는 <b>Change email</b></li>
+    <li>새 이메일로 인증 메일 옴 → 클릭</li>
+    <li>다음 로그인부터 새 이메일 사용</li>
+    <li>관리자 권한도 같이 옮기려면: SQL Editor에서<br>
+    <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px;font-size:11px">update profiles set role='admin' where email='새이메일'; update profiles set role='input' where email='lidekorea@gmail.com';</code></li>
+  </ol>
+
+  <h3 style="margin:14px 0 6px;font-size:13.5px">📝 표시 이름 변경 (본인 또는 입력자)</h3>
+  <p class="muted" style="margin:0">Supabase → Table Editor → profiles → 해당 행 → display_name 셀 더블클릭 → 새 이름 입력.</p>
+
+  <h3 style="margin:14px 0 6px;font-size:13.5px">🛠 코드 수정 (개발자/외주)</h3>
+  <p class="muted" style="margin:0">GitHub 저장소(<code style="background:#f4f5f7;padding:1px 5px;border-radius:3px;font-size:11px">SJ2424/danggn-order</code>)에서 <code style="background:#f4f5f7;padding:1px 5px;border-radius:3px;font-size:11px">index.html</code> 또는 <code style="background:#f4f5f7;padding:1px 5px;border-radius:3px;font-size:11px">bot/*.js</code> 수정 → commit하면 Vercel 자동 재배포. 봇 변경은 GitHub Actions에서 자동 반영.</p>
+</details>
+
+<details class="card admin-only">
   <summary>🛠 파싱 키워드 + 알람 테스트</summary>
   <label style="margin-top:10px">상품 키워드 (텍스트 자동 분석용 JSON — 카탈로그와 별개, 채팅에서 상품 인식)</label>
   <textarea id="prodJson" style="min-height:90px;font-family:monospace;font-size:12px"></textarea>
@@ -1210,7 +1248,7 @@ function renderSettle(){
 }
 async function settleUser(uid){
   const u = INPUT_USERS.find(x=>x.id===uid);
-  if(!confirm((u?u.email:'이 사용자')+'의 미정산 주문 전체를 정산 완료로 표시할까요?\n(입력자가 본인 계좌로 입금한 뒤 누르세요)')) return;
+  if(!confirm((u?displayOf(u):'이 사용자')+'의 미정산 주문 전체를 정산 완료로 표시할까요?\n(입력자가 본인 계좌로 입금한 뒤 누르세요)')) return;
   await sb.from('orders').update({ settled:true }).eq('created_by', uid).eq('settled', false);
 }
 function renderTodaySummary(){
@@ -1300,7 +1338,7 @@ function renderLedgerFilters(){
   const sel = $('#lfUser');
   if(!sel) return;
   sel.innerHTML = '<option value="">전체 입력자</option>' + INPUT_USERS.map(u =>
-    '<option value="'+u.id+'">'+esc(u.email)+'</option>'
+    '<option value="'+u.id+'">'+esc(displayOf(u))+'</option>'
   ).join('');
 }
 
@@ -1322,6 +1360,100 @@ function cycleFont(){
 function manualRunBot(){
   if(!confirm('GitHub Actions 페이지가 열립니다.\n거기서 [Run workflow] 버튼 → [Run workflow] 한 번 더 클릭하면 봇이 즉시 실행됩니다 (2~3분 소요).')) return;
   window.open('https://github.com/SJ2424/danggn-order/actions/workflows/register-orders.yml','_blank');
+}
+
+// ====== CSV 일괄 가져오기 (과거 주문) ======
+let csvParsedRows = [];
+
+function parseCSVLine(line){
+  const out = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++){
+    const c = line[i];
+    if (inQ){
+      if (c === '"' && line[i+1] === '"'){ cur += '"'; i++; }
+      else if (c === '"'){ inQ = false; }
+      else cur += c;
+    } else {
+      if (c === ','){ out.push(cur); cur = ''; }
+      else if (c === '"' && cur === ''){ inQ = true; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function mapCsvRow(r){
+  // 한글/영문 컬럼명 모두 매핑
+  const pick = (...keys) => { for (const k of keys) if (r[k] != null && r[k] !== '') return r[k]; return ''; };
+  const date = pick('날짜','date','Date');
+  const name = pick('성함','받는사람','구매자','이름','name','Name');
+  const tel  = pick('연락처','전화','전화번호','tel','Phone');
+  const addr = pick('주소','배송주소','addr','Address');
+  const product = pick('상품','제품','product','Product');
+  const color = pick('색상','color','Color');
+  const qty = +pick('수량','qty','Qty') || 1;
+  const type = pick('거래','거래방식','type','Type') || '택배';
+  const amountRaw = pick('금액','판매금액','매출','amount','Amount').toString().replace(/[^\d\-]/g,'');
+  const amount = amountRaw ? +amountRaw : null;
+  const paidStr = pick('입금','paid','Paid');
+  const paid = /완료|true|y|✓|1/i.test(paidStr);
+  const status = pick('상태','status','Status') || '발송완료';
+  const tracking = pick('송장','tracking','Tracking');
+  const phone = pick('휴대폰','휴대폰별칭','phone','Phone alias');
+  const nick = pick('닉네임','구매자닉네임','nick','Nickname');
+  const paid_by = pick('입금자','입금자명','paid_by') || null;
+  return { date, name, tel, addr, product, color, qty, type, amount, paid, status, tracking, phone, nick, paid_by };
+}
+
+async function previewCsv(){
+  const file = $('#csvFile').files && $('#csvFile').files[0];
+  if (!file){ $('#csvPreview').textContent = ''; $('#btnCsvImport').disabled = true; return; }
+  try {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length < 2){ $('#csvPreview').textContent = '데이터가 없습니다 (헤더 + 최소 1줄 필요)'; return; }
+    const header = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g,'').trim());
+    const rows = lines.slice(1).map(line => {
+      const cells = parseCSVLine(line);
+      const obj = {};
+      header.forEach((h, i) => obj[h] = (cells[i]||'').trim());
+      return mapCsvRow(obj);
+    });
+    csvParsedRows = rows;
+    const sample = rows.slice(0, 3).map(o =>
+      `· ${esc(o.date||'-')} | ${esc(o.name||'-')} | ${esc(o.product||'-')} ${esc(o.color||'')} ${o.qty}개 | ${wonInt(o.amount)}원 ${o.paid?'✅':'⏳'}`
+    ).join('<br>');
+    $('#csvPreview').innerHTML = `<div style="background:#f9fafb;padding:10px;border-radius:6px">총 <b>${rows.length}</b>건 분석됨. 미리보기 (처음 3건):<br><br>${sample}</div>`;
+    $('#btnCsvImport').disabled = false;
+  } catch(e){
+    $('#csvPreview').textContent = '파일 읽기 실패: ' + e.message;
+  }
+}
+
+async function importCsv(){
+  if (csvParsedRows.length === 0) return;
+  if (!confirm(csvParsedRows.length + '건을 가져옵니다. 계속할까요?\n(중복 검사는 안 합니다. 이미 있는 거 다시 넣으면 중복으로 들어갑니다.)')) return;
+  $('#btnCsvImport').disabled = true;
+  $('#csvMsg').textContent = '가져오는 중...';
+  let ok = 0, fail = 0;
+  const BATCH = 50;
+  for (let i = 0; i < csvParsedRows.length; i += BATCH){
+    const batch = csvParsedRows.slice(i, i + BATCH);
+    const { error } = await sb.from('orders').insert(batch);
+    if (error){
+      console.error(error);
+      fail += batch.length;
+    } else {
+      ok += batch.length;
+    }
+    $('#csvMsg').textContent = `${ok+fail}/${csvParsedRows.length} 처리... (성공 ${ok})`;
+  }
+  $('#csvMsg').textContent = `✅ 완료: ${ok}건 성공 / ${fail}건 실패. 페이지 새로고침하면 목록·장부에 반영됩니다.`;
+  csvParsedRows = [];
+  $('#csvFile').value = '';
+  $('#csvPreview').textContent = '';
+  await loadOrders();
 }
 
 // ====== 푸시 알림 (Web Push) ======
@@ -1511,6 +1643,8 @@ document.querySelectorAll('#ledgerCard .chips button').forEach(btn=>{
 });
 
 $('#btnEnablePush') && $('#btnEnablePush').addEventListener('click', enablePush);
+$('#csvFile') && $('#csvFile').addEventListener('change', previewCsv);
+$('#btnCsvImport') && $('#btnCsvImport').addEventListener('click', importCsv);
 
 $('#prodJson').value=JSON.stringify(PRODUCTS,null,1);
 applyFont();
