@@ -398,6 +398,24 @@ body[data-mode="manage"] #ledgerCard{display:block}
 </details>
 
 <details class="card admin-only">
+  <summary>🔑 사용자 비밀번호 재설정 / 푸시 알림</summary>
+  <p class="muted" style="margin-top:10px"><b>입력자가 비밀번호 잊었을 때</b> — Supabase 대시보드에서 직접 재설정합니다.</p>
+  <ol style="font-size:12.5px;padding-left:20px;margin:6px 0;line-height:1.6">
+    <li>아래 [Supabase 사용자 관리] 버튼 → Authentication → Users</li>
+    <li>해당 사용자 이메일 행 우측의 <b>···</b> 점 3개 → <b>Reset password</b></li>
+    <li>새 비밀번호 입력 (6자 이상)</li>
+    <li>입력자한테 새 비번 알려주기 (카톡 등)</li>
+  </ol>
+  <a class="btn-sec btn-sm" href="https://supabase.com/dashboard/project/zmvllgztbqymwwfeprxy/auth/users" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;margin-bottom:14px">↗ Supabase 사용자 관리 열기</a>
+
+  <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+
+  <p class="muted" style="margin:0"><b>🔔 푸시 알림 (이 휴대폰)</b><br>이 휴대폰을 12:30 마감 알람 받는 기기로 등록 (브라우저 알림 권한 필요).</p>
+  <button class="btn-sec btn-sm" id="btnEnablePush" style="margin-top:8px">🔔 이 기기 알림 켜기</button>
+  <div id="pushMsg" class="muted" style="margin-top:6px;font-size:12px"></div>
+</details>
+
+<details class="card admin-only">
   <summary>🛠 파싱 키워드 + 알람 테스트</summary>
   <label style="margin-top:10px">상품 키워드 (텍스트 자동 분석용 JSON — 카탈로그와 별개, 채팅에서 상품 인식)</label>
   <textarea id="prodJson" style="min-height:90px;font-family:monospace;font-size:12px"></textarea>
@@ -1283,6 +1301,72 @@ function manualRunBot(){
   window.open('https://github.com/SJ2424/danggn-order/actions/workflows/register-orders.yml','_blank');
 }
 
+// ====== 푸시 알림 (Web Push) ======
+// VAPID 공개키 — 사용자가 생성 후 여기에 박음
+const VAPID_PUBLIC_KEY = '__VAPID_PUBLIC_KEY__';
+
+function urlBase64ToUint8Array(b64){
+  const padding = '='.repeat((4 - b64.length % 4) % 4);
+  const base64 = (b64 + padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i=0; i<raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+async function registerSW(){
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    return await navigator.serviceWorker.register('sw.js');
+  } catch(e){
+    console.warn('SW 등록 실패:', e);
+    return null;
+  }
+}
+
+async function enablePush(){
+  const msg = $('#pushMsg');
+  msg.textContent = '';
+  if (VAPID_PUBLIC_KEY.startsWith('__')){
+    msg.textContent='⚠️ VAPID 공개키 미설정 (관리자가 셋업 필요)'; msg.style.color='#c5221f'; return;
+  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)){
+    msg.textContent='❌ 이 브라우저는 푸시 미지원'; msg.style.color='#c5221f'; return;
+  }
+  msg.textContent='권한 요청 중...';
+  msg.style.color='var(--mut)';
+  try {
+    const reg = await registerSW();
+    if (!reg) throw new Error('서비스워커 등록 실패');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted'){
+      msg.textContent='❌ 알림 권한 거부됨 — 브라우저 설정에서 허용으로 변경 후 재시도';
+      msg.style.color='#c5221f'; return;
+    }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    const j = sub.toJSON();
+    const { error } = await sb.from('push_subscriptions').upsert({
+      user_id: myUserId,
+      endpoint: j.endpoint,
+      p256dh: j.keys.p256dh,
+      auth: j.keys.auth
+    }, { onConflict: 'endpoint' });
+    if (error) throw error;
+    msg.textContent='✅ 알림 등록 완료! 12:30과 12:45에 자동 알림이 옵니다.';
+    msg.style.color='#137333';
+  } catch(e){
+    msg.textContent='❌ 실패: ' + e.message;
+    msg.style.color='#c5221f';
+    console.error(e);
+  }
+}
+
 $('#toSignup').addEventListener('click', e=>{ e.preventDefault(); setAuthTab('signup'); });
 $('#toLogin').addEventListener('click', e=>{ e.preventDefault(); setAuthTab('login'); });
 $('#btnLogin').addEventListener('click', doLogin);
@@ -1404,8 +1488,15 @@ document.querySelectorAll('#ledgerCard .chips button').forEach(btn=>{
   });
 });
 
+$('#btnEnablePush') && $('#btnEnablePush').addEventListener('click', enablePush);
+
 $('#prodJson').value=JSON.stringify(PRODUCTS,null,1);
 applyFont();
+
+// 백그라운드 SW 등록 (페이지 열릴 때마다 — 푸시 받을 준비)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
 
 checkAuth();
 setInterval(checkDeadline, 20000);
