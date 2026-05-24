@@ -1,7 +1,7 @@
 {
-  "name": "당근 판매·발주 관리",
-  "short_name": "당근주문",
-  "description": "당근 주문을 자동 정리하고 OMS에 자동 발주하는 관리 시스템",
+  "name": "당근 발주 관리",
+  "short_name": "당근발주",
+  "description": "당근 주문을 자동 정리하고 자동 발주하는 관리 시스템",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>당근 판매·발주 관리</title>
+<title>당근 발주 관리</title>
 <meta name="theme-color" content="#ff6f0f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -144,7 +144,8 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 .pend-approve{background:#137333;color:#fff}
 .pend-reject{background:#c5221f;color:#fff}
 body[data-role="input"] .admin-only{display:none !important}
-body[data-role="input"] .pill{pointer-events:none;cursor:default}
+body[data-role="input"] .pill-status{pointer-events:none;cursor:default}
+/* 입금 알약은 입력자도 본인 주문 토글 가능 (수령 후 입금 구조) */
 body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-events:none}
 /* 글씨 크기 */
 body[data-font="small"]{zoom:0.92}
@@ -223,7 +224,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
 
 <div id="loginView" class="login-bg" style="display:none">
   <div class="login-card">
-    <h1>당근 판매·발주 관리</h1>
+    <h1>당근 발주 관리</h1>
     <div class="auth-form" id="loginForm">
       <input id="loginName" type="text" placeholder="성함" autocomplete="username">
       <input id="loginPass" type="password" placeholder="비밀번호" autocomplete="current-password">
@@ -255,7 +256,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
 
 <div id="appView" style="display:none">
 <header>
-  <div>당근 판매·발주 관리 <small>v2</small></div>
+  <div>당근 발주 관리 <small>v2</small></div>
   <div class="who">
     <button class="font-btn" id="btnFont" aria-label="글씨 크기">가</button>
     <span id="whoEmail"></span>
@@ -304,7 +305,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
     • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
     • <b>같은 색상·같은 상품 여러 개만 묶고</b>, 다른 색이나 다른 상품은 따로 입력해 주세요 (배송이 따로 나갑니다).<br>
     • <b>영업일 오후 12:50 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).<br>
-    • 12:50 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (12:55 OMS 마감).
+    • 12:50 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (12:55 마감).
   </div>
 </section>
 
@@ -318,7 +319,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
     </div>
     <div class="ts-row" style="margin-top:6px"><b>👥 입력자별:</b></div>
     <div class="ts-row" id="tsByUser" style="margin-top:2px">로딩중...</div>
-    <div class="ts-deadlines">⏰ 마감: <b>OMS(선반랙) 12:55</b> · <b>카트사이트 14:00</b></div>
+    <div class="ts-deadlines">⏰ 마감: <b>선반랙 12:55</b> · <b>카트 14:00</b></div>
   </div>
   <div class="chips" style="margin-top:14px">
     <button type="button" class="chip-flt" data-period="today">오늘</button>
@@ -330,7 +331,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
     <div class="ls-row"><span>판매</span><span><b id="lsCount">0</b> 건</span></div>
     <div class="ls-row"><span>수량</span><span><b id="lsQty">0</b> 개</span></div>
     <div class="ls-row"><span>매출 <span class="gray">(납품가 합)</span></span><span><b id="lsRevenue">0</b> 원</span></div>
-    <div class="ls-row"><span>원가 <span class="gray">(OMS 단가 합)</span></span><span><b id="lsCost">0</b> 원</span></div>
+    <div class="ls-row"><span>원가 <span class="gray">(공급사 매입가 합)</span></span><span><b id="lsCost">0</b> 원</span></div>
     <div class="ls-row big"><span>마진</span><span><b id="lsMargin">0</b> 원 (<span id="lsRate">0%</span>)</span></div>
   </div>
   <!-- 입력자 전용 (본인) 통계 -->
@@ -375,7 +376,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
 
 <details class="card admin-only">
   <summary>⚙️ 상품 카탈로그 + 단가</summary>
-  <p class="muted" style="margin-top:10px">원가 = OMS에서 본인이 지불하는 단가. 기본 납품가 = 일반 입력자에게 받는 가격. 마진 = (납품가 − 원가) × 수량.</p>
+  <p class="muted" style="margin-top:10px">원가 = 본인이 공급사에 지불하는 매입가. 기본 납품가 = 일반 입력자한테 받는 가격. 마진 = (납품가 − 원가) × 수량.</p>
   <div id="catalogList"></div>
   <div class="cat-add">
     <input id="newCatName" placeholder="상품명 (예: 선반랙)">
@@ -460,7 +461,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <textarea id="prodJson" style="min-height:90px;font-family:monospace;font-size:12px"></textarea>
   <button class="btn-sec btn-sm" style="margin-top:6px" id="btnSaveProd">키워드 저장</button>
   <label style="margin-top:16px">발주 마감 알람</label>
-  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다. 입력 마감 12:50 / OMS 일괄주문 마감 12:55.</p>
+  <p class="muted" style="margin:4px 0">영업일 12:30부터 5분마다 울립니다. 입력 마감 12:50 / 주문 마감 12:55.</p>
   <button class="btn-sec btn-sm" id="btnTestAlarm">알람 테스트</button>
 </details>
 </main>
@@ -538,11 +539,9 @@ function displayOf(profileOrUser){
 let curFilter='all', curSearch='';
 const FILTERS=[
   {k:'all',l:'전체'},
-  {k:'received',l:'접수'},
-  {k:'pending',l:'발주대기'},
-  {k:'unpaid',l:'미입금'},
-  {k:'ordered',l:'발주완료'},
-  {k:'shipped',l:'발송완료'}
+  {k:'inprogress',l:'진행중'},
+  {k:'shipped',l:'발송완료'},
+  {k:'unpaid',l:'미입금'}
 ];
 
 const SIDO = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주','충청','전라','경상'];
@@ -846,8 +845,9 @@ async function addOrder(){
   autoParse();
 }
 async function togglePaid(id){
-  if(userRole!=='admin') return;
   const o=ORDERS.find(x=>x.id===id); if(!o) return;
+  // 입금 체크는 관리자 + 본인 주문 입력자 모두 가능 (수령 후 입금받는 구조)
+  if(userRole !== 'admin' && o.created_by !== myUserId) return;
   await sb.from('orders').update({ paid:!o.paid }).eq('id',id);
 }
 async function toggleStatus(id){
@@ -873,7 +873,7 @@ let editingId = null;
 function openEditModal(id){
   const o = ORDERS.find(x=>x.id===id); if(!o) return;
   const status = o.status||'접수';
-  if(status!=='접수' && status!=='발주대기'){ alert('이미 발주된 주문은 수정할 수 없습니다. 관리자에게 OMS에서 직접 수정 요청하세요.'); return; }
+  if(status!=='접수' && status!=='발주대기'){ alert('이미 발주된 주문은 수정할 수 없습니다. 관리자에게 직접 수정 요청하세요.'); return; }
   editingId = id;
   $('#eName').value = o.name||'';
   $('#eTel').value = o.tel||'';
@@ -930,19 +930,15 @@ async function bulkOrderComplete(){
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function countFor(k){
   if(k==='all') return ORDERS.length;
-  if(k==='received') return ORDERS.filter(o=>(o.status||'접수')==='접수').length;
-  if(k==='pending') return ORDERS.filter(o=>o.status==='발주대기').length;
-  if(k==='unpaid') return ORDERS.filter(o=>!o.paid).length;
-  if(k==='ordered') return ORDERS.filter(o=>o.status==='발주완료').length;
+  if(k==='inprogress') return ORDERS.filter(o=>(o.status||'접수')!=='발송완료').length;
   if(k==='shipped') return ORDERS.filter(o=>o.status==='발송완료').length;
+  if(k==='unpaid') return ORDERS.filter(o=>!o.paid).length;
   return 0;
 }
 function filterMatch(o){
-  if(curFilter==='received' && (o.status||'접수')!=='접수') return false;
-  if(curFilter==='pending' && o.status!=='발주대기') return false;
-  if(curFilter==='unpaid' && o.paid) return false;
-  if(curFilter==='ordered' && o.status!=='발주완료') return false;
+  if(curFilter==='inprogress' && (o.status||'접수')==='발송완료') return false;
   if(curFilter==='shipped' && o.status!=='발송완료') return false;
+  if(curFilter==='unpaid' && o.paid) return false;
   if(curSearch){
     const q=curSearch.toLowerCase();
     return [o.name,o.nick,o.tel,o.phone].some(v=>(v||'').toLowerCase().includes(q));
@@ -969,7 +965,7 @@ function cardHtml(o){
     : '🚚 송장: <span style="color:var(--mut)">발송 후 자동 조회 (오후 5~6시)</span>';
   // 관리자 전용: 입금자명 인라인 편집 (은행 입금 매칭용)
   const paidByLine = '<div class="oc-line paid-by-line admin-only">'
-    + '💰 은행 입금자명: <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="기본: 구매자명">'
+    + '💰 입금자명: <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="기본: 구매자명">'
     + '</div>';
   return '<div class="card-order">'
     +'<div class="oc-top">'
@@ -1027,7 +1023,7 @@ function poText(o){
       +'비고: 구매자 '+o.name+' / '+won(o.amount)+'원'
       +(o.tracking?'\n송장: '+o.tracking:'');
   }
-  return '[OMS 발주] '+o.product+' '+o.color+' '+o.qty+'개 ('+o.type+')\n'
+  return '[발주] '+o.product+' '+o.color+' '+o.qty+'개 ('+o.type+')\n'
     +'받는분: '+o.name+' / '+o.tel+'\n주소: '+o.addr+'\n금액: '+won(o.amount)+'원'
     +(o.tracking?'\n송장: '+o.tracking:'');
 }
@@ -1083,7 +1079,7 @@ function checkDeadline(){
   if(active){
     if(Date.now()-lastAlarm > REPEAT_MIN*60000-5000){
       lastAlarm=Date.now();
-      showAlarm('발주 마감 임박 — 처리 대기 '+pendingCount()+'건. '+CUTOFF+' 전에 OMS에서 일괄주문·입금하세요.');
+      showAlarm('발주 마감 임박 — 처리 대기 '+pendingCount()+'건. '+CUTOFF+' 전에 주문 사이트에서 일괄주문·입금하세요.');
     }
   } else { $('#alarm').style.display='none'; }
 }
@@ -1093,7 +1089,7 @@ function ackDeadline(){
   setMode('manage');
 }
 function testAlarm(){
-  showAlarm('[테스트] 발주 마감 임박 — 처리 대기 '+pendingCount()+'건. 확인 후 OMS에서 일괄주문하세요.');
+  showAlarm('[테스트] 발주 마감 임박 — 처리 대기 '+pendingCount()+'건. 확인 후 주문 사이트에서 일괄주문하세요.');
 }
 
 // ====== 카탈로그·단가·장부 (관리자) ======
