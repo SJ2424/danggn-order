@@ -400,16 +400,16 @@ body[data-mode="manage"] #ledgerCard{display:block}
 
 <details class="card admin-only">
   <summary>📦 입고 기록 (배치별 단위원가)</summary>
-  <p class="muted" style="margin-top:10px">입고할 때마다 <b>매입가(개당)</b>와 <b>물류비(총액)</b>를 기록하면 단위원가가 자동 계산되고, 이후 등록되는 새 주문엔 이 원가가 자동 적용됩니다. <b>과거 주문은 그대로 유지</b>됩니다.</p>
+  <p class="muted" style="margin-top:10px">매입가/물류비가 매번 달라도 OK. <b>매입가는 지난번 값이 자동 입력</b>되고, 바뀌었으면 덮어쓰면 됩니다. <b>물류비는 비워두면 0</b>으로 계산. 등록하면 이후 새 주문에 새 원가가 자동 적용됩니다 (과거 주문은 보존).</p>
   <div id="receiptList"></div>
   <div class="rcp-add">
     <input id="newRcpDate" type="date">
     <select id="newRcpProduct"><option value="">상품 선택</option></select>
     <input id="newRcpQty" type="number" placeholder="수량 (예: 100)">
     <input id="newRcpUnit" type="number" placeholder="매입가 개당 (예: 23000)">
-    <input id="newRcpLogiTot" type="number" placeholder="물류비 총액 (예: 200000)">
-    <input id="newRcpNote" type="text" placeholder="메모 (선택)">
-    <div id="rcpPreview">수량·매입가·물류비를 입력하면 단위원가가 자동 계산됩니다</div>
+    <input id="newRcpLogiTot" type="number" placeholder="물류비 총액 (없으면 비움)">
+    <input id="newRcpNote" type="text" placeholder="메모 (선택 · 예: 5월 배치)">
+    <div id="rcpPreview">상품 선택 → 수량·매입가 입력 → 단위원가 자동 계산</div>
     <button id="btnAddRcp">+ 입고 기록 추가</button>
   </div>
 </details>
@@ -545,6 +545,30 @@ let PRODUCTS = load('products', [
   {name:'선반랙', keywords:['선반랙','선반','랙']},
   {name:'핸드카트', keywords:['핸드카트','핸드카','카트']}
 ]);
+// 상품명 정규화 — 키워드(별칭) 매칭으로 정식 이름 반환 ('카트'→'핸드카트')
+function normalizeProductName(raw){
+  if(!raw) return raw;
+  const t = String(raw).trim();
+  if(!t) return t;
+  const norm = s => (s||'').toLowerCase().replace(/\s+/g,'');
+  const target = norm(t);
+  // 1) 정확히 일치 (이름 또는 별칭)
+  for(const p of PRODUCTS){
+    if(norm(p.name) === target) return p.name;
+    if((p.keywords||[]).some(k => norm(k) === target)) return p.name;
+  }
+  // 2) 부분일치 (긴 키워드부터)
+  const pairs = [];
+  for(const p of PRODUCTS) {
+    pairs.push([p.name, p.name]);
+    (p.keywords||[]).forEach(k => pairs.push([k, p.name]));
+  }
+  pairs.sort((a,b)=>(b[0]||'').length - (a[0]||'').length);
+  for(const [k, name] of pairs){
+    if(k && target.includes(norm(k))) return name;
+  }
+  return t;  // 매칭 안되면 원본 그대로
+}
 let ORDERS = [];
 let userRole = null;
 let myUserId = null;
@@ -1232,7 +1256,7 @@ async function deleteUserPrice(id){
 
 // ====== 입고 기록 (재고 배치) ======
 let RECEIPTS = [];
-function kstToday(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date()); }
+// kstToday는 line ~542에 이미 정의됨 — 중복 선언 금지 (SyntaxError → 흰화면)
 async function loadReceipts(){
   const { data, error } = await sb.from('stock_receipts').select('*').order('date',{ascending:false}).order('created_at',{ascending:false}).limit(30);
   if(error){ console.warn('loadReceipts:', error.message); RECEIPTS=[]; }
@@ -1264,11 +1288,29 @@ function updateRcpPreview(){
   const qty=+$('#newRcpQty').value||0;
   const unit=+$('#newRcpUnit').value||0;
   const logi=+$('#newRcpLogiTot').value||0;
-  if(!qty || !unit){ prv.textContent='수량·매입가·물류비를 입력하면 단위원가가 자동 계산됩니다'; return; }
+  // 물류비는 선택 — 수량/매입가만 있어도 단위원가 계산
+  if(!qty || !unit){ prv.textContent='수량·매입가만 있어도 OK (물류비는 선택사항)'; return; }
   const total = unit*qty + logi;
   const unitCost = Math.round(total/qty);
   const logiPerUnit = qty? Math.round(logi/qty):0;
-  prv.innerHTML='📦 매입 <b>'+wonInt(unit*qty)+'</b> + 물류 <b>'+wonInt(logi)+'</b> = 총 <b>'+wonInt(total)+'원</b><br>→ 단위원가 <b style="font-size:15px">'+wonInt(unitCost)+'원</b> (개당 매입 '+wonInt(unit)+' + 물류 '+wonInt(logiPerUnit)+')';
+  const logiPart = logi>0 ? (' + 물류 <b>'+wonInt(logi)+'</b>') : '';
+  const logiHint = logi>0 ? (' + 물류 '+wonInt(logiPerUnit)) : '';
+  prv.innerHTML='📦 매입 <b>'+wonInt(unit*qty)+'</b>'+logiPart+' = 총 <b>'+wonInt(total)+'원</b><br>→ 단위원가 <b style="font-size:15px">'+wonInt(unitCost)+'원</b> (개당 매입 '+wonInt(unit)+logiHint+')';
+}
+// 상품 선택시 — 지난번 매입가 자동 입력 (변하지 않는 경우 많음, 다르면 덮어쓰기)
+function onReceiptProductChange(){
+  const pv = $('#newRcpProduct').value;
+  if(!pv) return;
+  const [product, color] = pv.split('|');
+  const last = RECEIPTS.find(r => r.product === product && (r.color||'') === (color||''));
+  const ui = $('#newRcpUnit');
+  if(last && ui){
+    ui.value = last.purchase_unit;  // 항상 마지막 매입가로 prefill (사용자가 덮어쓸 수 있음)
+    ui.placeholder = '매입가 개당 (지난번 '+wonInt(last.purchase_unit)+'원)';
+  } else if(ui){
+    ui.placeholder = '매입가 개당 (예: 23000)';
+  }
+  updateRcpPreview();
 }
 async function addReceipt(){
   const date=$('#newRcpDate').value;
@@ -1546,7 +1588,7 @@ function mapCsvRow(r){
   const name = buyerName || depositor || '';
   const tel  = pick('연락처','전화','전화번호','tel','Phone');
   const addr = pick('주소','배송주소','addr','Address');
-  const product = pick('상품','상품명','제품','product','Product');
+  const product = normalizeProductName(pick('상품','상품명','제품','product','Product'));
   const color = pick('색상','color','Color');
   const qty = +pick('수량','qty','Qty') || 1;
   const type = pick('거래','거래방식','거래 방식','type','Type') || '택배';
@@ -1557,9 +1599,12 @@ function mapCsvRow(r){
   // 납품가(개당): CSV에 있으면 사용, 없으면 총금액÷수량으로 추정 (과거 시트는 총금액만 있음)
   const repRaw = pick('납품가','공급가','rep_price').replace(/[^\d\-]/g,'');
   const rep_price = repRaw ? +repRaw : (amount && qty ? Math.round(amount/qty) : (amount||null));
-  // 입금: 옛 시트의 '입금' 칸에 이름이 있으면 = 입금됐다는 뜻
-  const paid = !!depositor || /완료|true|✓|1/i.test(pick('paid','입금완료'));
-  const paid_by = depositor || pick('paid_by') || null;
+  // 입금: '입금' 칸에 이름이 있으면 = 입금됐다는 뜻. 단 메모/비고에 '미입금'이 있으면 우선
+  const memo = pick('메모','remark2');
+  const remarkCol = pick('비고','remark');
+  const explicitUnpaid = /미입금|unpaid/i.test(memo) || /미입금|unpaid/i.test(remarkCol);
+  const paid = explicitUnpaid ? false : (!!depositor || /완료|true|✓|1/i.test(pick('paid','입금완료')));
+  const paid_by = paid ? (depositor || pick('paid_by') || null) : null;
   const status = pick('상태','status','Status') || '발송완료';
   const tracking = pick('송장','tracking','Tracking');
   // 비고에서 '갤럭시12/김민수' 형식으로 휴대폰/닉네임 추출
@@ -1814,8 +1859,9 @@ $('#btnRunBot').addEventListener('click', manualRunBot);
 // 카탈로그·단가 추가 버튼
 $('#btnAddCat').addEventListener('click', addCatalog);
 $('#btnAddPrice').addEventListener('click', addUserPrice);
-// 입고 기록 — 추가/삭제/실시간 미리보기
+// 입고 기록 — 추가/삭제/실시간 미리보기/상품선택시 지난번 매입가 prefill
 $('#btnAddRcp') && $('#btnAddRcp').addEventListener('click', addReceipt);
+$('#newRcpProduct') && $('#newRcpProduct').addEventListener('change', onReceiptProductChange);
 ['newRcpQty','newRcpUnit','newRcpLogiTot'].forEach(id=>{
   const el=$('#'+id); if(el) el.addEventListener('input', updateRcpPreview);
 });
