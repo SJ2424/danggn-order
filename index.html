@@ -160,6 +160,11 @@ body[data-font="large"]{zoom:1.12}
 /* 안내사항 footer */
 .help-note{background:#fff7f0;border:1px solid #ffd6b3;border-radius:8px;padding:11px 13px;font-size:12px;color:#7c2d12;margin-top:14px;line-height:1.55}
 .help-note b{color:#9a3412}
+/* 회원가입 / 돌아가기 링크 */
+.signup-link{text-align:center;margin-top:18px;font-size:13px;color:var(--mut)}
+.signup-link a{color:var(--pri);font-weight:600;text-decoration:none;cursor:pointer;margin-left:4px}
+.signup-link a:hover{text-decoration:underline}
+.auto-login-note{font-size:11.5px;color:var(--mut);text-align:center;margin-top:14px;background:#f9fafb;padding:8px;border-radius:6px}
 /* 입력자별 정산 */
 .settle-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .settle-row{padding:11px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px;flex-wrap:wrap;background:#fff7ed;border:1px solid #fbbf24}
@@ -206,17 +211,13 @@ body[data-mode="manage"] #ledgerCard{display:block}
 <div id="loginView" class="login-bg" style="display:none">
   <div class="login-card">
     <h1>당근 판매·발주 관리</h1>
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="tabLogin">로그인</button>
-      <button class="auth-tab" id="tabSignup">회원가입</button>
-      <button class="auth-tab" id="tabAdmin">관리자</button>
-    </div>
     <div class="auth-form" id="loginForm">
-      <p>성함과 비밀번호로 로그인하세요.</p>
-      <input id="loginName" type="text" placeholder="성함 (예: 김민수)" autocomplete="username">
+      <input id="loginName" type="text" placeholder="성함" autocomplete="username">
       <input id="loginPass" type="password" placeholder="비밀번호" autocomplete="current-password">
       <button id="btnLogin">로그인</button>
       <div id="loginMsg"></div>
+      <div class="auto-login-note">✔ 한 번 로그인하면 이 휴대폰에선 자동 로그인 유지<br>(로그아웃 누르기 전까진 다시 안 묻습니다)</div>
+      <div class="signup-link">처음 오셨나요?<a id="toSignup">회원가입 →</a></div>
     </div>
     <div class="auth-form" id="signupForm" style="display:none">
       <p>성함과 비밀번호를 정하세요. 관리자 승인 후 사용 가능합니다.</p>
@@ -224,13 +225,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
       <input id="signupPass" type="password" placeholder="비밀번호 (4자 이상)" autocomplete="new-password">
       <button id="btnSignup">회원가입 신청</button>
       <div id="signupMsg"></div>
-    </div>
-    <div class="auth-form" id="adminForm" style="display:none">
-      <p>관리자 계정으로 로그인 (가입할 때 쓴 이메일).</p>
-      <input id="adminEmail" type="email" placeholder="관리자 이메일" autocomplete="email">
-      <input id="adminPass" type="password" placeholder="비밀번호" autocomplete="current-password">
-      <button id="btnAdminLogin">관리자 로그인</button>
-      <div id="adminMsg"></div>
+      <div class="signup-link"><a id="toLogin">← 로그인으로 돌아가기</a></div>
     </div>
   </div>
 </div>
@@ -552,13 +547,15 @@ function autoParse(){
 }
 
 function setAuthTab(tab){
-  ['login','signup','admin'].forEach(t=>{
-    $('#tab'+t[0].toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
-    $('#'+t+'Form').style.display = (t===tab) ? 'block' : 'none';
-  });
+  $('#loginForm').style.display = (tab==='login') ? 'block' : 'none';
+  $('#signupForm').style.display = (tab==='signup') ? 'block' : 'none';
   $('#loginMsg').textContent='';
   $('#signupMsg').textContent='';
-  if($('#adminMsg')) $('#adminMsg').textContent='';
+  // 로그인 화면일 때 마지막 로그인 이름 자동 채우기
+  if(tab==='login'){
+    const last = load('lastLoginName','');
+    if(last && !$('#loginName').value) $('#loginName').value = last;
+  }
 }
 
 async function checkAuth(){
@@ -619,15 +616,16 @@ async function showApp(session){
 async function doLogin(){
   $('#loginMsg').textContent='';
   const input=$('#loginName').value.trim(), password=$('#loginPass').value;
-  if(!input||!password){ $('#loginMsg').textContent='이름·비밀번호를 입력하세요.'; return; }
+  if(!input||!password){ $('#loginMsg').textContent='성함·비밀번호를 입력하세요.'; return; }
   const email = input.includes('@') ? input : nameToEmail(input);
   $('#btnLogin').disabled=true; $('#btnLogin').textContent='로그인 중...';
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   $('#btnLogin').disabled=false; $('#btnLogin').textContent='로그인';
   if(error){
-    $('#loginMsg').textContent='로그인 실패: '+(error.message==='Invalid login credentials'?'이름·비밀번호가 맞지 않습니다':error.message);
+    $('#loginMsg').textContent='로그인 실패: '+(error.message==='Invalid login credentials'?'성함·비밀번호가 맞지 않습니다':error.message);
     return;
   }
+  save('lastLoginName', input);  // 다음 번 자동 채우기용
   await loadProfileAndShow(data.session);
 }
 
@@ -667,17 +665,6 @@ async function doLogout(){
   showLogin();
 }
 
-async function doAdminLogin(){
-  $('#adminMsg').style.color='#c5221f';
-  $('#adminMsg').textContent='';
-  const email=$('#adminEmail').value.trim(), password=$('#adminPass').value;
-  if(!email||!password){ $('#adminMsg').textContent='관리자 이메일·비밀번호를 입력하세요.'; return; }
-  $('#btnAdminLogin').disabled=true; $('#btnAdminLogin').textContent='로그인 중...';
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  $('#btnAdminLogin').disabled=false; $('#btnAdminLogin').textContent='관리자 로그인';
-  if(error){ $('#adminMsg').textContent='로그인 실패: '+(error.message==='Invalid login credentials'?'이메일·비밀번호가 맞지 않습니다':error.message); return; }
-  await loadProfileAndShow(data.session);
-}
 
 let pendingChan=null;
 async function refreshPendingCount(){
@@ -1241,15 +1228,12 @@ function manualRunBot(){
   window.open('https://github.com/SJ2424/danggn-order/actions/workflows/register-orders.yml','_blank');
 }
 
-$('#tabLogin').addEventListener('click', ()=>setAuthTab('login'));
-$('#tabSignup').addEventListener('click', ()=>setAuthTab('signup'));
-$('#tabAdmin').addEventListener('click', ()=>setAuthTab('admin'));
+$('#toSignup').addEventListener('click', e=>{ e.preventDefault(); setAuthTab('signup'); });
+$('#toLogin').addEventListener('click', e=>{ e.preventDefault(); setAuthTab('login'); });
 $('#btnLogin').addEventListener('click', doLogin);
 $('#btnSignup').addEventListener('click', doSignup);
-$('#btnAdminLogin').addEventListener('click', doAdminLogin);
 $('#loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 $('#signupPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doSignup(); });
-$('#adminPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doAdminLogin(); });
 $('#btnLogout').addEventListener('click', doLogout);
 $('#btnPendingLogout').addEventListener('click', doLogout);
 
