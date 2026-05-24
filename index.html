@@ -1112,6 +1112,7 @@ function testAlarm(){
 // ====== 카탈로그·단가·장부 (관리자) ======
 let CATALOG = [], USER_PRICES = [], INPUT_USERS = [];
 let ledgerPeriod = 'month';
+let ledgerListLimit = 20;
 const wonInt = n => Number(n||0).toLocaleString('ko-KR');
 
 async function loadCatalog(){
@@ -1317,13 +1318,20 @@ function renderLedger(){
     $('#myPaid').textContent = wonInt(myPaid);
     $('#myUnpaid').textContent = wonInt(myUnpaid);
   }
-  // 거래 내역 테이블 (양쪽 다 표시)
+  // 거래 내역 테이블 (날짜 DESC 정렬 + 기본 20건만 표시)
   const body = $('#lsList');
   if(body){
     if(r.list.length === 0){
       body.innerHTML = '<tr><td colspan="'+(userRole==='admin'?8:6)+'" class="empty">기간 내 거래가 없습니다</td></tr>';
     } else {
-      body.innerHTML = r.list.map(o=>{
+      const sorted = [...r.list].sort((a,b) => {
+        const ad = a.date||'', bd = b.date||'';
+        if(ad !== bd) return bd.localeCompare(ad);  // 날짜 DESC (최신 위)
+        return new Date(b.created_at||0) - new Date(a.created_at||0);
+      });
+      const total = sorted.length;
+      const display = sorted.slice(0, ledgerListLimit);
+      body.innerHTML = display.map(o=>{
         const u = INPUT_USERS.find(x=>x.id===o.created_by);
         const uLabel = u ? displayOf(u) : '?';
         const q = +o.qty||1;
@@ -1343,6 +1351,19 @@ function renderLedger(){
           +'<td>'+(o.paid?'✅':'⏳')+'</td>'
           +'</tr>';
       }).join('');
+      // 더 보기 버튼
+      if(total > display.length){
+        const remain = total - display.length;
+        const cols = userRole==='admin' ? 8 : 6;
+        body.innerHTML += '<tr><td colspan="'+cols+'" style="text-align:center;padding:14px;background:#f9fafb"><button class="btn-sec btn-sm" id="btnMoreLedger">+ '+remain+'건 더 보기</button> <span class="muted">(총 '+total+'건 중 '+display.length+'건 표시)</span></td></tr>';
+        const more = $('#btnMoreLedger');
+        if(more) more.addEventListener('click', () => { ledgerListLimit += 20; renderLedger(); });
+      } else if(total > 20){
+        const cols = userRole==='admin' ? 8 : 6;
+        body.innerHTML += '<tr><td colspan="'+cols+'" style="text-align:center;padding:10px;background:#f9fafb"><button class="btn-sec btn-sm" id="btnCollapseLedger">▲ 처음 20건만 보기</button></td></tr>';
+        const col = $('#btnCollapseLedger');
+        if(col) col.addEventListener('click', () => { ledgerListLimit = 20; renderLedger(); });
+      }
     }
   }
 }
@@ -1436,8 +1457,11 @@ function mapCsvRow(r){
   const type = pick('거래','거래방식','거래 방식','type','Type') || '택배';
   const amountRaw = pick('금액','판매금액','판매 금액','매출','amount','Amount').replace(/[^\d\-]/g,'');
   const amount = amountRaw ? +amountRaw : null;
-  const costRaw = pick('원가','개당단가','개당 단가','매입가','cost_price').replace(/[^\d\-]/g,'');
+  const costRaw = pick('원가','개당단가','개당 단가','매입가','매입 단가','cost_price').replace(/[^\d\-]/g,'');
   const cost_price = costRaw ? +costRaw : null;
+  // 납품가: CSV에 있으면 사용, 없으면 금액(=과거 데이터의 실제 판매가)으로 가정
+  const repRaw = pick('납품가','공급가','rep_price').replace(/[^\d\-]/g,'');
+  const rep_price = repRaw ? +repRaw : (amount || null);
   // 입금: 옛 시트의 '입금' 칸에 이름이 있으면 = 입금됐다는 뜻
   const paid = !!depositor || /완료|true|✓|1/i.test(pick('paid','입금완료'));
   const paid_by = depositor || pick('paid_by') || null;
@@ -1447,7 +1471,7 @@ function mapCsvRow(r){
   const rem = parseRemark(pick('비고','remark'));
   const phone = pick('휴대폰','휴대폰별칭','phone') || rem.phone;
   const nick = pick('닉네임','구매자닉네임','nick','Nickname') || rem.nick;
-  return { date, name, tel, addr, product, color, qty, type, amount, cost_price, paid, paid_by, status, tracking, phone, nick };
+  return { date, name, tel, addr, product, color, qty, type, amount, cost_price, rep_price, paid, paid_by, status, tracking, phone, nick };
 }
 
 // 파일 읽기 — UTF-8 / EUC-KR(CP949) 자동 감지
@@ -1678,8 +1702,8 @@ $('#settleList').addEventListener('click', e=>{
 });
 
 // 장부 필터 (입력자, 구매자명)
-$('#lfUser').addEventListener('change', e=>{ ledgerUserFilter=e.target.value; renderLedger(); });
-$('#lfBuyer').addEventListener('input', e=>{ ledgerBuyerFilter=e.target.value.trim(); renderLedger(); });
+$('#lfUser').addEventListener('change', e=>{ ledgerUserFilter=e.target.value; ledgerListLimit=20; renderLedger(); });
+$('#lfBuyer').addEventListener('input', e=>{ ledgerBuyerFilter=e.target.value.trim(); ledgerListLimit=20; renderLedger(); });
 
 // 글씨 크기 버튼
 $('#btnFont').addEventListener('click', cycleFont);
