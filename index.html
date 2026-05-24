@@ -2,8 +2,13 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>당근 판매·발주 관리</title>
+<meta name="theme-color" content="#ff6f0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="당근주문">
+<link rel="manifest" href="manifest.json">
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--line:#e3e5e9;--pri:#ff6f0f;--txt:#1c1f23;--mut:#6b7280}
 *{box-sizing:border-box}
@@ -116,6 +121,17 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
 .cat-add,.pr-add{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 .cat-add input,.pr-add input,.pr-add select{padding:8px;font-size:13px}
 .cat-add button,.pr-add button{grid-column:1/-1;background:var(--pri);color:#fff;padding:9px}
+.tx-wrap{overflow-x:auto;margin-top:8px}
+.tx-table{width:100%;border-collapse:collapse;font-size:12px}
+.tx-table th,.tx-table td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;white-space:nowrap}
+.tx-table th{color:var(--mut);font-weight:600;font-size:11px;background:#f9fafb}
+.tx-table td:last-child{text-align:center}
+.tx-table tr:hover td{background:#fafbfc}
+.edit-modal .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.edit-modal .grid .full{grid-column:1/-1}
+.edit-modal label{margin:8px 0 4px}
+.edit-modal .actions{display:flex;gap:8px;margin-top:16px}
+.edit-modal .actions button{flex:1;padding:11px}
 </style>
 </head>
 <body>
@@ -173,26 +189,27 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
 
 <section class="card" id="inputCard">
   <h2>새 주문 입력</h2>
+  <p class="muted" style="margin:0 0 10px">구매자가 보낸 채팅을 그대로 붙여넣으면 이름·연락처·주소·상품·금액이 자동으로 정리됩니다.</p>
   <div class="row2">
-    <div><label>휴대폰 별칭</label><input id="fPhone" list="phoneAliases" placeholder="예: 아이폰1"><datalist id="phoneAliases"></datalist></div>
-    <div><label>구매자 닉네임</label><input id="fNick" placeholder="당근 채팅 닉네임"></div>
+    <div><label>내 휴대폰 (어느 폰으로 받은 주문)</label><input id="fPhone" list="phoneAliases" placeholder="예: 갤럭시-S25 / 아이폰15-블랙"><datalist id="phoneAliases"></datalist></div>
+    <div><label>구매자 닉네임 (당근에서 보이는 이름)</label><input id="fNick" placeholder="예: 분당맘, 우리집강아지"></div>
   </div>
-  <label>주문 정보 — 채팅 통째로 붙여넣으세요</label>
-  <textarea id="tAll" style="min-height:120px" placeholder="예)&#10;홍길동 01011112222 서울 강서구 공항대로 1, 3층&#10;랙 화이트 2개 택배 개당 37000 합계 74000"></textarea>
+  <label>구매자 채팅 내용 — 그대로 복사·붙여넣기</label>
+  <textarea id="tAll" style="min-height:130px" placeholder="예시) 채팅을 그대로 붙여넣으세요&#10;&#10;박지영&#10;010-9876-5432&#10;서울 성동구 성수일로 56, 갤러리아포레 101동 2502호&#10;&#10;선반 블랙 1개 택배로 부탁드려요&#10;37,000원 입금했어요"></textarea>
   <div class="preview">
-    <div class="ttl">자동 분석 결과 — 틀리면 직접 고쳐 추가</div>
+    <div class="ttl">📋 자동 분석 결과 — 잘못된 부분만 손으로 고쳐 추가하세요</div>
     <div class="grid">
-      <div><label>성함</label><input id="pName"></div>
-      <div><label>연락처</label><input id="pPhone"></div>
-      <div class="full"><label>주소</label><input id="pAddr"></div>
-      <div><label>상품</label><input id="pProduct"></div>
-      <div><label>색상</label><input id="pColor"></div>
-      <div><label>수량</label><input id="pQty" type="number" min="1"></div>
-      <div><label>거래방식</label><input id="pType"></div>
-      <div class="full"><label>판매금액(원)</label><input id="pAmount" type="number"></div>
+      <div><label>받는 사람 (성함)</label><input id="pName" placeholder="홍길동"></div>
+      <div><label>연락처</label><input id="pPhone" placeholder="010-0000-0000"></div>
+      <div class="full"><label>배송 주소 (전체)</label><input id="pAddr" placeholder="시/구 + 도로명 + 건물번호 + 동·호"></div>
+      <div><label>상품</label><input id="pProduct" placeholder="예: 선반랙"></div>
+      <div><label>색상</label><input id="pColor" placeholder="화이트 / 블랙"></div>
+      <div><label>수량</label><input id="pQty" type="number" min="1" placeholder="1"></div>
+      <div><label>거래방식</label><input id="pType" placeholder="택배 / 직거래"></div>
+      <div class="full"><label>구매자가 보낸 금액 (원)</label><input id="pAmount" type="number" placeholder="37000"></div>
     </div>
   </div>
-  <button class="btn-pri" id="btnAdd">주문 목록에 추가</button>
+  <button class="btn-pri" id="btnAdd">✓ 주문 목록에 추가</button>
 </section>
 
 <section class="card" id="ledgerCard">
@@ -209,19 +226,26 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
     <div class="ls-row"><span>원가 <span class="gray">(OMS 단가 합)</span></span><span><b id="lsCost">0</b> 원</span></div>
     <div class="ls-row big"><span>마진</span><span><b id="lsMargin">0</b> 원 (<span id="lsRate">0%</span>)</span></div>
   </div>
+  <h3 style="margin:18px 0 8px;font-size:14px">📋 거래 내역 (선택 기간)</h3>
+  <div class="tx-wrap">
+    <table class="tx-table">
+      <thead><tr><th>날짜</th><th>입금자(구매자)</th><th>입력자</th><th>상품</th><th>수량</th><th>매출</th><th>마진</th><th>입금</th></tr></thead>
+      <tbody id="lsList"></tbody>
+    </table>
+  </div>
 </section>
 
 <section class="card">
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
-  <div id="summary" class="muted" style="margin-bottom:8px"></div>
-  <div class="toolbar">
-    <button class="btn-pri-sm admin-only" id="btnRunBot">🤖 지금 발주 실행</button>
-    <button class="btn-pri-sm admin-only" id="btnBulkDone">일괄 발주완료 처리</button>
-    <button class="btn-sec btn-sm admin-only" id="btnPoAll">발주서 수동복사</button>
-    <button class="btn-sec btn-sm admin-only" id="btnCsv">CSV 내보내기</button>
+  <div id="summary" class="muted admin-only" style="margin-bottom:8px"></div>
+  <div class="toolbar admin-only">
+    <button class="btn-pri-sm" id="btnRunBot">🤖 지금 발주 실행</button>
+    <button class="btn-pri-sm" id="btnBulkDone">일괄 발주완료 처리</button>
+    <button class="btn-sec btn-sm" id="btnPoAll">발주서 수동복사</button>
+    <button class="btn-sec btn-sm" id="btnCsv">CSV 내보내기</button>
   </div>
-  <div class="list-tools"><input id="search" placeholder="검색 (이름·닉네임·연락처·휴대폰별칭)"></div>
-  <div class="chips" id="filters"></div>
+  <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처로 내 주문 찾기"></div>
+  <div class="chips admin-only" id="filters"></div>
   <div class="order-list" id="list"></div>
 </section>
 
@@ -268,6 +292,29 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
     <div id="pendingList"></div>
     <div style="text-align:right;margin-top:16px">
       <button class="btn-sec btn-sm" id="btnCloseModal">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div id="editModal" class="modal edit-modal">
+  <div class="modal-content">
+    <h2>✏️ 주문 수정</h2>
+    <p class="muted" style="margin:0">발주 전(접수/발주대기)인 주문만 수정할 수 있어요.</p>
+    <div class="grid">
+      <div><label>받는 사람</label><input id="eName"></div>
+      <div><label>연락처</label><input id="eTel"></div>
+      <div class="full"><label>주소 (전체)</label><input id="eAddr"></div>
+      <div><label>상품</label><input id="eProduct"></div>
+      <div><label>색상</label><input id="eColor"></div>
+      <div><label>수량</label><input id="eQty" type="number" min="1"></div>
+      <div><label>거래방식</label><input id="eType"></div>
+      <div class="full"><label>판매금액 (원)</label><input id="eAmount" type="number"></div>
+      <div><label>내 휴대폰</label><input id="ePhone"></div>
+      <div><label>구매자 닉네임</label><input id="eNick"></div>
+    </div>
+    <div class="actions">
+      <button class="btn-sec" id="btnEditCancel">취소</button>
+      <button class="btn-pri" id="btnEditSave" style="margin-top:0">저장</button>
     </div>
   </div>
 </div>
@@ -591,6 +638,50 @@ async function updateTracking(id,val){
   if(userRole!=='admin') return;
   await sb.from('orders').update({ tracking:val }).eq('id',id);
 }
+
+// 주문 수정 모달
+let editingId = null;
+function openEditModal(id){
+  const o = ORDERS.find(x=>x.id===id); if(!o) return;
+  const status = o.status||'접수';
+  if(status!=='접수' && status!=='발주대기'){ alert('이미 발주된 주문은 수정할 수 없습니다. 관리자에게 OMS에서 직접 수정 요청하세요.'); return; }
+  editingId = id;
+  $('#eName').value = o.name||'';
+  $('#eTel').value = o.tel||'';
+  $('#eAddr').value = o.addr||'';
+  $('#eProduct').value = o.product||'';
+  $('#eColor').value = o.color||'';
+  $('#eQty').value = o.qty||1;
+  $('#eType').value = o.type||'택배';
+  $('#eAmount').value = o.amount||'';
+  $('#ePhone').value = o.phone||'';
+  $('#eNick').value = o.nick||'';
+  $('#editModal').classList.add('open');
+}
+async function saveEdit(){
+  if(!editingId) return;
+  const updates = {
+    name: $('#eName').value.trim(),
+    tel: $('#eTel').value.trim(),
+    addr: $('#eAddr').value.trim(),
+    product: $('#eProduct').value.trim(),
+    color: $('#eColor').value.trim(),
+    qty: +$('#eQty').value || 1,
+    type: $('#eType').value.trim() || '택배',
+    amount: $('#eAmount').value ? +$('#eAmount').value : null,
+    phone: $('#ePhone').value.trim(),
+    nick: $('#eNick').value.trim()
+  };
+  const btn = $('#btnEditSave'); btn.disabled=true; btn.textContent='저장 중...';
+  const { error } = await sb.from('orders').update(updates).eq('id', editingId);
+  btn.disabled=false; btn.textContent='저장';
+  if(error){ alert('저장 실패: '+error.message); return; }
+  closeEditModal();
+}
+function closeEditModal(){
+  editingId = null;
+  $('#editModal').classList.remove('open');
+}
 async function bulkOrderComplete(){
   if(userRole!=='admin') return;
   const cnt = ORDERS.filter(o=>o.status==='발주대기').length;
@@ -632,23 +723,30 @@ function renderFilters(){
 }
 function cardHtml(o){
   const id=o.id;
+  const status = o.status || '접수';
   const trackPh = (userRole==='admin') ? '입력 또는 자동 수집' : '오후 17시 이후 자동 수집';
   const trackRO = (userRole==='admin') ? '' : 'readonly';
+  // 수정 가능: 접수/발주대기 상태 + (관리자 OR 본인 주문)
+  const editable = (status==='접수' || status==='발주대기')
+    && (userRole==='admin' || o.created_by===myUserId);
+  const editBtn = editable ? '<button class="btn-sec btn-sm" data-act="edit" data-id="'+id+'">✏️ 수정</button>' : '';
   return '<div class="card-order">'
     +'<div class="oc-top">'
       +'<div class="oc-name">'+esc(o.name||'(이름없음)')+(o.nick?'<span class="oc-nick">@'+esc(o.nick)+'</span>':'')+'</div>'
       +'<div class="oc-tags">'
         +'<button class="pill '+(o.paid?'pill-paid':'pill-unpaid')+'" data-act="paid" data-id="'+id+'">'+(o.paid?'입금완료':'미입금')+'</button>'
-        +'<button class="pill pill-status" data-act="status" data-id="'+id+'">'+(o.status||'접수')+'</button>'
+        +'<button class="pill pill-status" data-act="status" data-id="'+id+'">'+esc(status)+'</button>'
       +'</div>'
     +'</div>'
     +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
     +'<div class="oc-line oc-item"><b>'+esc(o.product)+' '+esc(o.color)+' '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
+    +'<div class="oc-line" style="font-size:12px;color:var(--mut)">🏦 입금자명: <b style="color:var(--txt)">'+esc(o.name||'-')+'</b> (은행 입금자명이 다르면 미입금으로 처리됨)</div>'
     +'<div class="oc-line oc-track-line">송장: <input class="oc-track" data-id="'+id+'" placeholder="'+trackPh+'" value="'+esc(o.tracking||'')+'" '+trackRO+'></div>'
     +'<div class="oc-foot">'
       +'<span class="muted">'+esc(o.date)+(o.phone?' · '+esc(o.phone):'')+'</span>'
       +'<span class="oc-actions">'
+        +editBtn
         +'<button class="btn-sec btn-sm admin-only" data-act="po" data-id="'+id+'">발주서</button>'
         +'<button class="btn-sec btn-sm admin-only" data-act="del" data-id="'+id+'">삭제</button>'
       +'</span>'
@@ -865,6 +963,32 @@ function renderLedger(){
   $('#lsCost').textContent  = wonInt(r.cost);
   $('#lsMargin').textContent = wonInt(r.margin);
   $('#lsRate').textContent  = r.rate + '%';
+  // 거래 내역 테이블
+  const body = $('#lsList');
+  if(body){
+    if(r.list.length === 0){
+      body.innerHTML = '<tr><td colspan="8" class="empty">기간 내 거래가 없습니다</td></tr>';
+    } else {
+      body.innerHTML = r.list.map(o=>{
+        const u = INPUT_USERS.find(x=>x.id===o.created_by);
+        const uLabel = u ? (u.email.split('@')[0]) : '?';
+        const q = +o.qty||1;
+        const rev = (+o.rep_price||0)*q;
+        const cst = (+o.cost_price||0)*q;
+        const mgn = rev - cst;
+        return '<tr>'
+          +'<td>'+esc(o.date||'-')+'</td>'
+          +'<td><b>'+esc(o.name||'-')+'</b></td>'
+          +'<td>'+esc(uLabel)+'</td>'
+          +'<td>'+esc(o.product||'')+' '+esc(o.color||'')+'</td>'
+          +'<td>'+q+'</td>'
+          +'<td>'+wonInt(rev)+'</td>'
+          +'<td style="color:'+(mgn>0?'#137333':'#c5221f')+'"><b>'+wonInt(mgn)+'</b></td>'
+          +'<td>'+(o.paid?'✅':'⏳')+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+  }
 }
 
 function manualRunBot(){
@@ -911,6 +1035,14 @@ $('#list').addEventListener('click', e=>{
   else if(act==='status') toggleStatus(id);
   else if(act==='po') copyPo(id);
   else if(act==='del') delRow(id);
+  else if(act==='edit') openEditModal(id);
+});
+
+// 수정 모달
+$('#btnEditSave').addEventListener('click', saveEdit);
+$('#btnEditCancel').addEventListener('click', closeEditModal);
+$('#editModal').addEventListener('click', e=>{
+  if(e.target.id==='editModal') closeEditModal();
 });
 $('#list').addEventListener('change', e=>{
   const t=e.target.closest('.oc-track'); if(!t) return;
