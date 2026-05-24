@@ -1,0 +1,43 @@
+name: Register cart site orders
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '시험 모드 (실제 등록 X, 화면 캡처만)'
+        type: boolean
+        default: true
+  schedule:
+    # 12:20 KST 평일 (OMS 봇 12:30보다 10분 일찍)
+    - cron: '20 3 * * 1-5'
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install deps
+        working-directory: bot
+        run: npm install
+      - name: Install Playwright Chromium
+        working-directory: bot
+        run: npx playwright install --with-deps chromium
+      - name: Run cart register bot
+        working-directory: bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: node register-cart.js
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cart-screenshots-${{ github.run_id }}
+          path: bot/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7

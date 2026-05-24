@@ -78,6 +78,9 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
   .oc-line{font-size:12.5px}
   .pill{padding:4px 9px;font-size:11px}
   .paid-by-inp{min-width:100px;font-size:11.5px}
+  /* 모바일에선 2열 폼을 1열로 (라벨이 길어 어긋남 방지) */
+  .row2{grid-template-columns:1fr;gap:6px}
+  .auth-tabs button{font-size:13px;padding:9px 0}
 }
 #alarm{display:none;position:fixed;left:0;right:0;top:0;z-index:50;background:#c5221f;color:#fff;padding:11px 14px;align-items:center;gap:10px;justify-content:space-between;box-shadow:0 3px 10px rgba(0,0,0,.35)}
 #alarm .alarm-msg{font-weight:600;font-size:13px;line-height:1.4}
@@ -150,6 +153,13 @@ body[data-font="large"]{zoom:1.12}
 /* 입금자명 인라인 */
 .paid-by-line{font-size:12px;color:var(--mut);margin-top:6px;padding-top:6px;border-top:1px dashed #f0f0f0}
 .paid-by-inp{display:inline-block;width:auto;min-width:120px;padding:3px 7px;font-size:12px;margin-left:4px;border:1px solid var(--line);border-radius:5px}
+/* 거래방식 탭 */
+.type-tabs{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.type-tabs button{flex:1;background:#fff;color:var(--mut);border:0;padding:9px 0;font-size:13px;cursor:pointer;border-radius:0;font-weight:600}
+.type-tabs button.active{background:var(--pri);color:#fff}
+/* 안내사항 footer */
+.help-note{background:#fff7f0;border:1px solid #ffd6b3;border-radius:8px;padding:11px 13px;font-size:12px;color:#7c2d12;margin-top:14px;line-height:1.55}
+.help-note b{color:#9a3412}
 /* 입력자별 정산 */
 .settle-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .settle-row{padding:11px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px;flex-wrap:wrap;background:#fff7ed;border:1px solid #fbbf24}
@@ -161,9 +171,9 @@ body[data-font="large"]{zoom:1.12}
 /* 장부 필터 */
 .ledger-filters{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 4px;padding:8px;background:#f9fafb;border-radius:8px}
 .ledger-filters select,.ledger-filters input{padding:7px 9px;font-size:12.5px}
-/* 장부 카드는 관리 모드에서만 */
+/* 장부 카드: 관리 모드일 때 표시 (역할 무관 — 입력자는 본인 장부, 관리자는 전체 장부) */
 #ledgerCard{display:none}
-body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
+body[data-mode="manage"] #ledgerCard{display:block}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .ls-row{background:#f4f5f7;padding:10px 12px;border-radius:8px;font-size:12.5px;color:var(--mut);display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap}
 .ls-row b{color:var(--txt);font-size:15px;font-weight:700}
@@ -199,20 +209,28 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin">로그인</button>
       <button class="auth-tab" id="tabSignup">회원가입</button>
+      <button class="auth-tab" id="tabAdmin">관리자</button>
     </div>
     <div class="auth-form" id="loginForm">
-      <p>이름과 비밀번호로 로그인하세요.<br><span class="muted" style="font-size:11px">(관리자는 가입할 때 쓴 이메일로 로그인)</span></p>
-      <input id="loginName" type="text" placeholder="이름 (또는 관리자 이메일)" autocomplete="username">
+      <p>성함과 비밀번호로 로그인하세요.</p>
+      <input id="loginName" type="text" placeholder="성함 (예: 김민수)" autocomplete="username">
       <input id="loginPass" type="password" placeholder="비밀번호" autocomplete="current-password">
       <button id="btnLogin">로그인</button>
       <div id="loginMsg"></div>
     </div>
     <div class="auth-form" id="signupForm" style="display:none">
-      <p>이름과 비밀번호를 정하세요. 관리자 승인 후 사용할 수 있습니다.</p>
-      <input id="signupName" type="text" placeholder="이름 (예: 김민수)" autocomplete="name">
-      <input id="signupPass" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
+      <p>성함과 비밀번호를 정하세요. 관리자 승인 후 사용 가능합니다.</p>
+      <input id="signupName" type="text" placeholder="성함 (예: 김민수)" autocomplete="name">
+      <input id="signupPass" type="password" placeholder="비밀번호 (4자 이상)" autocomplete="new-password">
       <button id="btnSignup">회원가입 신청</button>
       <div id="signupMsg"></div>
+    </div>
+    <div class="auth-form" id="adminForm" style="display:none">
+      <p>관리자 계정으로 로그인 (가입할 때 쓴 이메일).</p>
+      <input id="adminEmail" type="email" placeholder="관리자 이메일" autocomplete="email">
+      <input id="adminPass" type="password" placeholder="비밀번호" autocomplete="current-password">
+      <button id="btnAdminLogin">관리자 로그인</button>
+      <div id="adminMsg"></div>
     </div>
   </div>
 </div>
@@ -247,27 +265,38 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
 
 <section class="card" id="inputCard">
   <h2>새 주문 입력</h2>
-  <p class="muted" style="margin:0 0 10px">구매자가 보낸 채팅을 그대로 붙여넣으면 이름·연락처·주소·상품·금액이 자동 정리됩니다. <b>같은 색상·같은 상품 여러 개만 묶고, 다른 색·다른 상품은 따로 입력하세요</b> (배송이 따로 나갑니다). 영업일 <b>오후 12:30 이후 입력은 다음 영업일에 발주</b>되며, 입력은 24시간 가능합니다.</p>
   <div class="row2">
-    <div><label>내 휴대폰 (어느 폰으로 받은 주문)</label><input id="fPhone" list="phoneAliases" placeholder="예: 갤럭시-S25 / 아이폰15-블랙"><datalist id="phoneAliases"></datalist></div>
-    <div><label>구매자 닉네임 (당근에서 보이는 이름)</label><input id="fNick" placeholder="예: 분당맘, 우리집강아지"></div>
+    <div><label>휴대폰</label><input id="fPhone" list="phoneAliases" placeholder="예: 갤럭시-S25"><datalist id="phoneAliases"></datalist></div>
+    <div><label>구매자 닉네임</label><input id="fNick" placeholder="예: 분당맘"></div>
   </div>
-  <label>구매자 채팅 내용 — 그대로 복사·붙여넣기</label>
-  <textarea id="tAll" style="min-height:130px" placeholder="예시) 채팅을 그대로 붙여넣으세요&#10;&#10;박지영&#10;010-9876-5432&#10;서울 성동구 성수일로 56, 갤러리아포레 101동 2502호&#10;&#10;선반 블랙 1개 택배로 부탁드려요&#10;37,000원 입금했어요"></textarea>
+  <label>구매자 채팅 내용 (복사·붙여넣기)</label>
+  <textarea id="tAll" style="min-height:130px" placeholder="예) 박지영&#10;010-9876-5432&#10;서울 성동구 성수일로 56, 갤러리아포레 101동 2502호&#10;선반 블랙 1개 택배 37,000원"></textarea>
   <div class="preview">
-    <div class="ttl">📋 자동 분석 결과 — 잘못된 부분만 손으로 고쳐 추가하세요</div>
+    <div class="ttl">📋 자동 분석 — 틀린 부분만 고쳐서 추가</div>
     <div class="grid">
-      <div><label>받는 사람 (성함)</label><input id="pName" placeholder="홍길동"></div>
+      <div><label>받는 사람</label><input id="pName" placeholder="홍길동"></div>
       <div><label>연락처</label><input id="pPhone" placeholder="010-0000-0000"></div>
-      <div class="full"><label>배송 주소 (전체)</label><input id="pAddr" placeholder="시/구 + 도로명 + 건물번호 + 동·호"></div>
-      <div><label>상품</label><input id="pProduct" placeholder="예: 선반랙"></div>
+      <div class="full"><label>배송 주소</label><input id="pAddr" placeholder="시·구·도로명·건물번호·동/호"></div>
+      <div><label>상품</label><input id="pProduct" placeholder="선반랙"></div>
       <div><label>색상</label><input id="pColor" placeholder="화이트 / 블랙"></div>
       <div><label>수량</label><input id="pQty" type="number" min="1" placeholder="1"></div>
-      <div><label>거래방식</label><input id="pType" placeholder="택배 / 직거래"></div>
-      <div class="full"><label>구매자가 보낸 금액 (원)</label><input id="pAmount" type="number" placeholder="37000"></div>
+      <div class="full"><label>거래방식</label>
+        <div class="type-tabs">
+          <button type="button" class="active" data-type="택배">📦 택배</button>
+          <button type="button" data-type="직거래">🤝 직거래</button>
+        </div>
+        <input id="pType" type="hidden" value="택배">
+      </div>
+      <div class="full"><label>판매금액 (원)</label><input id="pAmount" type="number" placeholder="37000"></div>
     </div>
   </div>
   <button class="btn-pri" id="btnAdd">✓ 주문 목록에 추가</button>
+  <div class="help-note">
+    <b>📌 안내</b><br>
+    • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
+    • <b>같은 색상·같은 상품 여러 개만 묶고</b>, 다른 색이나 다른 상품은 따로 입력해 주세요 (배송이 따로 나갑니다).<br>
+    • <b>영업일 오후 12:30 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).
+  </div>
 </section>
 
 <section class="card" id="ledgerCard">
@@ -513,18 +542,23 @@ function autoParse(){
   const r = parseAll($('#tAll').value);
   $('#pName').value=r.name; $('#pPhone').value=r.phone; $('#pAddr').value=r.address;
   $('#pProduct').value=r.product; $('#pColor').value=r.color;
-  $('#pQty').value=r.qty; $('#pType').value=r.type;
+  $('#pQty').value=r.qty;
+  $('#pType').value=r.type;
+  // 거래방식 탭 활성화 동기화
+  document.querySelectorAll('.type-tabs button').forEach(b => b.classList.toggle('active', b.dataset.type === r.type));
   $('#pAmount').value=r.amount;
   const has = $('#tAll').value.trim().length>0;
   $('#pProduct').style.borderColor = (has && !r.product) ? '#e0382b' : '';
 }
 
 function setAuthTab(tab){
-  $('#tabLogin').classList.toggle('active', tab==='login');
-  $('#tabSignup').classList.toggle('active', tab==='signup');
-  $('#loginForm').style.display = tab==='login' ? 'block' : 'none';
-  $('#signupForm').style.display = tab==='signup' ? 'block' : 'none';
-  $('#loginMsg').textContent=''; $('#signupMsg').textContent='';
+  ['login','signup','admin'].forEach(t=>{
+    $('#tab'+t[0].toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
+    $('#'+t+'Form').style.display = (t===tab) ? 'block' : 'none';
+  });
+  $('#loginMsg').textContent='';
+  $('#signupMsg').textContent='';
+  if($('#adminMsg')) $('#adminMsg').textContent='';
 }
 
 async function checkAuth(){
@@ -601,8 +635,8 @@ async function doSignup(){
   $('#signupMsg').style.color='#c5221f';
   $('#signupMsg').textContent='';
   const name=$('#signupName').value.trim(), password=$('#signupPass').value;
-  if(!name || password.length<6){
-    $('#signupMsg').textContent='이름·비밀번호(6자 이상)를 입력하세요.';
+  if(!name || password.length<4){
+    $('#signupMsg').textContent='성함·비밀번호(4자 이상)를 입력하세요.';
     return;
   }
   const email = nameToEmail(name);
@@ -631,6 +665,18 @@ async function doLogout(){
   ORDERS=[]; userRole=null;
   document.body.dataset.role='';
   showLogin();
+}
+
+async function doAdminLogin(){
+  $('#adminMsg').style.color='#c5221f';
+  $('#adminMsg').textContent='';
+  const email=$('#adminEmail').value.trim(), password=$('#adminPass').value;
+  if(!email||!password){ $('#adminMsg').textContent='관리자 이메일·비밀번호를 입력하세요.'; return; }
+  $('#btnAdminLogin').disabled=true; $('#btnAdminLogin').textContent='로그인 중...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  $('#btnAdminLogin').disabled=false; $('#btnAdminLogin').textContent='관리자 로그인';
+  if(error){ $('#adminMsg').textContent='로그인 실패: '+(error.message==='Invalid login credentials'?'이메일·비밀번호가 맞지 않습니다':error.message); return; }
+  await loadProfileAndShow(data.session);
 }
 
 let pendingChan=null;
@@ -1197,12 +1243,23 @@ function manualRunBot(){
 
 $('#tabLogin').addEventListener('click', ()=>setAuthTab('login'));
 $('#tabSignup').addEventListener('click', ()=>setAuthTab('signup'));
+$('#tabAdmin').addEventListener('click', ()=>setAuthTab('admin'));
 $('#btnLogin').addEventListener('click', doLogin);
 $('#btnSignup').addEventListener('click', doSignup);
+$('#btnAdminLogin').addEventListener('click', doAdminLogin);
 $('#loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 $('#signupPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doSignup(); });
+$('#adminPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doAdminLogin(); });
 $('#btnLogout').addEventListener('click', doLogout);
 $('#btnPendingLogout').addEventListener('click', doLogout);
+
+// 거래방식 탭 클릭
+document.querySelectorAll('.type-tabs button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.type-tabs button').forEach(x=>x.classList.toggle('active', x===b));
+    $('#pType').value = b.dataset.type;
+  });
+});
 
 $('#tAll').addEventListener('input', autoParse);
 $('#btnAdd').addEventListener('click', addOrder);
