@@ -892,14 +892,16 @@ async function addOrder(){
     name:$('#pName').value.trim(),
     tel:$('#pPhone').value.trim(),
     addr:$('#pAddr').value.trim(),
-    product:$('#pProduct').value.trim(),
+    product:normalizeProductName($('#pProduct').value.trim()),
     color:$('#pColor').value.trim(),
     qty:+$('#pQty').value || 1,
     type:$('#pType').value.trim() || '택배',
     amount: $('#pAmount').value? +$('#pAmount').value : null,
-    paid:false, status:'접수'
+    paid:false, status:'접수',
+    created_by: myUserId  // 입력자 본인 ID 명시 — DB default 의존하지 않음
   };
   if(!o.name && !o.tel){ alert('구매자 정보를 입력하세요.'); return; }
+  if(!o.product){ alert('상품을 선택하세요.'); return; }
   const btn=$('#btnAdd'); btn.disabled=true; btn.textContent='추가 중...';
   const { error } = await sb.from('orders').insert(o);
   btn.disabled=false; btn.textContent='✓ 주문 목록에 추가';
@@ -1733,8 +1735,10 @@ async function importCsv(){
   $('#csvMsg').textContent = '가져오는 중...';
   let ok = 0, fail = 0;
   const BATCH = 50;
-  for (let i = 0; i < csvParsedRows.length; i += BATCH){
-    const batch = csvParsedRows.slice(i, i + BATCH);
+  // CSV 임포트한 행에 created_by 표시 (관리자 본인) — RLS·정산 조회용
+  const enriched = csvParsedRows.map(r => ({ ...r, created_by: myUserId }));
+  for (let i = 0; i < enriched.length; i += BATCH){
+    const batch = enriched.slice(i, i + BATCH);
     const { error } = await sb.from('orders').insert(batch);
     if (error){
       console.error(error);

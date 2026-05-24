@@ -28,9 +28,11 @@ async function fetchPending() {
 
 async function updateTracking(id, value) {
   if (isDry) return;
+  // shipped_at도 함께 세팅해야 72H 미입금 알람이 기준 시각을 가질 수 있음
   const { error } = await sb.from('orders').update({
     tracking: value,
-    status: '발송완료'
+    status: '발송완료',
+    shipped_at: new Date().toISOString()
   }).eq('id', id);
   if (error) throw error;
 }
