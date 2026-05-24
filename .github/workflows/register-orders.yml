@@ -8,8 +8,17 @@ on:
         type: boolean
         default: false
   schedule:
-    # 12:51 KST 평일 (입력 마감 12:50 직후 자동 발주 → 12:55 OMS 마감 전 완료)
-    - cron: '51 3 * * 1-5'
+    # 평일 — 분산 등록 (대량 주문 시 12:51 한 번에 몰리는 거 방지)
+    - cron: '30 0 * * 1-5'   # 09:30 KST
+    - cron: '30 1 * * 1-5'   # 10:30 KST
+    - cron: '30 2 * * 1-5'   # 11:30 KST
+    - cron: '30 3 * * 1-5'   # 12:30 KST (점심 직전 마무리)
+    - cron: '51 3 * * 1-5'   # 12:51 KST (12:30~12:50 막판 주문)
+
+# 동시 실행 방지 — 한 인스턴스가 도는 중에 다음 cron 트리거되면 큐에 대기
+concurrency:
+  group: register-orders
+  cancel-in-progress: false
 
 jobs:
   register:
