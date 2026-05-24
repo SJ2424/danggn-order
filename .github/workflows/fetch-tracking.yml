@@ -1,0 +1,50 @@
+name: Fetch OMS tracking
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '시험 모드 (실제 DB 업데이트 X, 화면 캡처만)'
+        type: boolean
+        default: true
+  schedule:
+    # 매 10분, 17:00~18:50 KST (= 08:00~09:50 UTC), 평일
+    - cron: '*/10 8-9 * * 1-5'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install deps
+        working-directory: bot
+        run: npm install
+
+      - name: Install Playwright Chromium
+        working-directory: bot
+        run: npx playwright install --with-deps chromium
+
+      - name: Run fetch-tracking bot
+        working-directory: bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OMS_USERNAME: ${{ secrets.OMS_USERNAME }}
+          OMS_PASSWORD: ${{ secrets.OMS_PASSWORD }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: node fetch-tracking.js
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracking-screenshots-${{ github.run_id }}
+          path: bot/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
