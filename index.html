@@ -40,6 +40,45 @@ button{border:0;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:6
 .mode-btn{flex:1;background:#fff;border:1px solid var(--line);color:var(--mut);padding:11px}
 .mode-btn.active{background:var(--pri);color:#fff;border-color:var(--pri)}
 body[data-mode="manage"] #inputCard{display:none}
+/* 입력 모드: 모든 역할에서 입력 폼만 표시 (주문목록·장부·설정 다 숨김) */
+body[data-mode="input"] #ordersSection,
+body[data-mode="input"] #ledgerCard,
+body[data-mode="input"] details.card{display:none !important}
+/* input-only (입력자 전용 요소) */
+.input-only{display:none}
+body[data-role="input"] .input-only{display:block}
+body[data-role="input"] .input-only.grid{display:grid}
+/* placeholder 글씨 작게 + 줄간격 좁게 */
+textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacity:.6}
+/* 모바일 가독성 보정 */
+@media (max-width:480px){
+  header{padding:12px;gap:6px}
+  header .who{font-size:11px;gap:5px}
+  .font-btn{padding:4px 8px}
+  .toolbar{gap:5px}
+  .toolbar button{font-size:11.5px;padding:6px 8px;flex:1 1 auto;min-width:0}
+  .ledger-stats{grid-template-columns:1fr}
+  .ls-row{padding:9px 11px;font-size:12px}
+  .ls-row b{font-size:14px}
+  .ls-row.big b{font-size:16px}
+  .chips{gap:4px}
+  .chip-flt{font-size:11px;padding:5px 9px}
+  .tx-table{font-size:10.5px}
+  .tx-table th,.tx-table td{padding:5px 4px}
+  .cat-row,.pr-row{grid-template-columns:1fr;gap:5px;padding:11px 0}
+  .cat-row input,.pr-row input{padding:7px}
+  .settle-row{padding:10px;font-size:12.5px;gap:8px}
+  .settle-row .amt{font-size:14px}
+  .modal-content{padding:18px;max-height:88vh}
+  .login-card{padding:22px}
+  .login-card h1{font-size:19px}
+  .order-list{gap:8px}
+  .card-order{padding:11px}
+  .oc-name{font-size:14px}
+  .oc-line{font-size:12.5px}
+  .pill{padding:4px 9px;font-size:11px}
+  .paid-by-inp{min-width:100px;font-size:11.5px}
+}
 #alarm{display:none;position:fixed;left:0;right:0;top:0;z-index:50;background:#c5221f;color:#fff;padding:11px 14px;align-items:center;gap:10px;justify-content:space-between;box-shadow:0 3px 10px rgba(0,0,0,.35)}
 #alarm .alarm-msg{font-weight:600;font-size:13px;line-height:1.4}
 #alarm button{background:#fff;color:#c5221f;font-weight:700;white-space:nowrap;padding:8px 12px}
@@ -162,15 +201,15 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
       <button class="auth-tab" id="tabSignup">회원가입</button>
     </div>
     <div class="auth-form" id="loginForm">
-      <p>이메일·비번으로 로그인하세요.</p>
-      <input id="loginEmail" type="email" placeholder="이메일" autocomplete="username">
+      <p>이름과 비밀번호로 로그인하세요.<br><span class="muted" style="font-size:11px">(관리자는 가입할 때 쓴 이메일로 로그인)</span></p>
+      <input id="loginName" type="text" placeholder="이름 (또는 관리자 이메일)" autocomplete="username">
       <input id="loginPass" type="password" placeholder="비밀번호" autocomplete="current-password">
       <button id="btnLogin">로그인</button>
       <div id="loginMsg"></div>
     </div>
     <div class="auth-form" id="signupForm" style="display:none">
-      <p>회원가입 후 관리자 승인을 받으면 사용 가능합니다.</p>
-      <input id="signupEmail" type="email" placeholder="이메일" autocomplete="email">
+      <p>이름과 비밀번호를 정하세요. 관리자 승인 후 사용할 수 있습니다.</p>
+      <input id="signupName" type="text" placeholder="이름 (예: 김민수)" autocomplete="name">
       <input id="signupPass" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
       <button id="btnSignup">회원가입 신청</button>
       <div id="signupMsg"></div>
@@ -201,7 +240,7 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
 <div id="alarm"><span class="alarm-msg"></span><button id="btnAck">발주 확인 →</button></div>
 <main>
 
-<div class="modes admin-only">
+<div class="modes">
   <button id="mInput" class="mode-btn active">입력 모드</button>
   <button id="mManage" class="mode-btn">관리 모드</button>
 </div>
@@ -232,36 +271,47 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
 </section>
 
 <section class="card" id="ledgerCard">
-  <h2>📒 장부 (관리자)</h2>
+  <h2 id="ledgerTitle">📒 장부</h2>
   <div class="chips">
     <button class="chip-flt" data-period="today">오늘</button>
     <button class="chip-flt active" data-period="month">이번달</button>
     <button class="chip-flt" data-period="all">전체</button>
   </div>
-  <div class="ledger-stats">
+  <!-- 관리자 전용 통계 -->
+  <div class="ledger-stats admin-only">
     <div class="ls-row"><span>판매</span><span><b id="lsCount">0</b> 건</span></div>
     <div class="ls-row"><span>수량</span><span><b id="lsQty">0</b> 개</span></div>
     <div class="ls-row"><span>매출 <span class="gray">(납품가 합)</span></span><span><b id="lsRevenue">0</b> 원</span></div>
     <div class="ls-row"><span>원가 <span class="gray">(OMS 단가 합)</span></span><span><b id="lsCost">0</b> 원</span></div>
     <div class="ls-row big"><span>마진</span><span><b id="lsMargin">0</b> 원 (<span id="lsRate">0%</span>)</span></div>
   </div>
-  <div class="ledger-filters">
+  <!-- 입력자 전용 (본인) 통계 -->
+  <div class="ledger-stats input-only grid">
+    <div class="ls-row"><span>내 판매</span><span><b id="myCount">0</b> 건</span></div>
+    <div class="ls-row"><span>수량</span><span><b id="myQty">0</b> 개</span></div>
+    <div class="ls-row big"><span>받은 총 금액</span><span><b id="myTotal">0</b> 원</span></div>
+    <div class="ls-row"><span>입금완료</span><span><b id="myPaid">0</b> 건</span></div>
+    <div class="ls-row"><span>미입금</span><span><b id="myUnpaid">0</b> 건</span></div>
+  </div>
+  <div class="ledger-filters admin-only">
     <select id="lfUser"><option value="">전체 입력자</option></select>
     <input id="lfBuyer" placeholder="구매자명·연락처로 검색">
   </div>
-  <h3 style="margin:18px 0 8px;font-size:14px">👥 입력자별 미정산 (입력자 → 본인한테 입금해야 할 금액)</h3>
-  <p class="muted" style="margin:0 0 4px">'정산 완료' 클릭 시 해당 입력자의 미정산 주문이 모두 정산 표시됨. (정산 완료한 건은 이 목록에서 사라짐)</p>
-  <div id="settleList" class="settle-list"></div>
+  <div class="admin-only">
+    <h3 style="margin:18px 0 8px;font-size:14px">👥 입력자별 미정산 (입력자 → 본인한테 입금해야 할 금액)</h3>
+    <p class="muted" style="margin:0 0 4px">'정산 완료' 클릭 시 해당 입력자의 미정산 주문이 모두 정산 표시됨.</p>
+    <div id="settleList" class="settle-list"></div>
+  </div>
   <h3 style="margin:18px 0 8px;font-size:14px">📋 거래 내역 (선택 기간)</h3>
   <div class="tx-wrap">
     <table class="tx-table">
-      <thead><tr><th>날짜</th><th>입금자(구매자)</th><th>입력자</th><th>상품</th><th>수량</th><th>매출</th><th>마진</th><th>입금</th></tr></thead>
+      <thead><tr><th>날짜</th><th>입금자(구매자)</th><th class="admin-only">입력자</th><th>상품</th><th>수량</th><th>금액</th><th class="admin-only">마진</th><th>입금</th></tr></thead>
       <tbody id="lsList"></tbody>
     </table>
   </div>
 </section>
 
-<section class="card">
+<section class="card" id="ordersSection">
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
   <div id="summary" class="muted admin-only" style="margin-bottom:8px"></div>
   <div class="toolbar admin-only">
@@ -364,6 +414,21 @@ let PRODUCTS = load('products', [
 let ORDERS = [];
 let userRole = null;
 let myUserId = null;
+let userDisplayName = '';
+// 이름을 안전한 이메일 형태로 변환 (Supabase Auth는 이메일 형식 필요)
+function nameToEmail(name){
+  return encodeURIComponent(name.trim().toLowerCase()) + '@danggn.local';
+}
+// 표시용 이름 추출 (display_name 우선, 없으면 이메일 앞부분)
+function displayOf(profileOrUser){
+  if(!profileOrUser) return '?';
+  if(profileOrUser.display_name) return profileOrUser.display_name;
+  const e = profileOrUser.email || '';
+  if(e.endsWith('@danggn.local')) {
+    try { return decodeURIComponent(e.split('@')[0]); } catch(_) { return e.split('@')[0]; }
+  }
+  return e.split('@')[0] || e;
+}
 let curFilter='all', curSearch='';
 const FILTERS=[
   {k:'all',l:'전체'},
@@ -468,13 +533,14 @@ async function checkAuth(){
 }
 
 async function loadProfileAndShow(session){
-  let role = 'pending';
+  let role = 'pending', display = null;
   try {
-    const { data: profile, error } = await sb.from('profiles').select('role').eq('id', session.user.id).maybeSingle();
+    const { data: profile, error } = await sb.from('profiles').select('role, display_name').eq('id', session.user.id).maybeSingle();
     if(error) console.warn('profile fetch error:', error.message);
-    if(profile) role = profile.role;
+    if(profile){ role = profile.role; display = profile.display_name; }
   } catch(e){ console.warn('profile fetch failed:', e); }
   userRole = role;
+  userDisplayName = display || displayOf({ email: session.user.email });
   document.body.dataset.role = role;
   if(role === 'pending') showPending(session);
   else await showApp(session);
@@ -491,14 +557,16 @@ function showPending(session){
   $('#loginView').style.display='none';
   $('#appView').style.display='none';
   $('#pendingView').style.display='flex';
-  $('#pendingEmail').textContent = session.user.email;
+  $('#pendingEmail').textContent = userDisplayName || displayOf({ email: session.user.email });
 }
 
 async function showApp(session){
   $('#loginView').style.display='none';
   $('#pendingView').style.display='none';
   $('#appView').style.display='block';
-  $('#whoEmail').textContent = session.user.email;
+  $('#whoEmail').textContent = userDisplayName;
+  $('#mManage').textContent = (userRole==='admin') ? '관리 모드' : '내 장부';
+  $('#ledgerTitle').textContent = (userRole==='admin') ? '📒 장부 (전체)' : '📒 내 장부';
   myUserId = session.user.id;
   await loadOrders();
   subscribeOrders();
@@ -516,13 +584,14 @@ async function showApp(session){
 
 async function doLogin(){
   $('#loginMsg').textContent='';
-  const email=$('#loginEmail').value.trim(), password=$('#loginPass').value;
-  if(!email||!password){ $('#loginMsg').textContent='이메일·비번을 입력하세요.'; return; }
+  const input=$('#loginName').value.trim(), password=$('#loginPass').value;
+  if(!input||!password){ $('#loginMsg').textContent='이름·비밀번호를 입력하세요.'; return; }
+  const email = input.includes('@') ? input : nameToEmail(input);
   $('#btnLogin').disabled=true; $('#btnLogin').textContent='로그인 중...';
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   $('#btnLogin').disabled=false; $('#btnLogin').textContent='로그인';
   if(error){
-    $('#loginMsg').textContent='로그인 실패: '+(error.message==='Invalid login credentials'?'이메일·비번이 맞지 않습니다':error.message);
+    $('#loginMsg').textContent='로그인 실패: '+(error.message==='Invalid login credentials'?'이름·비밀번호가 맞지 않습니다':error.message);
     return;
   }
   await loadProfileAndShow(data.session);
@@ -531,24 +600,28 @@ async function doLogin(){
 async function doSignup(){
   $('#signupMsg').style.color='#c5221f';
   $('#signupMsg').textContent='';
-  const email=$('#signupEmail').value.trim(), password=$('#signupPass').value;
-  if(!email || password.length<6){
-    $('#signupMsg').textContent='이메일·비밀번호(6자 이상)를 입력하세요.';
+  const name=$('#signupName').value.trim(), password=$('#signupPass').value;
+  if(!name || password.length<6){
+    $('#signupMsg').textContent='이름·비밀번호(6자 이상)를 입력하세요.';
     return;
   }
+  const email = nameToEmail(name);
   $('#btnSignup').disabled=true; $('#btnSignup').textContent='가입 중...';
-  const { data, error } = await sb.auth.signUp({ email, password });
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { data: { display_name: name } }
+  });
   $('#btnSignup').disabled=false; $('#btnSignup').textContent='회원가입 신청';
   if(error){
-    $('#signupMsg').textContent='가입 실패: '+error.message;
+    $('#signupMsg').textContent='가입 실패: '+(error.message.includes('already')?'이미 같은 이름이 있습니다. 다른 이름을 사용하세요.':error.message);
     return;
   }
   $('#signupMsg').style.color='#137333';
   if(data.session){
-    $('#signupMsg').textContent='가입 완료! 관리자 승인 화면으로 이동합니다...';
+    $('#signupMsg').textContent='가입 완료! 관리자 승인 대기 화면으로 이동...';
     setTimeout(()=>loadProfileAndShow(data.session), 800);
   } else {
-    $('#signupMsg').textContent='가입 완료! 이메일을 확인하고 인증한 뒤 로그인하세요.';
+    $('#signupMsg').textContent='가입 완료! 잠시 후 로그인하세요.';
     setTimeout(()=>setAuthTab('login'), 1500);
   }
 }
@@ -581,13 +654,13 @@ function subscribePending(){
     .subscribe();
 }
 async function loadPendingUsers(){
-  const { data } = await sb.from('profiles').select('id, email, created_at').eq('role','pending').order('created_at',{ascending:true});
+  const { data } = await sb.from('profiles').select('id, email, display_name, created_at').eq('role','pending').order('created_at',{ascending:true});
   const list = data || [];
   $('#pendingList').innerHTML = list.length === 0
     ? '<div class="empty">승인 대기 중인 사용자가 없습니다</div>'
     : list.map(u =>
         '<div class="pend-row">'
-        +'<div class="pend-info"><div class="e">'+esc(u.email)+'</div><div class="t">'+(new Date(u.created_at)).toLocaleString('ko-KR')+'</div></div>'
+        +'<div class="pend-info"><div class="e">'+esc(displayOf(u))+'</div><div class="t">'+(new Date(u.created_at)).toLocaleString('ko-KR')+'</div></div>'
         +'<div class="pend-actions">'
           +'<button class="pend-approve" data-pact="approve" data-id="'+u.id+'">승인</button>'
           +'<button class="pend-reject" data-pact="reject" data-id="'+u.id+'">거부</button>'
@@ -794,14 +867,14 @@ function renderList(){
   const pend=ORDERS.filter(o=>o.status==='발주대기').length;
   const unpaid=ORDERS.filter(o=>!o.paid).length;
   $('#summary').textContent = ORDERS.length?('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'):'';
-  if(userRole==='admin') renderLedger();
+  renderLedger();
 }
 
 function setMode(m){
   document.body.dataset.mode=m;
   $('#mInput').classList.toggle('active',m==='input');
   $('#mManage').classList.toggle('active',m==='manage');
-  if(m==='manage' && userRole==='admin') renderLedger();
+  if(m==='manage') renderLedger();
 }
 function poText(o){
   return '[발주] '+o.product+' '+o.color+' '+o.qty+'개 ('+o.type+')\n'
@@ -922,11 +995,11 @@ async function deleteCatalog(id){
 }
 
 async function loadInputUsers(){
-  const { data } = await sb.from('profiles').select('id, email').in('role',['input','admin']).order('email');
+  const { data } = await sb.from('profiles').select('id, email, display_name').in('role',['input','admin']).order('display_name');
   INPUT_USERS = data || [];
   const sel=$('#newPrUser');
   if(sel) sel.innerHTML='<option value="">사용자 선택</option>'+INPUT_USERS.map(u =>
-    '<option value="'+u.id+'">'+esc(u.email)+'</option>'
+    '<option value="'+u.id+'">'+esc(displayOf(u))+'</option>'
   ).join('');
 }
 async function loadUserPrices(){
@@ -941,7 +1014,7 @@ function renderUserPrices(){
     : USER_PRICES.map(p => {
         const u = INPUT_USERS.find(x=>x.id===p.user_id);
         return '<div class="pr-row" data-id="'+p.id+'">'
-          +'<span>'+esc(u?u.email:p.user_id.slice(0,8))+'</span>'
+          +'<span>'+esc(u?displayOf(u):p.user_id.slice(0,8))+'</span>'
           +'<span>'+esc(p.product_name)+' / '+esc(p.color||'-')+'</span>'
           +'<input type="number" class="pr-price" value="'+p.rep_price+'">'
           +'<button class="btn-sec btn-sm" data-pract="save">저장</button>'
@@ -1014,9 +1087,9 @@ function renderSettle(){
   }
   el.innerHTML = list.map(g=>{
     const u = INPUT_USERS.find(x=>x.id===g.user_id);
-    const email = u ? u.email : g.user_id.slice(0,8);
+    const name = u ? displayOf(u) : g.user_id.slice(0,8);
     return '<div class="settle-row">'
-      +'<div class="info"><div class="who">'+esc(email)+'</div>'
+      +'<div class="info"><div class="who">'+esc(name)+'</div>'
       +'<div class="det">미정산 '+g.count+'건 · 본인한테 입금해야 할 금액</div></div>'
       +'<div class="amt">'+wonInt(g.total)+'원</div>'
       +'<button data-settle-uid="'+g.user_id+'">정산 완료</button>'
@@ -1029,41 +1102,56 @@ async function settleUser(uid){
   await sb.from('orders').update({ settled:true }).eq('created_by', uid).eq('settled', false);
 }
 function renderLedger(){
-  if(userRole!=='admin') return;
   const r = computeLedger(ledgerPeriod);
-  $('#lsCount').textContent = wonInt(r.count);
-  $('#lsQty').textContent   = wonInt(r.qty);
-  $('#lsRevenue').textContent = wonInt(r.revenue);
-  $('#lsCost').textContent  = wonInt(r.cost);
-  $('#lsMargin').textContent = wonInt(r.margin);
-  $('#lsRate').textContent  = r.rate + '%';
-  // 거래 내역 테이블
+  if(userRole==='admin'){
+    $('#lsCount').textContent = wonInt(r.count);
+    $('#lsQty').textContent   = wonInt(r.qty);
+    $('#lsRevenue').textContent = wonInt(r.revenue);
+    $('#lsCost').textContent  = wonInt(r.cost);
+    $('#lsMargin').textContent = wonInt(r.margin);
+    $('#lsRate').textContent  = r.rate + '%';
+    renderSettle();
+  } else {
+    // 입력자: 본인 주문만 (loadOrders가 이미 필터링), 받은금액=o.amount 합
+    const my = r.list;
+    const myQty = my.reduce((s,o)=>s+(+o.qty||1), 0);
+    const myTotal = my.reduce((s,o)=>s+(+o.amount||0), 0);
+    const myPaid = my.filter(o=>o.paid).length;
+    const myUnpaid = my.filter(o=>!o.paid).length;
+    $('#myCount').textContent = wonInt(my.length);
+    $('#myQty').textContent = wonInt(myQty);
+    $('#myTotal').textContent = wonInt(myTotal);
+    $('#myPaid').textContent = wonInt(myPaid);
+    $('#myUnpaid').textContent = wonInt(myUnpaid);
+  }
+  // 거래 내역 테이블 (양쪽 다 표시)
   const body = $('#lsList');
   if(body){
     if(r.list.length === 0){
-      body.innerHTML = '<tr><td colspan="8" class="empty">기간 내 거래가 없습니다</td></tr>';
+      body.innerHTML = '<tr><td colspan="'+(userRole==='admin'?8:6)+'" class="empty">기간 내 거래가 없습니다</td></tr>';
     } else {
       body.innerHTML = r.list.map(o=>{
         const u = INPUT_USERS.find(x=>x.id===o.created_by);
-        const uLabel = u ? (u.email.split('@')[0]) : '?';
+        const uLabel = u ? displayOf(u) : '?';
         const q = +o.qty||1;
         const rev = (+o.rep_price||0)*q;
         const cst = (+o.cost_price||0)*q;
         const mgn = rev - cst;
+        // 입력자 본인은 받은금액(amount) 표시, 관리자는 매출(rep_price 합)
+        const amtShown = (userRole==='admin') ? rev : (+o.amount||0) * 1; // amount는 한 건 단위, qty 곱하지 않음
         return '<tr>'
           +'<td>'+esc(o.date||'-')+'</td>'
           +'<td><b>'+esc(o.paid_by || o.name || '-')+'</b></td>'
-          +'<td>'+esc(uLabel)+'</td>'
+          +(userRole==='admin' ? '<td class="admin-only">'+esc(uLabel)+'</td>' : '')
           +'<td>'+esc(o.product||'')+' '+esc(o.color||'')+'</td>'
           +'<td>'+q+'</td>'
-          +'<td>'+wonInt(rev)+'</td>'
-          +'<td style="color:'+(mgn>0?'#137333':'#c5221f')+'"><b>'+wonInt(mgn)+'</b></td>'
+          +'<td>'+wonInt(amtShown)+'</td>'
+          +(userRole==='admin' ? '<td class="admin-only" style="color:'+(mgn>0?'#137333':'#c5221f')+'"><b>'+wonInt(mgn)+'</b></td>' : '')
           +'<td>'+(o.paid?'✅':'⏳')+'</td>'
           +'</tr>';
       }).join('');
     }
   }
-  renderSettle();
 }
 
 function renderLedgerFilters(){
