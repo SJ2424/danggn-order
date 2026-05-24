@@ -209,6 +209,14 @@ body[data-mode="manage"] #ledgerCard{display:block}
 .cat-add,.pr-add{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 .cat-add input,.pr-add input,.pr-add select{padding:8px;font-size:13px}
 .cat-add button,.pr-add button{grid-column:1/-1;background:var(--pri);color:#fff;padding:9px}
+.rcp-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.rcp-row:last-child{border-bottom:0}
+.rcp-row .rcp-date{color:var(--mut);font-size:11.5px;white-space:nowrap}
+.rcp-add{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.rcp-add input,.rcp-add select{padding:8px;font-size:13px}
+.rcp-add #rcpPreview{grid-column:1/-1;padding:9px;background:#eef6ff;border-radius:6px;text-align:center;font-size:13px;color:#1a73e8}
+.rcp-add button{grid-column:1/-1;background:var(--pri);color:#fff;padding:9px}
+@media (max-width:520px){.rcp-row{grid-template-columns:1fr;gap:4px;padding:10px 0}}
 .tx-wrap{overflow-x:auto;margin-top:8px}
 .tx-table{width:100%;border-collapse:collapse;font-size:12px}
 .tx-table th,.tx-table td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;white-space:nowrap}
@@ -387,6 +395,22 @@ body[data-mode="manage"] #ledgerCard{display:block}
     <input id="newCatCost" type="number" placeholder="원가 (원)">
     <input id="newCatRep" type="number" placeholder="기본 납품가 (원)">
     <button id="btnAddCat">+ 상품 추가</button>
+  </div>
+</details>
+
+<details class="card admin-only">
+  <summary>📦 입고 기록 (배치별 단위원가)</summary>
+  <p class="muted" style="margin-top:10px">입고할 때마다 <b>매입가(개당)</b>와 <b>물류비(총액)</b>를 기록하면 단위원가가 자동 계산되고, 이후 등록되는 새 주문엔 이 원가가 자동 적용됩니다. <b>과거 주문은 그대로 유지</b>됩니다.</p>
+  <div id="receiptList"></div>
+  <div class="rcp-add">
+    <input id="newRcpDate" type="date">
+    <select id="newRcpProduct"><option value="">상품 선택</option></select>
+    <input id="newRcpQty" type="number" placeholder="수량 (예: 100)">
+    <input id="newRcpUnit" type="number" placeholder="매입가 개당 (예: 23000)">
+    <input id="newRcpLogiTot" type="number" placeholder="물류비 총액 (예: 200000)">
+    <input id="newRcpNote" type="text" placeholder="메모 (선택)">
+    <div id="rcpPreview">수량·매입가·물류비를 입력하면 단위원가가 자동 계산됩니다</div>
+    <button id="btnAddRcp">+ 입고 기록 추가</button>
   </div>
 </details>
 
@@ -706,6 +730,7 @@ async function showApp(session){
     await loadCatalog();
     await loadInputUsers();
     await loadUserPrices();
+    await loadReceipts();
     renderLedgerFilters();
   }
 }
@@ -1203,6 +1228,76 @@ async function deleteUserPrice(id){
   if(!confirm('삭제할까요?')) return;
   await sb.from('user_prices').delete().eq('id', id);
   await loadUserPrices();
+}
+
+// ====== 입고 기록 (재고 배치) ======
+let RECEIPTS = [];
+function kstToday(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date()); }
+async function loadReceipts(){
+  const { data, error } = await sb.from('stock_receipts').select('*').order('date',{ascending:false}).order('created_at',{ascending:false}).limit(30);
+  if(error){ console.warn('loadReceipts:', error.message); RECEIPTS=[]; }
+  else RECEIPTS = data || [];
+  renderReceipts();
+}
+function renderReceipts(){
+  const list=$('#receiptList'); if(!list) return;
+  list.innerHTML = RECEIPTS.length===0
+    ? '<div class="empty">입고 기록 없음 (아래에서 추가)</div>'
+    : RECEIPTS.map(r =>
+        '<div class="rcp-row" data-id="'+r.id+'">'
+        +'<span class="rcp-date">'+esc(r.date)+'</span>'
+        +'<span>'+esc(r.product)+' / '+esc(r.color||'-')+' · <b>'+r.qty+'개</b>'
+        +(r.note?' <span class="muted">('+esc(r.note)+')</span>':'')+'</span>'
+        +'<span>단위원가 <b>'+wonInt(r.unit_cost)+'원</b></span>'
+        +'<button class="btn-sec btn-sm" data-rcpact="del">삭제</button>'
+        +'</div>'
+      ).join('');
+  const sel=$('#newRcpProduct');
+  if(sel) sel.innerHTML='<option value="">상품 선택</option>'+CATALOG.map(p =>
+    '<option value="'+esc(p.name)+'|'+esc(p.color||'')+'">'+esc(p.name)+' / '+esc(p.color||'-')+'</option>'
+  ).join('');
+  const d=$('#newRcpDate'); if(d && !d.value) d.value = kstToday();
+  updateRcpPreview();
+}
+function updateRcpPreview(){
+  const prv=$('#rcpPreview'); if(!prv) return;
+  const qty=+$('#newRcpQty').value||0;
+  const unit=+$('#newRcpUnit').value||0;
+  const logi=+$('#newRcpLogiTot').value||0;
+  if(!qty || !unit){ prv.textContent='수량·매입가·물류비를 입력하면 단위원가가 자동 계산됩니다'; return; }
+  const total = unit*qty + logi;
+  const unitCost = Math.round(total/qty);
+  const logiPerUnit = qty? Math.round(logi/qty):0;
+  prv.innerHTML='📦 매입 <b>'+wonInt(unit*qty)+'</b> + 물류 <b>'+wonInt(logi)+'</b> = 총 <b>'+wonInt(total)+'원</b><br>→ 단위원가 <b style="font-size:15px">'+wonInt(unitCost)+'원</b> (개당 매입 '+wonInt(unit)+' + 물류 '+wonInt(logiPerUnit)+')';
+}
+async function addReceipt(){
+  const date=$('#newRcpDate').value;
+  const pv=$('#newRcpProduct').value;
+  const qty=+$('#newRcpQty').value||0;
+  const unit=+$('#newRcpUnit').value||0;
+  const logi=+$('#newRcpLogiTot').value||0;
+  const note=$('#newRcpNote').value.trim();
+  if(!date) return alert('날짜를 입력하세요');
+  if(!pv) return alert('상품을 선택하세요');
+  if(!qty) return alert('수량을 입력하세요');
+  if(!unit) return alert('매입가(개당)를 입력하세요');
+  const [product, color] = pv.split('|');
+  const total = unit*qty + logi;
+  const unitCost = Math.round(total/qty);
+  if(!confirm('이 상품의 단위원가가 '+wonInt(unitCost)+'원으로 갱신되고, 이후 새 주문엔 이 원가가 적용됩니다. 진행할까요?')) return;
+  const { error } = await sb.from('stock_receipts').insert({
+    date, product, color: color||null, qty,
+    purchase_unit: unit, logistics_total: logi, unit_cost: unitCost, note: note||null
+  });
+  if(error) return alert('추가 실패: '+error.message+'\n\n(stock_receipts 테이블이 없으면 Supabase SQL Editor에서 마이그레이션 SQL을 먼저 실행하세요)');
+  ['newRcpQty','newRcpUnit','newRcpLogiTot','newRcpNote'].forEach(id=>$('#'+id).value='');
+  await loadCatalog(); await loadReceipts();
+  alert('✅ 입고 등록 + 단위원가 갱신 완료');
+}
+async function deleteReceipt(id){
+  if(!confirm('이 입고 기록을 삭제할까요? (상품 default_cost는 자동 복원되지 않습니다)')) return;
+  await sb.from('stock_receipts').delete().eq('id', id);
+  await loadReceipts();
 }
 
 let ledgerUserFilter='', ledgerBuyerFilter='';
@@ -1719,6 +1814,16 @@ $('#btnRunBot').addEventListener('click', manualRunBot);
 // 카탈로그·단가 추가 버튼
 $('#btnAddCat').addEventListener('click', addCatalog);
 $('#btnAddPrice').addEventListener('click', addUserPrice);
+// 입고 기록 — 추가/삭제/실시간 미리보기
+$('#btnAddRcp') && $('#btnAddRcp').addEventListener('click', addReceipt);
+['newRcpQty','newRcpUnit','newRcpLogiTot'].forEach(id=>{
+  const el=$('#'+id); if(el) el.addEventListener('input', updateRcpPreview);
+});
+$('#receiptList') && $('#receiptList').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-rcpact]'); if(!b) return;
+  const row=b.closest('.rcp-row'); const id=row.dataset.id;
+  if(b.dataset.rcpact==='del') deleteReceipt(id);
+});
 
 // 카탈로그 행 (저장/삭제)
 $('#catalogList').addEventListener('click', e=>{
