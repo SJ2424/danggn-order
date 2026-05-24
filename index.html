@@ -876,8 +876,21 @@ function setMode(m){
   $('#mManage').classList.toggle('active',m==='manage');
   if(m==='manage') renderLedger();
 }
+const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는선풍기','날개없는 선풍기','철제선반'];
+function isCartProduct(p){ return CART_PRODUCTS.includes((p||'').replace(/\s+/g,'')); }
 function poText(o){
-  return '[발주] '+o.product+' '+o.color+' '+o.qty+'개 ('+o.type+')\n'
+  if(isCartProduct(o.product)){
+    // 카트사이트 양식에 맞춰 출력 (수동 입력용)
+    return '[카트사이트 수동 발주]\n'
+      +'제품: '+o.product+'\n'
+      +'수량: '+o.qty+'\n'
+      +'옵션: '+(o.color||'-')+'\n'
+      +'배송정보: '+o.name+' / '+o.tel+' / '+o.addr+'\n'
+      +'주문자/입금자: 김수재 (관리자)\n'
+      +'비고: 구매자 '+o.name+' / '+won(o.amount)+'원'
+      +(o.tracking?'\n송장: '+o.tracking:'');
+  }
+  return '[OMS 발주] '+o.product+' '+o.color+' '+o.qty+'개 ('+o.type+')\n'
     +'받는분: '+o.name+' / '+o.tel+'\n주소: '+o.addr+'\n금액: '+won(o.amount)+'원'
     +(o.tracking?'\n송장: '+o.tracking:'');
 }
