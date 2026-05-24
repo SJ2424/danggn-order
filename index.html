@@ -91,6 +91,10 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .chip-flt{background:#fff;border:1px solid var(--line);color:var(--mut);padding:6px 11px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer}
 .chip-flt.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.ledger-chip-stack{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px;padding:10px;background:#f9fafb;border-radius:8px}
+.chip-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.chip-line>b{font-size:11.5px;color:var(--mut);min-width:32px;font-weight:600}
+.chip-line .chip-flt{font-size:11px;padding:3px 9px}
 .order-list{display:flex;flex-direction:column;gap:10px}
 @media (min-width:760px){.order-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
 .card-order{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
@@ -357,6 +361,11 @@ body[data-mode="manage"] #ledgerCard{display:block}
     <select id="lfUser"><option value="">전체 입력자</option></select>
     <input id="lfBuyer" placeholder="구매자명·연락처로 검색">
   </div>
+  <div class="ledger-chip-stack admin-only">
+    <div class="chip-line"><b>상품</b> <span id="lfProductChips"></span></div>
+    <div class="chip-line"><b>색상</b> <span id="lfColorChips"></span></div>
+    <div class="chip-line"><b>거래</b> <span id="lfTypeChips"></span></div>
+  </div>
   <div class="admin-only">
     <h3 style="margin:18px 0 8px;font-size:14px">👥 입력자별 미정산 (입력자 → 본인한테 입금해야 할 금액)</h3>
     <p class="muted" style="margin:0 0 4px">'정산 완료' 클릭 시 해당 입력자의 미정산 주문이 모두 정산 표시됨.</p>
@@ -365,7 +374,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <h3 style="margin:18px 0 8px;font-size:14px">📋 거래 내역 (선택 기간)</h3>
   <div class="tx-wrap">
     <table class="tx-table">
-      <thead><tr><th>날짜</th><th>입금자(구매자)</th><th class="admin-only">입력자</th><th>상품</th><th>수량</th><th>금액</th><th class="admin-only">마진</th><th>입금</th></tr></thead>
+      <thead><tr><th>날짜</th><th>입금자(구매자)</th><th class="admin-only">입력자</th><th>상품</th><th>거래</th><th>수량</th><th>금액</th><th class="admin-only">마진</th><th>입금</th></tr></thead>
       <tbody id="lsList"></tbody>
     </table>
   </div>
@@ -587,13 +596,16 @@ function displayOf(profileOrUser){
   }
   return e.split('@')[0] || e;
 }
-let curFilter='all', curSearch='';
+let curFilter='inprogress', curSearch='';
 const FILTERS=[
-  {k:'all',l:'전체'},
   {k:'inprogress',l:'진행중'},
-  {k:'shipped',l:'발송완료'},
-  {k:'unpaid',l:'미입금'}
+  {k:'unpaid',l:'미입금'},
+  {k:'completed',l:'완료'},
+  {k:'all',l:'전체'}
 ];
+// '완료' = 발송완료 AND 입금완료 (액션 끝남)
+// '진행중' = 그 외 모두 (발주대기·발송대기·발송완료-미입금)
+function isCompleted(o){ return !!o.paid && o.status === '발송완료'; }
 
 const SIDO = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주','충청','전라','경상'];
 const LABELS = ['성함','이름','성명','연락처','전화번호','전화','휴대폰','핸드폰','번호','주소','수령','받는분','받는','수취인'];
@@ -987,14 +999,14 @@ async function bulkOrderComplete(){
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function countFor(k){
   if(k==='all') return ORDERS.length;
-  if(k==='inprogress') return ORDERS.filter(o=>(o.status||'접수')!=='발송완료').length;
-  if(k==='shipped') return ORDERS.filter(o=>o.status==='발송완료').length;
+  if(k==='inprogress') return ORDERS.filter(o => !isCompleted(o)).length;
+  if(k==='completed')  return ORDERS.filter(o => isCompleted(o)).length;
   if(k==='unpaid') return ORDERS.filter(o=>!o.paid).length;
   return 0;
 }
 function filterMatch(o){
-  if(curFilter==='inprogress' && (o.status||'접수')==='발송완료') return false;
-  if(curFilter==='shipped' && o.status!=='발송완료') return false;
+  if(curFilter==='inprogress' && isCompleted(o)) return false;
+  if(curFilter==='completed' && !isCompleted(o)) return false;
   if(curFilter==='unpaid' && o.paid) return false;
   if(curSearch){
     const q=curSearch.toLowerCase();
@@ -1040,7 +1052,7 @@ function cardHtml(o){
     +'</div>'
     +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
-    +'<div class="oc-line oc-item"><b>'+esc(o.product)+' '+esc(o.color)+' '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
+    +'<div class="oc-line oc-item"><b>'+esc(o.product)+(o.color?' / '+esc(o.color):'')+' · '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
     +'<div class="oc-line oc-track-line">'+trackHtml+'</div>'
     +paidByLine
     +'<div class="oc-foot">'
@@ -1055,10 +1067,13 @@ function cardHtml(o){
 function renderList(){
   renderAliases(); renderFilters();
   const items = ORDERS.filter(filterMatch);
-  $('#list').innerHTML = items.length
-    ? items.map(cardHtml).join('')
+  const emptyMsg = ORDERS.length
+    ? '<div class="empty">현재 필터에 해당하는 주문이 없습니다<br><span class="muted" style="font-size:12px">전체 '+ORDERS.length+'건 — 위 칩에서 <b>전체</b> 클릭하면 모두 보임</span></div>'
     : '<div class="empty">표시할 주문이 없습니다</div>';
-  $('#cnt').textContent = ORDERS.length?'('+ORDERS.length+'건)':'';
+  $('#list').innerHTML = items.length ? items.map(cardHtml).join('') : emptyMsg;
+  $('#cnt').textContent = ORDERS.length
+    ? '('+items.length+(items.length===ORDERS.length?'':'/'+ORDERS.length)+'건)'
+    : '';
   const recv=ORDERS.filter(o=>(o.status||'접수')==='접수').length;
   const pend=ORDERS.filter(o=>o.status==='발주대기').length;
   const unpaid=ORDERS.filter(o=>!o.paid).length;
@@ -1343,17 +1358,28 @@ async function deleteReceipt(id){
 }
 
 let ledgerUserFilter='', ledgerBuyerFilter='';
-function computeLedger(period){
+let ledgerProductFilter='', ledgerColorFilter='', ledgerTypeFilter='';
+// 1단계: 기간 + 사용자 + 구매자 검색 (칩 필터는 적용 안된 base list)
+function getLedgerBase(){
   const now=new Date();
   let since=null;
-  if(period==='today'){ since=new Date(now); since.setHours(0,0,0,0); }
-  else if(period==='month'){ since=new Date(now.getFullYear(), now.getMonth(), 1); }
+  if(ledgerPeriod==='today'){ since=new Date(now); since.setHours(0,0,0,0); }
+  else if(ledgerPeriod==='month'){ since=new Date(now.getFullYear(), now.getMonth(), 1); }
   let list = ORDERS.filter(o => !since || new Date(o.created_at||o.date) >= since);
   if(ledgerUserFilter) list = list.filter(o => o.created_by === ledgerUserFilter);
   if(ledgerBuyerFilter){
     const q = ledgerBuyerFilter.toLowerCase();
     list = list.filter(o => (o.name||'').toLowerCase().includes(q) || (o.tel||'').toLowerCase().includes(q));
   }
+  return list;
+}
+function computeLedger(period){
+  // period 인자는 호환용 — 실제로는 ledgerPeriod 글로벌 사용
+  let list = getLedgerBase();
+  // 2단계: 칩 필터 (상품/색상/거래)
+  if(ledgerProductFilter) list = list.filter(o => (o.product||'') === ledgerProductFilter);
+  if(ledgerColorFilter)   list = list.filter(o => (o.color||'')   === ledgerColorFilter);
+  if(ledgerTypeFilter)    list = list.filter(o => (o.type||'')    === ledgerTypeFilter);
   let qty=0, revenue=0, cost=0;
   list.forEach(o=>{
     const q=+o.qty||1; qty+=q;
@@ -1363,6 +1389,24 @@ function computeLedger(period){
   const margin = revenue - cost;
   const rate = revenue>0 ? Math.round(margin/revenue*1000)/10 : 0;
   return { list, count:list.length, qty, revenue, cost, margin, rate };
+}
+// 칩 렌더링 — base 기준으로 distinct value + 건수
+function renderLedgerChips(){
+  const base = getLedgerBase();
+  const mk = (label, k, current, cnt) =>
+    '<button class="chip-flt'+(current===k?' active':'')+'" data-val="'+esc(k)+'">'+esc(label)+(cnt!=null?' '+cnt:'')+'</button>';
+  const buildRow = (key, current, allLabel) => {
+    const values = [...new Set(base.map(o => o[key]).filter(v => v!=null && v!==''))].sort();
+    let html = mk(allLabel, '', current, base.length);
+    values.forEach(v => {
+      const cnt = base.filter(o => o[key] === v).length;
+      html += mk(v, v, current, cnt);
+    });
+    return html;
+  };
+  const p = $('#lfProductChips'); if(p) p.innerHTML = buildRow('product', ledgerProductFilter, '전체');
+  const c = $('#lfColorChips');   if(c) c.innerHTML = buildRow('color',   ledgerColorFilter,   '전체');
+  const t = $('#lfTypeChips');    if(t) t.innerHTML = buildRow('type',    ledgerTypeFilter,    '전체');
 }
 
 // 입력자별 미정산 (관리자 본인 주문 제외)
@@ -1433,6 +1477,7 @@ function renderTodaySummary(){
 }
 function renderLedger(){
   renderTodaySummary();
+  renderLedgerChips();
   const r = computeLedger(ledgerPeriod);
   if(userRole==='admin'){
     $('#lsCount').textContent = wonInt(r.count);
@@ -1459,7 +1504,7 @@ function renderLedger(){
   const body = $('#lsList');
   if(body){
     if(r.list.length === 0){
-      body.innerHTML = '<tr><td colspan="'+(userRole==='admin'?8:6)+'" class="empty">기간 내 거래가 없습니다</td></tr>';
+      body.innerHTML = '<tr><td colspan="'+(userRole==='admin'?9:7)+'" class="empty">조건에 맞는 거래가 없습니다</td></tr>';
     } else {
       const sorted = [...r.list].sort((a,b) => {
         const ad = a.date||'', bd = b.date||'';
@@ -1477,11 +1522,15 @@ function renderLedger(){
         const mgn = rev - cst;
         // 입력자 본인은 받은금액(amount) 표시, 관리자는 매출(rep_price 합)
         const amtShown = (userRole==='admin') ? rev : (+o.amount||0) * 1; // amount는 한 건 단위, qty 곱하지 않음
+        const typeBadge = (o.type==='직거래')
+          ? '<span style="color:#1a73e8">직거래</span>'
+          : '<span style="color:#137333">택배</span>';
         return '<tr>'
           +'<td>'+esc(o.date||'-')+'</td>'
           +'<td><b>'+esc(o.paid_by || o.name || '-')+'</b></td>'
           +(userRole==='admin' ? '<td class="admin-only">'+esc(uLabel)+'</td>' : '')
-          +'<td>'+esc(o.product||'')+' '+esc(o.color||'')+'</td>'
+          +'<td>'+esc(o.product||'')+(o.color?' / '+esc(o.color):'')+'</td>'
+          +'<td>'+typeBadge+'</td>'
           +'<td>'+q+'</td>'
           +'<td>'+wonInt(amtShown)+'</td>'
           +(userRole==='admin' ? '<td class="admin-only" style="color:'+(mgn>0?'#137333':'#c5221f')+'"><b>'+wonInt(mgn)+'</b></td>' : '')
@@ -1491,12 +1540,12 @@ function renderLedger(){
       // 더 보기 버튼
       if(total > display.length){
         const remain = total - display.length;
-        const cols = userRole==='admin' ? 8 : 6;
+        const cols = userRole==='admin' ? 9 : 7;
         body.innerHTML += '<tr><td colspan="'+cols+'" style="text-align:center;padding:14px;background:#f9fafb"><button class="btn-sec btn-sm" id="btnMoreLedger">+ '+remain+'건 더 보기</button> <span class="muted">(총 '+total+'건 중 '+display.length+'건 표시)</span></td></tr>';
         const more = $('#btnMoreLedger');
         if(more) more.addEventListener('click', () => { ledgerListLimit += 20; renderLedger(); });
       } else if(total > 20){
-        const cols = userRole==='admin' ? 8 : 6;
+        const cols = userRole==='admin' ? 9 : 7;
         body.innerHTML += '<tr><td colspan="'+cols+'" style="text-align:center;padding:10px;background:#f9fafb"><button class="btn-sec btn-sm" id="btnCollapseLedger">▲ 처음 20건만 보기</button></td></tr>';
         const col = $('#btnCollapseLedger');
         if(col) col.addEventListener('click', () => { ledgerListLimit = 20; renderLedger(); });
@@ -1664,7 +1713,7 @@ async function previewCsv(){
     }).filter(o => o.date || o.name || o.product);  // 완전 빈 행 제거
     csvParsedRows = rows;
     const sample = rows.slice(0, 5).map(o =>
-      `· ${esc(o.date||'-')} | <b>${esc(o.name||'?')}</b> | ${esc(o.product||'-')} ${esc(o.color||'')} ${o.qty}개 | ${wonInt(o.amount)}원 ${o.paid?'✅입금완료':'⏳미입금'}`
+      `· ${esc(o.date||'-')} | <b>${esc(o.name||'?')}</b> | ${esc(o.product||'-')}${o.color?' / '+esc(o.color):''} · ${o.qty}개 | ${wonInt(o.amount)}원 ${o.paid?'✅입금완료':'⏳미입금'}`
     ).join('<br>');
     $('#csvPreview').innerHTML = `<div style="background:#f9fafb;padding:10px;border-radius:6px;font-size:11.5px">
       총 <b>${rows.length}</b>건 인식됨 (헤더 ${headerIdx+1}번째 행).<br>
@@ -1844,6 +1893,20 @@ $('#settleList').addEventListener('click', e=>{
 // 장부 필터 (입력자, 구매자명)
 $('#lfUser').addEventListener('change', e=>{ ledgerUserFilter=e.target.value; ledgerListLimit=20; renderLedger(); });
 $('#lfBuyer').addEventListener('input', e=>{ ledgerBuyerFilter=e.target.value.trim(); ledgerListLimit=20; renderLedger(); });
+// 장부 칩 필터 (상품/색상/거래)
+function bindLedgerChipRow(containerId, setter){
+  const el = $('#'+containerId);
+  if(!el) return;
+  el.addEventListener('click', e=>{
+    const b = e.target.closest('button[data-val]'); if(!b) return;
+    setter(b.dataset.val);
+    ledgerListLimit = 20;
+    renderLedger();
+  });
+}
+bindLedgerChipRow('lfProductChips', v => { ledgerProductFilter = v; });
+bindLedgerChipRow('lfColorChips',   v => { ledgerColorFilter   = v; });
+bindLedgerChipRow('lfTypeChips',    v => { ledgerTypeFilter    = v; });
 
 // 글씨 크기 버튼
 $('#btnFont').addEventListener('click', cycleFont);
