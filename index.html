@@ -16,7 +16,8 @@ body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,Bl
 header{background:var(--pri);color:#fff;padding:14px 16px;font-weight:700;font-size:17px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px}
 header small{font-weight:400;opacity:.85;font-size:12px;margin-left:6px}
 header .who{font-size:12px;font-weight:400;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-header .who span{opacity:.9}
+header .who span{opacity:.9;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header > div:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1}
 header button{background:rgba(0,0,0,.2);color:#fff;border:0;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600}
 .pending-badge{background:#fbbf24!important;color:#7c2d12!important;font-weight:700;font-size:11px;padding:4px 9px;border-radius:999px;cursor:pointer;border:0}
 main{max-width:760px;margin:0 auto;padding:14px}
@@ -448,7 +449,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
       <div><label>상품</label><input id="eProduct"></div>
       <div><label>색상</label><input id="eColor"></div>
       <div><label>수량</label><input id="eQty" type="number" min="1"></div>
-      <div><label>거래방식</label><input id="eType"></div>
+      <div><label>거래방식</label><select id="eType"><option value="택배">📦 택배</option><option value="직거래">🤝 직거래</option></select></div>
       <div class="full"><label>판매금액 (원)</label><input id="eAmount" type="number"></div>
       <div><label>내 휴대폰</label><input id="ePhone"></div>
       <div><label>구매자 닉네임</label><input id="eNick"></div>
@@ -471,6 +472,8 @@ const $ = s => document.querySelector(s);
 const load = (k,d) => { try{return JSON.parse(localStorage.getItem('dg_'+k)) ?? d}catch(e){return d} };
 const save = (k,v) => { try{ localStorage.setItem('dg_'+k, JSON.stringify(v)); }catch(e){} };
 const won = n => (n===''||n==null)?'':Number(n).toLocaleString('ko-KR');
+// 한국시간 기준 오늘 YYYY-MM-DD (UTC 자정 직후 한국에선 이미 다음날인 문제 회피)
+const kstToday = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
 
 let PRODUCTS = load('products', [
   {name:'선반랙', keywords:['선반랙','선반','랙']},
@@ -522,7 +525,7 @@ function parseAll(raw){
   }
   let tokens = s.split(/\s+/).filter(Boolean);
   const isSido = k => SIDO.some(x=>k.startsWith(x));
-  const STOP = ['택배','직거래','방문','화이트','흰색','블랙','검정','아이보리'];
+  const STOP = ['택배','직거래','방문','화이트','흰색','블랙','검정','아이보리','회색','그레이','네이비','베이지','브라운','우드','내추럴'];
   const isName = k => /^[가-힣]{2,4}$/.test(k) && !isSido(k)
     && STOP.indexOf(k)<0 && !PRODUCTS.some(p=>p.keywords.indexOf(k)>=0);
   let name='', nameIdx=-1;
@@ -625,11 +628,23 @@ function showLogin(){
   setAuthTab('login');
 }
 
+let pendingMyChan = null;
 function showPending(session){
   $('#loginView').style.display='none';
   $('#appView').style.display='none';
   $('#pendingView').style.display='flex';
   $('#pendingEmail').textContent = userDisplayName || displayOf({ email: session.user.email });
+  // 본인 프로필 행이 승인되는 순간 자동 진입
+  if(pendingMyChan) sb.removeChannel(pendingMyChan);
+  pendingMyChan = sb.channel('my-profile-' + session.user.id)
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'profiles',
+      filter: 'id=eq.' + session.user.id
+    }, async () => {
+      const cur = await sb.auth.getSession();
+      if(cur.data.session) await loadProfileAndShow(cur.data.session);
+    })
+    .subscribe();
 }
 
 async function showApp(session){
@@ -770,7 +785,7 @@ function subscribeOrders(){
 }
 async function addOrder(){
   const o={
-    date:new Date().toISOString().slice(0,10),
+    date:kstToday(),
     phone:$('#fPhone').value.trim(),
     nick:$('#fNick').value.trim(),
     name:$('#pName').value.trim(),
@@ -786,7 +801,7 @@ async function addOrder(){
   if(!o.name && !o.tel){ alert('구매자 정보를 입력하세요.'); return; }
   const btn=$('#btnAdd'); btn.disabled=true; btn.textContent='추가 중...';
   const { error } = await sb.from('orders').insert(o);
-  btn.disabled=false; btn.textContent='주문 목록에 추가';
+  btn.disabled=false; btn.textContent='✓ 주문 목록에 추가';
   if(error){ alert('저장 실패: '+error.message); return; }
   // 채팅·닉네임·휴대폰 별칭 다 초기화 (매번 자유롭게 다시 입력)
   ['tAll','fNick','fPhone'].forEach(id=>$('#'+id).value='');
@@ -860,10 +875,18 @@ function closeEditModal(){
 }
 async function bulkOrderComplete(){
   if(userRole!=='admin') return;
-  const cnt = ORDERS.filter(o=>o.status==='발주대기').length;
-  if(cnt===0){ alert('발주대기 상태인 주문이 없습니다.'); return; }
-  if(!confirm('발주대기 '+cnt+'건을 모두 발주완료로 변경합니다. 계속할까요?')) return;
-  await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기');
+  // 오늘 발주대기만 — 과거 주문이 잘못 변경되지 않게
+  const today = kstToday();
+  const targets = ORDERS.filter(o=>o.status==='발주대기' && o.date===today);
+  if(targets.length===0){
+    const allCnt = ORDERS.filter(o=>o.status==='발주대기').length;
+    if(allCnt===0){ alert('발주대기 상태인 주문이 없습니다.'); return; }
+    if(!confirm('오늘자 발주대기는 0건이지만, 전체 발주대기 '+allCnt+'건이 있습니다. 모두 발주완료로 변경할까요? (과거 미처리분 포함)')) return;
+    await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기');
+    return;
+  }
+  if(!confirm('오늘('+today+') 발주대기 '+targets.length+'건을 모두 발주완료로 변경합니다. 계속할까요?')) return;
+  await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기').eq('date', today);
 }
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -990,7 +1013,7 @@ function exportCsv(){
   const rows=ORDERS.map(o=>[o.date,o.phone,o.nick,o.name,o.tel,o.addr,o.product,o.color,o.qty,o.type,o.amount,o.paid?'입금완료':'미입금',o.status||'접수',o.tracking||''].map(escc).join(','));
   const blob=new Blob(['﻿'+[head.join(','),...rows].join('\n')],{type:'text/csv'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='당근주문_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+  a.download='당근주문_'+kstToday()+'.csv'; a.click();
 }
 function saveProducts(){
   try{ PRODUCTS=JSON.parse($('#prodJson').value); save('products',PRODUCTS); alert('상품 키워드 저장됨'); }
@@ -1027,7 +1050,7 @@ function checkDeadline(){
   } else { $('#alarm').style.display='none'; }
 }
 function ackDeadline(){
-  save('ackDate', new Date().toISOString().slice(0,10));
+  save('ackDate', kstToday());
   $('#alarm').style.display='none';
   setMode('manage');
 }
@@ -1412,7 +1435,6 @@ $('#list').addEventListener('click', e=>{
   const id=b.dataset.id, act=b.dataset.act;
   if(act==='paid') togglePaid(id);
   else if(act==='status') toggleStatus(id);
-  else if(act==='po') copyPo(id);
   else if(act==='del') delRow(id);
   else if(act==='edit') openEditModal(id);
 });
