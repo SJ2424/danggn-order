@@ -104,6 +104,24 @@ body[data-role="input"] .admin-only{display:none !important}
 body[data-role="input"] #inputCard{display:block !important}
 body[data-role="input"] .pill{pointer-events:none;cursor:default}
 body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-events:none}
+/* 글씨 크기 */
+body[data-font="small"]{zoom:0.92}
+body[data-font="large"]{zoom:1.12}
+.font-btn{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer;font-weight:700;min-width:32px}
+/* 입금자명 인라인 */
+.paid-by-line{font-size:12px;color:var(--mut);margin-top:6px;padding-top:6px;border-top:1px dashed #f0f0f0}
+.paid-by-inp{display:inline-block;width:auto;min-width:120px;padding:3px 7px;font-size:12px;margin-left:4px;border:1px solid var(--line);border-radius:5px}
+/* 입력자별 정산 */
+.settle-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.settle-row{padding:11px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px;flex-wrap:wrap;background:#fff7ed;border:1px solid #fbbf24}
+.settle-row .info{flex:1;min-width:0}
+.settle-row .who{font-weight:700;font-size:14px}
+.settle-row .det{font-size:11.5px;color:var(--mut);margin-top:2px}
+.settle-row .amt{font-weight:700;color:var(--pri);font-size:16px}
+.settle-row button{background:#137333;color:#fff;padding:7px 12px;font-size:12px;border-radius:6px;border:0;cursor:pointer;font-weight:600}
+/* 장부 필터 */
+.ledger-filters{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 4px;padding:8px;background:#f9fafb;border-radius:8px}
+.ledger-filters select,.ledger-filters input{padding:7px 9px;font-size:12.5px}
 /* 장부 카드는 관리 모드에서만 */
 #ledgerCard{display:none}
 body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
@@ -174,6 +192,7 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
 <header>
   <div>당근 판매·발주 관리 <small>v2</small></div>
   <div class="who">
+    <button class="font-btn" id="btnFont" aria-label="글씨 크기">가</button>
     <span id="whoEmail"></span>
     <button class="pending-badge admin-only" id="btnPending" style="display:none">승인대기 0</button>
     <button id="btnLogout">로그아웃</button>
@@ -189,7 +208,7 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
 
 <section class="card" id="inputCard">
   <h2>새 주문 입력</h2>
-  <p class="muted" style="margin:0 0 10px">구매자가 보낸 채팅을 그대로 붙여넣으면 이름·연락처·주소·상품·금액이 자동으로 정리됩니다.</p>
+  <p class="muted" style="margin:0 0 10px">구매자가 보낸 채팅을 그대로 붙여넣으면 이름·연락처·주소·상품·금액이 자동 정리됩니다. <b>같은 색상·같은 상품 여러 개만 묶고, 다른 색·다른 상품은 따로 입력하세요</b> (배송이 따로 나갑니다). 영업일 <b>오후 12:30 이후 입력은 다음 영업일에 발주</b>되며, 입력은 24시간 가능합니다.</p>
   <div class="row2">
     <div><label>내 휴대폰 (어느 폰으로 받은 주문)</label><input id="fPhone" list="phoneAliases" placeholder="예: 갤럭시-S25 / 아이폰15-블랙"><datalist id="phoneAliases"></datalist></div>
     <div><label>구매자 닉네임 (당근에서 보이는 이름)</label><input id="fNick" placeholder="예: 분당맘, 우리집강아지"></div>
@@ -226,6 +245,13 @@ body[data-role="admin"][data-mode="manage"] #ledgerCard{display:block}
     <div class="ls-row"><span>원가 <span class="gray">(OMS 단가 합)</span></span><span><b id="lsCost">0</b> 원</span></div>
     <div class="ls-row big"><span>마진</span><span><b id="lsMargin">0</b> 원 (<span id="lsRate">0%</span>)</span></div>
   </div>
+  <div class="ledger-filters">
+    <select id="lfUser"><option value="">전체 입력자</option></select>
+    <input id="lfBuyer" placeholder="구매자명·연락처로 검색">
+  </div>
+  <h3 style="margin:18px 0 8px;font-size:14px">👥 입력자별 미정산 (입력자 → 본인한테 입금해야 할 금액)</h3>
+  <p class="muted" style="margin:0 0 4px">'정산 완료' 클릭 시 해당 입력자의 미정산 주문이 모두 정산 표시됨. (정산 완료한 건은 이 목록에서 사라짐)</p>
+  <div id="settleList" class="settle-list"></div>
   <h3 style="margin:18px 0 8px;font-size:14px">📋 거래 내역 (선택 기간)</h3>
   <div class="tx-wrap">
     <table class="tx-table">
@@ -484,6 +510,7 @@ async function showApp(session){
     await loadCatalog();
     await loadInputUsers();
     await loadUserPrices();
+    renderLedgerFilters();
   }
 }
 
@@ -724,12 +751,16 @@ function renderFilters(){
 function cardHtml(o){
   const id=o.id;
   const status = o.status || '접수';
-  const trackPh = (userRole==='admin') ? '입력 또는 자동 수집' : '오후 17시 이후 자동 수집';
-  const trackRO = (userRole==='admin') ? '' : 'readonly';
-  // 수정 가능: 접수/발주대기 상태 + (관리자 OR 본인 주문)
   const editable = (status==='접수' || status==='발주대기')
     && (userRole==='admin' || o.created_by===myUserId);
   const editBtn = editable ? '<button class="btn-sec btn-sm" data-act="edit" data-id="'+id+'">✏️ 수정</button>' : '';
+  const trackHtml = o.tracking
+    ? '🚚 송장: <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'
+    : '🚚 송장: <span style="color:var(--mut)">발송 후 자동 조회 (오후 5~6시)</span>';
+  // 관리자 전용: 입금자명 인라인 편집 (은행 입금 매칭용)
+  const paidByLine = '<div class="oc-line paid-by-line admin-only">'
+    + '💰 은행 입금자명: <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="기본: 구매자명">'
+    + '</div>';
   return '<div class="card-order">'
     +'<div class="oc-top">'
       +'<div class="oc-name">'+esc(o.name||'(이름없음)')+(o.nick?'<span class="oc-nick">@'+esc(o.nick)+'</span>':'')+'</div>'
@@ -741,13 +772,12 @@ function cardHtml(o){
     +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
     +'<div class="oc-line oc-item"><b>'+esc(o.product)+' '+esc(o.color)+' '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
-    +'<div class="oc-line" style="font-size:12px;color:var(--mut)">🏦 입금자명: <b style="color:var(--txt)">'+esc(o.name||'-')+'</b> (은행 입금자명이 다르면 미입금으로 처리됨)</div>'
-    +'<div class="oc-line oc-track-line">송장: <input class="oc-track" data-id="'+id+'" placeholder="'+trackPh+'" value="'+esc(o.tracking||'')+'" '+trackRO+'></div>'
+    +'<div class="oc-line oc-track-line">'+trackHtml+'</div>'
+    +paidByLine
     +'<div class="oc-foot">'
       +'<span class="muted">'+esc(o.date)+(o.phone?' · '+esc(o.phone):'')+'</span>'
       +'<span class="oc-actions">'
         +editBtn
-        +'<button class="btn-sec btn-sm admin-only" data-act="po" data-id="'+id+'">발주서</button>'
         +'<button class="btn-sec btn-sm admin-only" data-act="del" data-id="'+id+'">삭제</button>'
       +'</span>'
     +'</div>'
@@ -938,12 +968,18 @@ async function deleteUserPrice(id){
   await loadUserPrices();
 }
 
+let ledgerUserFilter='', ledgerBuyerFilter='';
 function computeLedger(period){
   const now=new Date();
   let since=null;
   if(period==='today'){ since=new Date(now); since.setHours(0,0,0,0); }
   else if(period==='month'){ since=new Date(now.getFullYear(), now.getMonth(), 1); }
-  const list = ORDERS.filter(o => !since || new Date(o.created_at||o.date) >= since);
+  let list = ORDERS.filter(o => !since || new Date(o.created_at||o.date) >= since);
+  if(ledgerUserFilter) list = list.filter(o => o.created_by === ledgerUserFilter);
+  if(ledgerBuyerFilter){
+    const q = ledgerBuyerFilter.toLowerCase();
+    list = list.filter(o => (o.name||'').toLowerCase().includes(q) || (o.tel||'').toLowerCase().includes(q));
+  }
   let qty=0, revenue=0, cost=0;
   list.forEach(o=>{
     const q=+o.qty||1; qty+=q;
@@ -952,7 +988,45 @@ function computeLedger(period){
   });
   const margin = revenue - cost;
   const rate = revenue>0 ? Math.round(margin/revenue*1000)/10 : 0;
-  return { count:list.length, qty, revenue, cost, margin, rate };
+  return { list, count:list.length, qty, revenue, cost, margin, rate };
+}
+
+// 입력자별 미정산 (관리자 본인 주문 제외)
+function computeSettle(){
+  const groups = {};
+  ORDERS.forEach(o=>{
+    if(o.settled) return;
+    if(!o.created_by || o.created_by === myUserId) return;
+    if(!groups[o.created_by]) groups[o.created_by] = { user_id:o.created_by, count:0, total:0 };
+    const q = +o.qty || 1;
+    groups[o.created_by].count++;
+    groups[o.created_by].total += (+o.rep_price||0) * q;
+  });
+  return Object.values(groups).sort((a,b)=>b.total-a.total);
+}
+function renderSettle(){
+  if(userRole!=='admin') return;
+  const list = computeSettle();
+  const el = $('#settleList'); if(!el) return;
+  if(list.length===0){
+    el.innerHTML = '<div class="empty">✅ 모든 입력자 정산 완료 (또는 미정산 주문 없음)</div>';
+    return;
+  }
+  el.innerHTML = list.map(g=>{
+    const u = INPUT_USERS.find(x=>x.id===g.user_id);
+    const email = u ? u.email : g.user_id.slice(0,8);
+    return '<div class="settle-row">'
+      +'<div class="info"><div class="who">'+esc(email)+'</div>'
+      +'<div class="det">미정산 '+g.count+'건 · 본인한테 입금해야 할 금액</div></div>'
+      +'<div class="amt">'+wonInt(g.total)+'원</div>'
+      +'<button data-settle-uid="'+g.user_id+'">정산 완료</button>'
+      +'</div>';
+  }).join('');
+}
+async function settleUser(uid){
+  const u = INPUT_USERS.find(x=>x.id===uid);
+  if(!confirm((u?u.email:'이 사용자')+'의 미정산 주문 전체를 정산 완료로 표시할까요?\n(입력자가 본인 계좌로 입금한 뒤 누르세요)')) return;
+  await sb.from('orders').update({ settled:true }).eq('created_by', uid).eq('settled', false);
 }
 function renderLedger(){
   if(userRole!=='admin') return;
@@ -978,7 +1052,7 @@ function renderLedger(){
         const mgn = rev - cst;
         return '<tr>'
           +'<td>'+esc(o.date||'-')+'</td>'
-          +'<td><b>'+esc(o.name||'-')+'</b></td>'
+          +'<td><b>'+esc(o.paid_by || o.name || '-')+'</b></td>'
           +'<td>'+esc(uLabel)+'</td>'
           +'<td>'+esc(o.product||'')+' '+esc(o.color||'')+'</td>'
           +'<td>'+q+'</td>'
@@ -989,6 +1063,30 @@ function renderLedger(){
       }).join('');
     }
   }
+  renderSettle();
+}
+
+function renderLedgerFilters(){
+  const sel = $('#lfUser');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">전체 입력자</option>' + INPUT_USERS.map(u =>
+    '<option value="'+u.id+'">'+esc(u.email)+'</option>'
+  ).join('');
+}
+
+// 글씨 크기 토글 (작게/일반/크게 순환)
+const FONT_STATES=['small','normal','large'];
+const FONT_LABELS={small:'가-',normal:'가',large:'가+'};
+let fontState = load('fontState','normal');
+function applyFont(){
+  document.body.dataset.font = fontState;
+  const b=$('#btnFont'); if(b) b.textContent = FONT_LABELS[fontState];
+}
+function cycleFont(){
+  const i=FONT_STATES.indexOf(fontState);
+  fontState = FONT_STATES[(i+1)%FONT_STATES.length];
+  save('fontState', fontState);
+  applyFont();
 }
 
 function manualRunBot(){
@@ -1045,9 +1143,29 @@ $('#editModal').addEventListener('click', e=>{
   if(e.target.id==='editModal') closeEditModal();
 });
 $('#list').addEventListener('change', e=>{
-  const t=e.target.closest('.oc-track'); if(!t) return;
-  updateTracking(t.dataset.id, t.value.trim());
+  // 입금자명 인라인 수정
+  if(e.target.classList && e.target.classList.contains('paid-by-inp')){
+    if(userRole!=='admin') return;
+    const id = e.target.dataset.id;
+    const val = e.target.value.trim();
+    sb.from('orders').update({ paid_by: val || null }).eq('id', id);
+    return;
+  }
+  // 송장 칸은 더 이상 편집 불가 (자동수집 전용)
 });
+
+// 정산 완료 버튼
+$('#settleList').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-settle-uid]'); if(!b) return;
+  settleUser(b.dataset.settleUid);
+});
+
+// 장부 필터 (입력자, 구매자명)
+$('#lfUser').addEventListener('change', e=>{ ledgerUserFilter=e.target.value; renderLedger(); });
+$('#lfBuyer').addEventListener('input', e=>{ ledgerBuyerFilter=e.target.value.trim(); renderLedger(); });
+
+// 글씨 크기 버튼
+$('#btnFont').addEventListener('click', cycleFont);
 $('#filters').addEventListener('click', e=>{
   const b=e.target.closest('button[data-flt]'); if(!b) return;
   curFilter=b.dataset.flt; renderList();
@@ -1089,6 +1207,7 @@ $('#ledgerCard .chips').addEventListener('click', e=>{
 });
 
 $('#prodJson').value=JSON.stringify(PRODUCTS,null,1);
+applyFont();
 
 checkAuth();
 setInterval(checkDeadline, 20000);
