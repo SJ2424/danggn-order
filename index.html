@@ -159,6 +159,19 @@ body[data-font="large"]{zoom:1.12}
 /* 안내사항 footer */
 .help-note{background:#fff7f0;border:1px solid #ffd6b3;border-radius:8px;padding:11px 13px;font-size:12px;color:#7c2d12;margin-top:14px;line-height:1.55}
 .help-note b{color:#9a3412}
+/* 오늘 일일 정산 카드 */
+.today-summary{background:linear-gradient(135deg,#fff7f0 0%,#ffe8d4 100%);border:1px solid var(--pri);border-radius:10px;padding:13px 14px;margin-bottom:6px}
+.ts-title{font-size:14px;font-weight:700;color:var(--pri);margin-bottom:8px}
+.ts-row{font-size:12.5px;color:var(--txt);line-height:1.65}
+.ts-row b{color:var(--pri);font-weight:700}
+.ts-warn{color:#c5221f}
+.ts-warn b{color:#c5221f}
+.ts-deadlines{margin-top:8px;padding-top:7px;border-top:1px dashed rgba(255,111,15,.35);font-size:11.5px;color:#7c2d12}
+.ts-deadlines b{color:#9a3412;font-weight:700}
+@media (max-width:480px){
+  .ts-counts{font-size:12px}
+  .ts-deadlines{font-size:10.5px}
+}
 /* 회원가입 / 돌아가기 링크 */
 .signup-link{text-align:center;margin-top:18px;font-size:13px;color:var(--mut)}
 .signup-link a{color:var(--pri);font-weight:600;text-decoration:none;cursor:pointer;margin-left:4px}
@@ -295,10 +308,20 @@ body[data-mode="manage"] #ledgerCard{display:block}
 
 <section class="card" id="ledgerCard">
   <h2 id="ledgerTitle">📒 장부</h2>
-  <div class="chips">
-    <button class="chip-flt" data-period="today">오늘</button>
-    <button class="chip-flt active" data-period="month">이번달</button>
-    <button class="chip-flt" data-period="all">전체</button>
+  <!-- 오늘 일일 정산 (관리자 전용, 기간 무관 항상 표시) -->
+  <div class="today-summary admin-only">
+    <div class="ts-title">📊 <span id="tsDate"></span> 일일 정산</div>
+    <div class="ts-row ts-counts">
+      입력 <b id="tsCount">0</b> · 발주완료 <b id="tsOrdered">0</b> · 입금완료 <b id="tsPaid">0</b> · <span class="ts-warn">미입금 <b id="tsUnpaid">0</b></span>
+    </div>
+    <div class="ts-row" style="margin-top:6px"><b>👥 입력자별:</b></div>
+    <div class="ts-row" id="tsByUser" style="margin-top:2px">로딩중...</div>
+    <div class="ts-deadlines">⏰ 마감: <b>OMS(선반랙) 12:55</b> · <b>카트사이트 14:00</b></div>
+  </div>
+  <div class="chips" style="margin-top:14px">
+    <button type="button" class="chip-flt" data-period="today">오늘</button>
+    <button type="button" class="chip-flt active" data-period="month">이번달</button>
+    <button type="button" class="chip-flt" data-period="all">전체</button>
   </div>
   <!-- 관리자 전용 통계 -->
   <div class="ledger-stats admin-only">
@@ -1148,7 +1171,37 @@ async function settleUser(uid){
   if(!confirm((u?u.email:'이 사용자')+'의 미정산 주문 전체를 정산 완료로 표시할까요?\n(입력자가 본인 계좌로 입금한 뒤 누르세요)')) return;
   await sb.from('orders').update({ settled:true }).eq('created_by', uid).eq('settled', false);
 }
+function renderTodaySummary(){
+  if(userRole!=='admin') return;
+  const today = new Date();
+  const todayStart = new Date(today); todayStart.setHours(0,0,0,0);
+  const todayOrders = ORDERS.filter(o => new Date(o.created_at||o.date) >= todayStart);
+  const ordered = todayOrders.filter(o => o.status==='발주완료' || o.status==='발송완료').length;
+  const paid = todayOrders.filter(o => o.paid).length;
+  const unpaid = todayOrders.filter(o => !o.paid).length;
+  const dateStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  $('#tsDate').textContent = dateStr;
+  $('#tsCount').textContent = todayOrders.length;
+  $('#tsOrdered').textContent = ordered;
+  $('#tsPaid').textContent = paid;
+  $('#tsUnpaid').textContent = unpaid;
+  // 입력자별 (오늘만)
+  const groups = {};
+  todayOrders.forEach(o=>{
+    const k = o.created_by || 'unknown';
+    if(!groups[k]) groups[k] = { count:0, total:0 };
+    groups[k].count++;
+    groups[k].total += (+o.rep_price||0) * (+o.qty||1);
+  });
+  const arr = Object.entries(groups).map(([uid,g])=>{
+    const u = INPUT_USERS.find(x=>x.id===uid);
+    const name = u ? displayOf(u) : '?';
+    return esc(name)+' '+g.count+'건 ('+wonInt(g.total)+'원)';
+  });
+  $('#tsByUser').innerHTML = arr.length ? arr.join(' · ') : '<span class="muted">오늘 입력된 주문 없음</span>';
+}
 function renderLedger(){
+  renderTodaySummary();
   const r = computeLedger(ledgerPeriod);
   if(userRole==='admin'){
     $('#lsCount').textContent = wonInt(r.count);
@@ -1341,12 +1394,13 @@ $('#priceList').addEventListener('click', e=>{
     saveUserPriceRow(id, price);
   } else if(b.dataset.pract==='del') deleteUserPrice(id);
 });
-// 장부 기간 칩
-$('#ledgerCard .chips').addEventListener('click', e=>{
-  const b=e.target.closest('button[data-period]'); if(!b) return;
-  ledgerPeriod = b.dataset.period;
-  $('#ledgerCard .chips button').forEach(x=>x.classList.toggle('active', x===b));
-  renderLedger();
+// 장부 기간 칩 — 각 버튼에 직접 리스너 (가장 확실한 방식)
+document.querySelectorAll('#ledgerCard .chips button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    ledgerPeriod = btn.dataset.period;
+    document.querySelectorAll('#ledgerCard .chips button').forEach(x=>x.classList.toggle('active', x===btn));
+    renderLedger();
+  });
 });
 
 $('#prodJson').value=JSON.stringify(PRODUCTS,null,1);
