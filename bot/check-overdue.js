@@ -20,7 +20,7 @@ async function main(){
   if (error){ console.error('주문 조회 실패:', error); process.exit(1); }
   if (!orders || orders.length === 0){ console.log('✅ 72H+ 미입금 없음. 종료.'); return; }
 
-  // 사용자별 집계 (입력자 본인용)
+  // 사용자별 집계 (입력자 본인용 — 관리자는 화면에서만 확인, 푸시 X)
   const byUser = {};
   orders.forEach(o => {
     const uid = o.created_by;
@@ -29,29 +29,23 @@ async function main(){
     byUser[uid].count++;
     byUser[uid].total += (+o.amount || 0);
   });
-  const adminTotal = orders.reduce((s, o) => s + (+o.amount || 0), 0);
 
-  // 관리자 ID들
+  // 관리자 ID들 — 제외 대상
   const { data: admins } = await sb.from('profiles').select('id').eq('role', 'admin');
   const adminIds = new Set((admins||[]).map(a => a.id));
 
-  // 알림 받을 사용자 = 영향받은 입력자 + 모든 관리자
-  const recipients = new Set([...Object.keys(byUser), ...adminIds]);
-  const { data: subs } = await sb.from('push_subscriptions').select('*').in('user_id', [...recipients]);
+  // 알림 받을 사용자 = 영향받은 입력자(관리자 제외)
+  const recipients = [...Object.keys(byUser)].filter(uid => !adminIds.has(uid));
+  if (recipients.length === 0){ console.log('알림 대상 입력자 없음 (관리자만 해당). 종료.'); return; }
+  const { data: subs } = await sb.from('push_subscriptions').select('*').in('user_id', recipients);
   if (!subs || subs.length === 0){ console.log('구독 없음. 종료.'); return; }
 
   let sent = 0, dropped = 0;
   for (const s of subs){
-    let count, total;
-    if (adminIds.has(s.user_id)){
-      count = orders.length;
-      total = adminTotal;
-    } else {
-      const g = byUser[s.user_id];
-      if (!g) continue;
-      count = g.count;
-      total = g.total;
-    }
+    const g = byUser[s.user_id];
+    if (!g) continue;
+    const count = g.count;
+    const total = g.total;
     const payload = JSON.stringify({
       title: `🚨 미입금 ${count}건 (72시간+ 경과)`,
       body: `합계 ₩${total.toLocaleString('ko-KR')}. 입금 확인 후 카드에서 [미입금]→[입금완료]로 바꿔주세요.`,

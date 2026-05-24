@@ -3,10 +3,8 @@ name: Send deadline push
 on:
   workflow_dispatch:
   schedule:
-    # 12:30 KST 평일 (= 03:30 UTC)
-    - cron: '30 3 * * 1-5'
-    # 12:45 KST 평일 (마감 직전 한 번 더)
-    - cron: '45 3 * * 1-5'
+    # 12:35 KST 평일 — 12:30 알람 + 12:51 봇 직전 1번만 (한번이면 충분)
+    - cron: '35 3 * * 1-5'
 
 jobs:
   push:

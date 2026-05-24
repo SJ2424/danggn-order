@@ -1396,51 +1396,120 @@ function parseCSVLine(line){
   return out;
 }
 
+// 날짜 정규화: '5-2', '2026. 5. 3', '2026/5/3' 등 → 'YYYY-MM-DD'
+function normalizeDate(s){
+  s = (s||'').toString().trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  let m = s.match(/^(\d{4})[\.\/\-]\s*(\d{1,2})[\.\/\-]\s*(\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})$/);
+  if (m){
+    const y = new Date().getFullYear();
+    return `${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  }
+  return s;
+}
+
+// "갤럭시12/김민수" → {phone:'갤럭시12', nick:'김민수'}
+function parseRemark(s){
+  s = (s||'').toString().trim();
+  if (!s) return { phone:'', nick:'' };
+  const parts = s.split('/');
+  if (parts.length >= 2) return { phone: parts[0].trim(), nick: parts.slice(1).join('/').trim() };
+  return { phone: s, nick: '' };
+}
+
 function mapCsvRow(r){
-  // 한글/영문 컬럼명 모두 매핑
-  const pick = (...keys) => { for (const k of keys) if (r[k] != null && r[k] !== '') return r[k]; return ''; };
-  const date = pick('날짜','date','Date');
-  const name = pick('성함','받는사람','구매자','이름','name','Name');
+  // 한글/영문 컬럼명 모두 매핑 + 옛 시트 컬럼명 호환 (주문자, 입금, 비고, 개당 단가)
+  const pick = (...keys) => { for (const k of keys) if (r[k] != null && String(r[k]).trim() !== '') return String(r[k]).trim(); return ''; };
+  const date = normalizeDate(pick('날짜','date','Date'));
+  // 받는사람/주문자/이름 우선, 없으면 입금자(예전 시트는 입금 칸에 이름)
+  const buyerName = pick('성함','받는사람','구매자','주문자','이름','name','Name');
+  const depositor = pick('입금','입금자','입금자명','paid_by');
+  const name = buyerName || depositor || '';
   const tel  = pick('연락처','전화','전화번호','tel','Phone');
   const addr = pick('주소','배송주소','addr','Address');
-  const product = pick('상품','제품','product','Product');
+  const product = pick('상품','상품명','제품','product','Product');
   const color = pick('색상','color','Color');
   const qty = +pick('수량','qty','Qty') || 1;
-  const type = pick('거래','거래방식','type','Type') || '택배';
-  const amountRaw = pick('금액','판매금액','매출','amount','Amount').toString().replace(/[^\d\-]/g,'');
+  const type = pick('거래','거래방식','거래 방식','type','Type') || '택배';
+  const amountRaw = pick('금액','판매금액','판매 금액','매출','amount','Amount').replace(/[^\d\-]/g,'');
   const amount = amountRaw ? +amountRaw : null;
-  const paidStr = pick('입금','paid','Paid');
-  const paid = /완료|true|y|✓|1/i.test(paidStr);
+  const costRaw = pick('원가','개당단가','개당 단가','매입가','cost_price').replace(/[^\d\-]/g,'');
+  const cost_price = costRaw ? +costRaw : null;
+  // 입금: 옛 시트의 '입금' 칸에 이름이 있으면 = 입금됐다는 뜻
+  const paid = !!depositor || /완료|true|✓|1/i.test(pick('paid','입금완료'));
+  const paid_by = depositor || pick('paid_by') || null;
   const status = pick('상태','status','Status') || '발송완료';
   const tracking = pick('송장','tracking','Tracking');
-  const phone = pick('휴대폰','휴대폰별칭','phone','Phone alias');
-  const nick = pick('닉네임','구매자닉네임','nick','Nickname');
-  const paid_by = pick('입금자','입금자명','paid_by') || null;
-  return { date, name, tel, addr, product, color, qty, type, amount, paid, status, tracking, phone, nick, paid_by };
+  // 비고에서 '갤럭시12/김민수' 형식으로 휴대폰/닉네임 추출
+  const rem = parseRemark(pick('비고','remark'));
+  const phone = pick('휴대폰','휴대폰별칭','phone') || rem.phone;
+  const nick = pick('닉네임','구매자닉네임','nick','Nickname') || rem.nick;
+  return { date, name, tel, addr, product, color, qty, type, amount, cost_price, paid, paid_by, status, tracking, phone, nick };
+}
+
+// 파일 읽기 — UTF-8 / EUC-KR(CP949) 자동 감지
+async function readCsvText(file){
+  const buf = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8', { fatal:false }).decode(buf);
+  const koCount = (text.match(/[가-힣]/g) || []).length;
+  const replCount = (text.match(/�/g) || []).length;
+  // UTF-8로 읽었는데 한글이 거의 없거나 깨진 문자가 많으면 EUC-KR로 재시도
+  if (koCount < 5 || replCount > Math.max(5, koCount/4)){
+    try {
+      const eucText = new TextDecoder('euc-kr').decode(buf);
+      const eucKo = (eucText.match(/[가-힣]/g) || []).length;
+      if (eucKo > koCount) text = eucText;
+    } catch(_){ /* 브라우저가 euc-kr 미지원 — 매우 드뭄 */ }
+  }
+  return text;
+}
+
+// 헤더 행 위치 찾기 (옛 시트의 타이틀 행 건너뛰기)
+function findHeaderIdx(lines){
+  for (let i = 0; i < Math.min(15, lines.length); i++){
+    if (/날짜|상품|^date/i.test(lines[i])) return i;
+  }
+  return 0;
 }
 
 async function previewCsv(){
   const file = $('#csvFile').files && $('#csvFile').files[0];
   if (!file){ $('#csvPreview').textContent = ''; $('#btnCsvImport').disabled = true; return; }
   try {
-    const text = await file.text();
-    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-    if (lines.length < 2){ $('#csvPreview').textContent = '데이터가 없습니다 (헤더 + 최소 1줄 필요)'; return; }
-    const header = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g,'').trim());
-    const rows = lines.slice(1).map(line => {
+    const text = await readCsvText(file);
+    const allLines = text.split(/\r?\n/);
+    const headerIdx = findHeaderIdx(allLines);
+    const header = parseCSVLine(allLines[headerIdx]).map(h => h.replace(/^"|"$/g,'').trim());
+    // 데이터 행: 헤더 다음 + 빈 행 (모든 칸이 빈/콤마뿐) 제외
+    const dataLines = allLines.slice(headerIdx + 1).filter(line => {
+      const cells = parseCSVLine(line);
+      return cells.some(c => c.trim() && c.trim() !== '""');
+    });
+    if (dataLines.length === 0){
+      $('#csvPreview').innerHTML = '<div style="color:#c5221f">데이터 행을 찾을 수 없습니다. 헤더에 "날짜" 또는 "상품" 컬럼이 있는지 확인하세요.</div>';
+      return;
+    }
+    const rows = dataLines.map(line => {
       const cells = parseCSVLine(line);
       const obj = {};
       header.forEach((h, i) => obj[h] = (cells[i]||'').trim());
       return mapCsvRow(obj);
-    });
+    }).filter(o => o.date || o.name || o.product);  // 완전 빈 행 제거
     csvParsedRows = rows;
-    const sample = rows.slice(0, 3).map(o =>
-      `· ${esc(o.date||'-')} | ${esc(o.name||'-')} | ${esc(o.product||'-')} ${esc(o.color||'')} ${o.qty}개 | ${wonInt(o.amount)}원 ${o.paid?'✅':'⏳'}`
+    const sample = rows.slice(0, 5).map(o =>
+      `· ${esc(o.date||'-')} | <b>${esc(o.name||'?')}</b> | ${esc(o.product||'-')} ${esc(o.color||'')} ${o.qty}개 | ${wonInt(o.amount)}원 ${o.paid?'✅입금완료':'⏳미입금'}`
     ).join('<br>');
-    $('#csvPreview').innerHTML = `<div style="background:#f9fafb;padding:10px;border-radius:6px">총 <b>${rows.length}</b>건 분석됨. 미리보기 (처음 3건):<br><br>${sample}</div>`;
-    $('#btnCsvImport').disabled = false;
+    $('#csvPreview').innerHTML = `<div style="background:#f9fafb;padding:10px;border-radius:6px;font-size:11.5px">
+      총 <b>${rows.length}</b>건 인식됨 (헤더 ${headerIdx+1}번째 행).<br>
+      <span style="color:var(--mut)">인식된 컬럼: ${header.filter(h=>h).slice(0,8).map(esc).join(' · ')}</span><br><br>
+      <b>미리보기 (처음 5건):</b><br>${sample}
+    </div>`;
+    $('#btnCsvImport').disabled = rows.length === 0;
   } catch(e){
-    $('#csvPreview').textContent = '파일 읽기 실패: ' + e.message;
+    $('#csvPreview').innerHTML = '<div style="color:#c5221f">파일 읽기 실패: ' + esc(e.message) + '</div>';
   }
 }
 
