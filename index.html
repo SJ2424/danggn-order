@@ -176,16 +176,21 @@ body[data-font="large"]{zoom:1.12}
 .help-note b{color:#9a3412}
 /* 오늘 일일 정산 카드 */
 .today-summary{background:linear-gradient(135deg,#fff7f0 0%,#ffe8d4 100%);border:1px solid var(--pri);border-radius:10px;padding:13px 14px;margin-bottom:6px}
-.ts-title{font-size:14px;font-weight:700;color:var(--pri);margin-bottom:8px}
-.ts-row{font-size:12.5px;color:var(--txt);line-height:1.65}
-.ts-row b{color:var(--pri);font-weight:700}
+.ts-title{font-size:14px;font-weight:700;color:var(--pri);margin-bottom:10px}
+.ts-grid{display:flex;flex-direction:column;gap:8px}
+.ts-line{font-size:12.5px;color:var(--txt);line-height:1.55}
+.ts-line .ts-label{display:inline-block;min-width:62px;color:var(--mut);font-size:11.5px;font-weight:600}
+.ts-line b{color:var(--pri);font-weight:700}
+.ts-line .pill-mini{display:inline-block;padding:1px 7px;background:#fff;border-radius:999px;font-size:11px;color:var(--txt);margin-right:3px;border:1px solid #ffd9b8}
+.ts-line .pill-mini b{color:var(--pri)}
+.ts-empty{color:var(--mut);font-size:11.5px}
+.ts-money{font-size:13.5px}
+.ts-money b{font-size:15px}
 .ts-warn{color:#c5221f}
 .ts-warn b{color:#c5221f}
-.ts-deadlines{margin-top:8px;padding-top:7px;border-top:1px dashed rgba(255,111,15,.35);font-size:11.5px;color:#7c2d12}
-.ts-deadlines b{color:#9a3412;font-weight:700}
 @media (max-width:480px){
-  .ts-counts{font-size:12px}
-  .ts-deadlines{font-size:10.5px}
+  .ts-line{font-size:11.5px}
+  .ts-line .ts-label{min-width:54px;font-size:11px}
 }
 /* 회원가입 / 돌아가기 링크 */
 .signup-link{text-align:center;margin-top:18px;font-size:13px;color:var(--mut)}
@@ -365,13 +370,8 @@ body[data-mode="input"] .section-header{display:none}
 <!-- 오늘 일일 정산 — 관리·장부 탭 최상단 (관리자 전용) -->
 <section class="card admin-only" id="todaySummaryCard" style="padding:14px">
   <div class="today-summary">
-    <div class="ts-title">📊 <span id="tsDate"></span> 일일 정산</div>
-    <div class="ts-row ts-counts">
-      입력 <b id="tsCount">0</b> · 발주완료 <b id="tsOrdered">0</b> · 입금완료 <b id="tsPaid">0</b> · <span class="ts-warn">미입금 <b id="tsUnpaid">0</b></span>
-    </div>
-    <div class="ts-row" style="margin-top:6px"><b>👥 입력자별:</b></div>
-    <div class="ts-row" id="tsByUser" style="margin-top:2px">로딩중...</div>
-    <div class="ts-deadlines">⏰ 마감: <b>선반랙 12:55</b> · <b>카트 14:00</b></div>
+    <div class="ts-title">📊 오늘 일일 요약 <span class="muted" id="tsDate" style="font-weight:400;font-size:12px"></span></div>
+    <div class="ts-grid" id="tsGrid"></div>
   </div>
 </section>
 
@@ -911,7 +911,7 @@ async function showApp(session){
   $('#appView').style.display='block';
   $('#whoEmail').textContent = userDisplayName;
   // 역할별 탭 라벨
-  $('#mManage').textContent = (userRole==='admin') ? '📋 전체 관리·장부' : '📋 내 주문·정산';
+  $('#mManage').textContent = (userRole==='admin') ? '🎛 관리 모드' : '📋 내 주문·정산';
   $('#ledgerTitle').textContent = (userRole==='admin') ? '📒 장부 요약 (전체)' : '📒 내 장부 요약';
   myUserId = session.user.id;
   myEmail = session.user.email || '';
@@ -1717,7 +1717,13 @@ function getLedgerBase(){
   let since=null;
   if(ledgerPeriod==='today'){ since=new Date(now); since.setHours(0,0,0,0); }
   else if(ledgerPeriod==='month'){ since=new Date(now.getFullYear(), now.getMonth(), 1); }
-  let list = ORDERS.filter(o => !since || new Date(o.created_at||o.date) >= since);
+  // 주문 날짜(date) 기준 — 임포트된 데이터도 원래 날짜로 필터됨 (created_at 무시)
+  // date 없을 때만 created_at fallback
+  let list = ORDERS.filter(o => {
+    if(!since) return true;
+    const d = o.date ? new Date(o.date + 'T00:00:00') : new Date(o.created_at || 0);
+    return d >= since;
+  });
   if(ledgerUserFilter) list = list.filter(o => o.created_by === ledgerUserFilter);
   if(ledgerBuyerFilter){
     const q = ledgerBuyerFilter.toLowerCase();
@@ -1883,31 +1889,76 @@ async function settleUser(uid){
 function renderTodaySummary(){
   if(userRole!=='admin') return;
   const today = new Date();
-  const todayStart = new Date(today); todayStart.setHours(0,0,0,0);
-  const todayOrders = ORDERS.filter(o => new Date(o.created_at||o.date) >= todayStart);
-  const ordered = todayOrders.filter(o => o.status==='발주완료' || o.status==='발송완료').length;
+  const todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  const weekday = ['일','월','화','수','목','금','토'][today.getDay()];
+  $('#tsDate').textContent = `(${todayStr} ${weekday})`;
+  // 오늘 = date 컬럼이 오늘 날짜인 주문만 (created_at 무시 — 임포트 데이터 안 잡힘)
+  const todayOrders = ORDERS.filter(o => (o.date||'') === todayStr);
+  const grid = $('#tsGrid');
+  if(!grid) return;
+  if(todayOrders.length === 0){
+    grid.innerHTML = '<div class="ts-empty">📭 오늘 입력된 주문 없음</div>';
+    return;
+  }
+  // 상품×색상 카운트
+  const byProd = {};
+  todayOrders.forEach(o => {
+    const k = (o.product||'?') + (o.color ? ' / ' + o.color : '');
+    byProd[k] = (byProd[k]||0) + (+o.qty||1);
+  });
+  const prodPills = Object.entries(byProd)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([k,v])=>`<span class="pill-mini">${esc(k)} <b>${v}개</b></span>`)
+    .join(' ');
+  // 거래 type
+  const cntDel  = todayOrders.filter(o => o.type === '택배').length;
+  const cntPick = todayOrders.filter(o => o.type === '직거래').length;
+  const typePills = [
+    cntDel  ? `<span class="pill-mini">📦 택배 <b>${cntDel}</b></span>` : '',
+    cntPick ? `<span class="pill-mini">🤝 직거래 <b>${cntPick}</b></span>` : ''
+  ].filter(Boolean).join(' ');
+  // 상태 분포
+  const recv = todayOrders.filter(o => (o.status||'접수')==='접수').length;
+  const wait = todayOrders.filter(o => o.status==='발주대기').length;
+  const done = todayOrders.filter(o => o.status==='발주완료' || o.status==='발송완료').length;
   const paid = todayOrders.filter(o => o.paid).length;
   const unpaid = todayOrders.filter(o => !o.paid).length;
-  const dateStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  $('#tsDate').textContent = dateStr;
-  $('#tsCount').textContent = todayOrders.length;
-  $('#tsOrdered').textContent = ordered;
-  $('#tsPaid').textContent = paid;
-  $('#tsUnpaid').textContent = unpaid;
-  // 입력자별 (오늘만)
-  const groups = {};
-  todayOrders.forEach(o=>{
-    const k = o.created_by || 'unknown';
-    if(!groups[k]) groups[k] = { count:0, total:0 };
-    groups[k].count++;
-    groups[k].total += (+o.rep_price||0) * (+o.qty||1);
+  const statusPills = [
+    recv ? `<span class="pill-mini">📥 접수 <b>${recv}</b></span>` : '',
+    wait ? `<span class="pill-mini">📋 발주대기 <b>${wait}</b></span>` : '',
+    done ? `<span class="pill-mini">✅ 처리완료 <b>${done}</b></span>` : ''
+  ].filter(Boolean).join(' ');
+  // 입금/매출/마진
+  let totalAmount=0, totalCost=0, totalRev=0;
+  todayOrders.forEach(o => {
+    const q = +o.qty || 1;
+    totalAmount += (+o.amount||0);
+    totalCost   += (+o.cost_price||0) * q;
+    totalRev    += (+o.rep_price||0) * q;
   });
-  const arr = Object.entries(groups).map(([uid,g])=>{
+  const margin = totalRev - totalCost;
+  const rate = totalRev > 0 ? Math.round(margin/totalRev*1000)/10 : 0;
+  // 입력자별
+  const byUser = {};
+  todayOrders.forEach(o => {
+    const k = o.created_by || '?';
+    if(!byUser[k]) byUser[k] = { count:0, total:0 };
+    byUser[k].count++;
+    byUser[k].total += (+o.rep_price||0) * (+o.qty||1);
+  });
+  const userPills = Object.entries(byUser).map(([uid,g])=>{
     const u = INPUT_USERS.find(x=>x.id===uid);
     const name = u ? displayOf(u) : '?';
-    return esc(name)+' '+g.count+'건 ('+wonInt(g.total)+'원)';
-  });
-  $('#tsByUser').innerHTML = arr.length ? arr.join(' · ') : '<span class="muted">오늘 입력된 주문 없음</span>';
+    return `<span class="pill-mini">${esc(name)} <b>${g.count}</b>건</span>`;
+  }).join(' ');
+
+  grid.innerHTML =
+      `<div class="ts-line"><span class="ts-label">📦 주문</span><b>${todayOrders.length}건</b> · ${prodPills}</div>`
+    + (typePills   ? `<div class="ts-line"><span class="ts-label">거래</span>${typePills}</div>` : '')
+    + (statusPills ? `<div class="ts-line"><span class="ts-label">진행</span>${statusPills}</div>` : '')
+    + `<div class="ts-line"><span class="ts-label">입금</span><span class="pill-mini">✅ 완료 <b>${paid}</b></span> <span class="pill-mini ts-warn">⏳ 미입금 <b>${unpaid}</b></span></div>`
+    + `<div class="ts-line ts-money"><span class="ts-label">💰 매출</span><b>${wonInt(totalRev)}원</b> · 마진 <b>${wonInt(margin)}원</b> (${rate}%)</div>`
+    + (userPills   ? `<div class="ts-line"><span class="ts-label">👥 입력자</span>${userPills}</div>` : '');
 }
 function renderLedger(){
   renderTodaySummary();
@@ -2451,14 +2502,15 @@ $('#priceList').addEventListener('click', e=>{
     saveUserPriceRow(id, price);
   } else if(b.dataset.pract==='del') deleteUserPrice(id);
 });
-// 장부 기간 칩 — 각 버튼에 직접 리스너 (가장 확실한 방식)
-document.querySelectorAll('#ledgerCard .chips button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    ledgerPeriod = btn.dataset.period;
-    ledgerListLimit = 20;
-    document.querySelectorAll('#ledgerCard .chips button').forEach(x=>x.classList.toggle('active', x===btn));
-    renderLedger();
-  });
+// 장부 기간 칩 — 이벤트 위임 (DOM 동적 변경에도 안전)
+$('#ledgerCard') && $('#ledgerCard').addEventListener('click', e => {
+  const btn = e.target.closest('button.chip-flt[data-period]');
+  if(!btn) return;
+  ledgerPeriod = btn.dataset.period;
+  ledgerListLimit = 20;
+  $('#ledgerCard').querySelectorAll('button.chip-flt[data-period]')
+    .forEach(x => x.classList.toggle('active', x===btn));
+  renderLedger();
 });
 
 $('#btnEnablePush') && $('#btnEnablePush').addEventListener('click', enablePush);
