@@ -44,6 +44,10 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           OMS_USERNAME: ${{ secrets.OMS_USERNAME }}
           OMS_PASSWORD: ${{ secrets.OMS_PASSWORD }}
+          # 푸시 알림용 (등록 직후 관리자에게 '결제하세요' 알림 보냄)
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: node register-orders.js
 

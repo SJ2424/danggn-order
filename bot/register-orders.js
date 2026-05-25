@@ -321,7 +321,60 @@ async function main() {
 
   await browser.close();
   console.log(`\n📊 결과: 성공 ${ok}건 / 실패 ${fail}건`);
+
+  // 등록 성공시 관리자에게 즉시 푸시 — "지금 결제하러 가세요" 신호
+  if (ok > 0) {
+    try { await notifyAdmins(ok, fail); } catch (e) { console.warn('푸시 알림 실패(무시):', e.message); }
+  }
+
   if (fail > 0 && ok === 0) process.exit(1);
+}
+
+// 등록 직후 관리자 푸시 — 발주대기 → 결제 필요 알리기
+async function notifyAdmins(okCount, failCount) {
+  const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY;
+  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+  const VAPID_SUBJECT     = process.env.VAPID_SUBJECT;
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !VAPID_SUBJECT) {
+    console.log('  ℹ️  VAPID 환경변수 없음 — 푸시 스킵');
+    return;
+  }
+  const { default: webpush } = await import('web-push');
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+  const { data: admins } = await sb.from('profiles').select('id').eq('role','admin');
+  const adminIds = (admins||[]).map(a => a.id);
+  if (adminIds.length === 0) return;
+  const { data: subs } = await sb.from('push_subscriptions').select('*').in('user_id', adminIds);
+  if (!subs || subs.length === 0) return;
+
+  // 발주대기 총 카운트 (오늘 + 누적)
+  const { data: orders } = await sb.from('orders').select('id, status');
+  const waiting = (orders||[]).filter(o => o.status === '발주대기').length;
+
+  const payload = JSON.stringify({
+    title: '🔴 OMS 결제 필요',
+    body: `방금 ${okCount}건 등록 완료. 현재 발주대기 ${waiting}건.\ndooldool6611.com 가서 일괄주문+송금 → 앱에서 [일괄 발주완료] 클릭`
+       + (failCount > 0 ? `\n⚠️ ${failCount}건 실패 — 앱에서 확인` : ''),
+    tag: 'post-register',
+    url: '/'
+  });
+
+  let sent = 0;
+  for (const s of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        payload
+      );
+      sent++;
+    } catch (e) {
+      if (e.statusCode === 410 || e.statusCode === 404) {
+        await sb.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
+      }
+    }
+  }
+  console.log(`  📲 푸시 전송: ${sent}/${subs.length}건`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
