@@ -18,9 +18,9 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 });
 
 async function fetchPending() {
-  // 발주완료인데 송장 아직 없는 주문
+  // 송장 아직 없는 주문 — 발주완료(신규) + 발송완료(과거 임포트분도 OMS에 있으면 가져오기 시도)
   const { data, error } = await sb.from('orders').select('*')
-    .eq('status', '발주완료')
+    .in('status', ['발주완료', '발송완료'])
     .or('tracking.is.null,tracking.eq.');
   if (error) throw error;
   return data || [];
