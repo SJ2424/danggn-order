@@ -348,7 +348,9 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
   <div id="summary" class="muted admin-only" style="margin-bottom:8px"></div>
   <div class="toolbar admin-only">
-    <button class="btn-pri-sm" id="btnRunBot">🤖 지금 발주 실행</button>
+    <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 주문을 지금 OMS에 자동 등록">🤖 지금 발주 실행 (선반랙)</button>
+    <button class="btn-pri-sm" id="btnRunCart" title="핸드카트 등 카트사이트 상품 즉시 등록">🛒 카트 발주 실행</button>
+    <button class="btn-pri-sm" id="btnRunTracking" title="OMS에서 송장번호 지금 가져오기">🚚 송장 자동수집</button>
     <button class="btn-pri-sm" id="btnBulkDone">일괄 발주완료 처리</button>
     <button class="btn-sec btn-sm" id="btnPoAll">발주서 수동복사</button>
     <button class="btn-sec btn-sm" id="btnCsv">CSV 내보내기 (전체)</button>
@@ -520,6 +522,51 @@ body[data-mode="manage"] #ledgerCard{display:block}
     <code style="background:#f4f5f7;padding:2px 6px;border-radius:4px;font-size:11px;display:inline-block;margin-top:4px">update profiles set role='input' where display_name='기존관리자이름';</code></li>
     <li>새 관리자가 재로그인하면 관리자 화면 뜸</li>
   </ol>
+</details>
+
+<details class="card admin-only" id="botSetupCard">
+  <summary>⚡ [지금 발주 실행] 원클릭 설정 — 일회성</summary>
+  <p class="muted" style="margin-top:10px"><b>처음 한 번만 설정하면 이후로는 도구바 버튼 한 번으로 봇이 즉시 실행됩니다.</b> 설정 안 하면 GitHub Actions 페이지가 열리는 옛날 방식으로 폴백돼요.</p>
+
+  <h3 style="margin:14px 0 6px;font-size:13.5px">1️⃣ GitHub 토큰 만들기 (2분)</h3>
+  <ol style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
+    <li>아래 버튼 → GitHub Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → <b>Generate new token</b></li>
+    <li>이름: <code style="background:#f4f5f7;padding:1px 5px;border-radius:3px">danggn-bot-trigger</code></li>
+    <li>Expiration: <b>No expiration</b> (또는 1년)</li>
+    <li>Repository access → <b>Only select repositories</b> → <code style="background:#f4f5f7;padding:1px 5px;border-radius:3px">danggn-order</code> 선택</li>
+    <li>Permissions → Repository permissions → <b>Actions: Read and write</b> (다른 건 안 건드림)</li>
+    <li>[Generate token] 클릭 → <b>생성된 토큰 복사 (한 번만 보임!)</b></li>
+  </ol>
+  <a class="btn-sec btn-sm" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;margin-top:8px">↗ GitHub 토큰 생성 페이지 열기</a>
+
+  <h3 style="margin:18px 0 6px;font-size:13.5px">2️⃣ Vercel 환경변수 3개 추가 (3분)</h3>
+  <ol style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
+    <li>아래 버튼 → Vercel 프로젝트 → Settings → <b>Environment Variables</b></li>
+    <li>다음 3개 차례로 [Add]:
+      <ul style="padding-left:18px;margin:6px 0">
+        <li><code>GITHUB_TOKEN</code> = 위에서 복사한 토큰</li>
+        <li><code>SUPABASE_URL</code> = <code style="font-size:11px">https://zmvllgztbqymwwfeprxy.supabase.co</code></li>
+        <li><code>SUPABASE_SERVICE_KEY</code> = Supabase 대시보드 → Settings → API → <b>service_role</b> 키 복사</li>
+      </ul>
+    </li>
+    <li>각 변수 추가시 Environment: <b>Production</b>, <b>Preview</b>, <b>Development</b> 모두 체크</li>
+  </ol>
+  <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+    <a class="btn-sec btn-sm" href="https://vercel.com/dashboard" target="_blank" rel="noopener" style="text-decoration:none">↗ Vercel 대시보드</a>
+    <a class="btn-sec btn-sm" href="https://supabase.com/dashboard/project/zmvllgztbqymwwfeprxy/settings/api" target="_blank" rel="noopener" style="text-decoration:none">↗ Supabase service_role 키</a>
+  </div>
+
+  <h3 style="margin:18px 0 6px;font-size:13.5px">3️⃣ 재배포 (1분)</h3>
+  <ol style="font-size:12.5px;padding-left:20px;line-height:1.6;margin:0">
+    <li>Vercel 프로젝트 → <b>Deployments</b> 탭</li>
+    <li>최상단 행 우측 <b>⋯</b> 점3개 → <b>Redeploy</b> → <b>Redeploy</b> 확인</li>
+    <li>1분 정도 기다리면 빌드 완료</li>
+    <li>이 앱 새로고침 후 도구바 <b>[🤖 지금 발주 실행]</b> 클릭 — 한 번에 됨</li>
+  </ol>
+
+  <p style="margin-top:14px;padding:8px 10px;background:#fff3cd;border-radius:6px;font-size:12px;line-height:1.6">
+    💡 <b>설정 안 하고 그대로 써도 OK</b>입니다. 봇은 평일 자동 스케줄로 잘 돌아요 (11:30·12:30·12:51). 단지 <b>"지금 당장 한 번 더 돌리고 싶을 때"</b>만 이 설정이 편해요.
+  </p>
 </details>
 
 <details class="card admin-only">
@@ -1771,9 +1818,47 @@ function cycleFont(){
   applyFont();
 }
 
-function manualRunBot(){
-  if(!confirm('GitHub Actions 페이지가 열립니다.\n거기서 [Run workflow] 버튼 → [Run workflow] 한 번 더 클릭하면 봇이 즉시 실행됩니다 (2~3분 소요).')) return;
-  window.open('https://github.com/SJ2424/danggn-order/actions/workflows/register-orders.yml','_blank');
+async function manualRunBot(botKey, btnEl){
+  // botKey: 'register' | 'cart' | 'tracking'
+  const botLabels = { register:'선반랙 OMS 등록 봇', cart:'카트사이트 등록 봇', tracking:'송장 자동수집 봇' };
+  const label = botLabels[botKey] || '봇';
+  if(!confirm(`${label}을 지금 실행할까요?\n(2~3분 소요. 완료되면 화면에 자동 반영)`)) return;
+
+  const btn = btnEl || $('#btnRunBot');
+  const orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '🤖 실행 요청 중...'; }
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session) throw new Error('세션 만료 — 다시 로그인하세요');
+    const res = await fetch('/api/run-bot', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({ bot: botKey })
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok){
+      throw new Error((j && (j.error||j.detail)) || ('서버 오류: HTTP '+res.status));
+    }
+    if(btn) btn.textContent = '✅ 실행됨 (2~3분)';
+    setTimeout(() => { if(btn){ btn.disabled = false; btn.textContent = orig; } }, 4000);
+    alert(j.message || ('✅ '+label+' 실행 요청 완료'));
+  } catch(e) {
+    if(btn){ btn.disabled = false; btn.textContent = orig; }
+    // 폴백 — Vercel API 미설정 또는 다른 오류면 GitHub Actions로 안내
+    const fallback = confirm(
+      '❌ 자동 실행 실패: ' + e.message +
+      '\n\n임시 우회: GitHub Actions 페이지에서 수동 실행할까요?\n' +
+      '(서버 설정 필요 — 자세한 안내는 [📦 백업/유지보수] 카드 참고)'
+    );
+    if(fallback){
+      const fileMap = { register:'register-orders.yml', cart:'register-cart.yml', tracking:'fetch-tracking.yml' };
+      window.open('https://github.com/SJ2424/danggn-order/actions/workflows/' + (fileMap[botKey]||fileMap.register), '_blank');
+    }
+  }
 }
 
 // ====== CSV 일괄 가져오기 (과거 주문) ======
@@ -2116,7 +2201,9 @@ $('#filters').addEventListener('click', e=>{
 $('#search').addEventListener('input', e=>{ curSearch=e.target.value.trim(); renderList(); });
 
 // 수동 발주 + 일괄 발주완료 + CSV + 발주서수동복사
-$('#btnRunBot').addEventListener('click', manualRunBot);
+$('#btnRunBot') && $('#btnRunBot').addEventListener('click', e => manualRunBot('register', e.currentTarget));
+$('#btnRunCart') && $('#btnRunCart').addEventListener('click', e => manualRunBot('cart', e.currentTarget));
+$('#btnRunTracking') && $('#btnRunTracking').addEventListener('click', e => manualRunBot('tracking', e.currentTarget));
 
 // 내 계정 — 표시 이름 변경
 $('#btnSaveMyName') && $('#btnSaveMyName').addEventListener('click', saveMyName);

@@ -1,0 +1,8 @@
+{
+  "name": "danggn-order",
+  "private": true,
+  "description": "당근 발주 관리 — 정적 사이트 + Vercel serverless API",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}
