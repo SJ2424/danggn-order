@@ -120,20 +120,38 @@ async function registerOrder(page, order, idx){
   const tag = `${idx}-${(order.name||'?').replace(/[^가-힣a-z0-9]/gi,'')}`;
   console.log(`\n📝 [${idx}] ${order.name} / ${order.product} ${order.qty}개`);
 
-  // 로그인 후 폼 frame 다시 잡기 (페이지 전환됐을 수도)
   const frame = await getInteractiveFrame(page);
 
-  // "주문하기" 탭/버튼 (있으면 클릭)
+  // ① 주문하기 탭 클릭 (현재 탭이 배송조회면 주문하기로 전환)
   for (const fn of [
-    () => frame.getByRole('button', { name:'주문하기' }),
-    () => frame.locator('button:has-text("주문하기")'),
-    () => frame.locator('a:has-text("주문하기")')
+    () => frame.locator('button:has-text("주문하기")').first(),
+    () => frame.getByRole('button', { name:'주문하기' })
   ]){
-    try { await fn().first().click({ timeout: 2500 }); await page.waitForTimeout(800); break; } catch {}
+    try { await fn().click({ timeout: 2500 }); await page.waitForTimeout(800); break; } catch {}
   }
   await page.screenshot({ path:`screenshots/${tag}-1-form.png`, fullPage:true });
 
-  // 제품 — select 또는 다른 형식
+  // ② 주문자 input — 첫 text input (관리자 이름 → 고객 이름으로 교체)
+  // 입금자(두 번째)는 관리자 이름 유지
+  try {
+    const textInputs = await frame.locator('input[type="text"]').all();
+    console.log(`  text input ${textInputs.length}개 발견`);
+    if (textInputs.length > 0){
+      await textInputs[0].fill(order.name);
+      console.log(`  주문자 입력: ${order.name} (입금자는 관리자 유지)`);
+    } else {
+      // type="text" 없으면 input 그대로
+      const allInputs = await frame.locator('input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="number"])').all();
+      if (allInputs.length > 0){
+        await allInputs[0].fill(order.name);
+        console.log(`  주문자 입력 (fallback): ${order.name}`);
+      }
+    }
+  } catch(e){
+    console.log(`  ⚠️ 주문자 입력 실패: ${e.message}`);
+  }
+
+  // ③ 제품 select
   const selectCnt = await frame.locator('select').count().catch(()=>0);
   console.log(`  select ${selectCnt}개 발견`);
   if (selectCnt > 0){
@@ -141,7 +159,6 @@ async function registerOrder(page, order, idx){
       await frame.locator('select').first().selectOption({ label: order.product });
       console.log(`  제품 선택: ${order.product}`);
     } catch(e){
-      // label 매칭 실패 → 부분 매칭 시도
       try {
         const options = await frame.locator('select').first().locator('option').allTextContents();
         const match = options.find(o => o.includes(order.product));
@@ -156,11 +173,11 @@ async function registerOrder(page, order, idx){
       }
     }
   } else {
-    throw new Error('select 요소를 찾을 수 없음 — 폼 구조 확인 필요');
+    throw new Error('select 요소를 찾을 수 없음');
   }
   await page.waitForTimeout(800);
 
-  // 수량
+  // ④ 수량
   const qty = Math.max(1, parseInt(order.qty)||1);
   try {
     const qtyInput = frame.locator('input[type="number"]').first();
@@ -170,49 +187,88 @@ async function registerOrder(page, order, idx){
     }
   } catch {}
 
-  // 옵션 (색상) — 두 번째 select
+  // ⑤ 옵션 (색상) — 두 번째 select
   if (order.color && selectCnt > 1){
     try {
       await frame.locator('select').nth(1).selectOption({ label: order.color });
       console.log(`  색상 ${order.color} 선택`);
-    } catch(e){
+    } catch {
       console.log(`  색상(${order.color}) 설정 실패 — 계속`);
     }
   }
 
-  // 배송정보
+  // ⑥ 배송정보 (textarea)
   const shipInfo = `${order.name} / ${order.tel} / ${order.addr}`;
   let shipFilled = false;
   for (const fn of [
     () => frame.getByPlaceholder(/수취인|배송지|받는|주소/),
-    () => frame.locator('textarea'),
-    () => frame.locator('input[type="text"]').last()
+    () => frame.locator('textarea').first(),
   ]){
     try {
-      await fn().first().fill(shipInfo, { timeout: 2500 });
+      await fn().fill(shipInfo, { timeout: 2500 });
       shipFilled = true;
-      console.log(`  배송정보 입력`);
+      console.log(`  배송정보 입력: ${shipInfo.slice(0,40)}...`);
       break;
     } catch {}
   }
-  if (!shipFilled) console.log(`  ⚠️ 배송정보 입력 실패 — 폼 확인 필요`);
+  if (!shipFilled) console.log(`  ⚠️ 배송정보 입력 실패`);
 
   await page.screenshot({ path:`screenshots/${tag}-2-filled.png`, fullPage:true });
 
   if (isDry){
-    console.log('  [DRY RUN] "주문 등록하기" 클릭 생략');
+    console.log('  [DRY RUN] 제출 버튼 클릭 생략');
     return;
   }
-  for (const fn of [
-    () => frame.getByRole('button', { name:/주문 등록|등록하기|주문하기/ }),
-    () => frame.locator('button:has-text("주문 등록하기")'),
-    () => frame.locator('button:has-text("등록")').last()
-  ]){
-    try { await fn().first().click({ timeout: 3000 }); break; } catch {}
+
+  // ⑦ 페이지 하단으로 스크롤 (제출 버튼 보이게)
+  try {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await frame.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  } catch {}
+  await page.waitForTimeout(800);
+
+  // ⑧ 제출 — "+ 주문 추가하기", "주문하기" 탭과 절대 헷갈리면 안 됨
+  // 정확히 "주문 등록하기" 또는 "등록하기" (마지막)
+  const beforeUrl = page.url();
+  let submitClicked = false;
+  const submitSelectors = [
+    'button:has-text("주문 등록하기"):not(:has-text("추가"))',
+    'button:has-text("등록하기"):not(:has-text("추가"))',
+    'button:text-is("주문 등록하기")',
+    'button:text-is("등록하기")',
+    'button[type="submit"]'
+  ];
+  for (const sel of submitSelectors){
+    try {
+      const btn = frame.locator(sel).last();
+      if (await btn.count() === 0) continue;
+      await btn.scrollIntoViewIfNeeded({ timeout: 2000 });
+      await page.waitForTimeout(300);
+      await btn.click({ timeout: 3000 });
+      submitClicked = true;
+      console.log(`  제출 버튼 클릭 (${sel})`);
+      break;
+    } catch(e){
+      console.log(`  제출 시도 실패 (${sel}): ${e.message.slice(0,60)}`);
+    }
   }
-  await page.waitForTimeout(2500);
-  await page.screenshot({ path:`screenshots/${tag}-3-submitted.png`, fullPage:true });
-  console.log('✅ 등록 완료');
+  if (!submitClicked){
+    await page.screenshot({ path:`screenshots/${tag}-3-submit-fail.png`, fullPage:true });
+    throw new Error('제출 버튼을 못 찾음 — 폼 채워졌지만 미제출');
+  }
+
+  // ⑨ 제출 확인 — 충분히 대기 + 결과 검증
+  await page.waitForTimeout(4500);
+  await page.screenshot({ path:`screenshots/${tag}-3-after-submit.png`, fullPage:true });
+  const afterText = await frame.locator('body').innerText().catch(()=>'');
+  const success = /등록되었습니다|등록 완료|성공|접수되었|주문이 완료/.test(afterText);
+  if (success){
+    console.log('✅ 등록 완료 (성공 메시지 확인됨)');
+  } else if (afterText.includes('오류') || afterText.includes('실패') || afterText.includes('에러')){
+    throw new Error('카트사이트가 오류 메시지를 반환 — 스크린샷 확인 필요');
+  } else {
+    console.log('⚠️ 등록 후 성공 메시지 미확인 — 카트사이트 [배송조회]에서 직접 확인 필요');
+  }
 }
 
 async function main(){
