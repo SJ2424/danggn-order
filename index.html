@@ -451,14 +451,20 @@ body[data-mode="input"] .section-header{display:none}
 
 <details class="card admin-only" open>
   <summary>⚙️ 상품 카탈로그 + 단가</summary>
-  <p class="muted" style="margin-top:10px"><b>택배 원가</b> = 포장·배송비 포함. <b>직거래 원가</b> = 매입가 + 물류비만 (직거래 비워두면 택배 원가 그대로 사용). <b>기본 납품가</b> = 일반 입력자한테 받는 가격. 마진 = (납품가 − 원가) × 수량.</p>
+  <div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:6px;font-size:12px;line-height:1.7">
+    <b style="color:#1a73e8">📘 칸 설명</b><br>
+    <b>① 택배 원가</b> = 내가 공급사에 주는 매입가 (포장·배송비 포함). <span class="muted">예: 28,000원</span><br>
+    <b>② 직거래 원가</b> = 매입가 + 물류비만 (직거래라 배송비 X). 비우면 택배 원가 그대로. <span class="muted">예: 25,000원 (= 매입 23,000 + 물류 2,000)</span><br>
+    <b>③ 기본 판매가</b> = 내 표준 판매가. <b>혼자 운영</b>이면 손님한테 받는 가격 (예: 택배 37,000). <b>다른 입력자가 있으면</b> 그 사람이 본인한테 정산할 때 주는 가격 (입력자별 다른 가격은 아래 [👥 사용자별 특별 단가]에서)<br>
+    <span class="muted">📐 본인 마진 = (③ − ①) × 수량. 네고로 손님이 적게 내면 amount 입력값 그대로 마진에서 차감되도록 트리거가 처리.</span>
+  </div>
   <div id="catalogList"></div>
   <div class="cat-add">
     <input id="newCatName" placeholder="상품명 (예: 선반랙)">
     <input id="newCatColor" placeholder="색상 (예: 화이트)">
-    <input id="newCatCost" type="number" placeholder="택배 원가 (예: 28000)">
-    <input id="newCatCostPickup" type="number" placeholder="직거래 원가 (예: 25000)">
-    <input id="newCatRep" type="number" placeholder="기본 납품가 (예: 36000)">
+    <input id="newCatCost" type="number" placeholder="① 택배 원가 (28000)">
+    <input id="newCatCostPickup" type="number" placeholder="② 직거래 원가 (25000)">
+    <input id="newCatRep" type="number" placeholder="③ 기본 판매가 (37000)">
     <button id="btnAddCat">+ 상품 추가</button>
   </div>
 </details>
@@ -925,6 +931,7 @@ async function showApp(session){
     subscribePending();
     await loadCatalog();
     await loadInputUsers();
+    await loadAdminIds();
     await loadUserPrices();
     await loadReceipts();
     renderLedgerFilters();
@@ -1048,24 +1055,52 @@ function subscribeOrders(){
     .on('postgres_changes',{event:'*',schema:'public',table:'orders'}, () => loadOrders())
     .subscribe();
 }
-// 카카오 우편번호 검색 — 오타·잘못된 주소 방지
-function openAddrSearch(){
+// 주소 키워드 정규화 — 비교용 (공백·특수문자 제거)
+function normAddr(s){ return (s||'').replace(/\s+/g,'').replace(/[(),\-]/g,'').toLowerCase(); }
+// 도로명·동·번지 추출 (학현로 93-1 같은 핵심 부분)
+function getRoadBunji(s){
+  if(!s) return null;
+  const m = s.match(/(\S+?(?:동|로|길|가|리))\s*(\d+(?:-\d+)?)/);
+  return m ? { road: m[1], bunji: m[2] } : null;
+}
+
+// 카카오 주소검색 — 입력값 prefill + 매칭 결과 검증
+function openAddrSearch(prefillQuery){
   if(typeof daum === 'undefined' || !daum.Postcode){
     alert('주소 검색을 불러올 수 없습니다. 인터넷 연결 확인 후 다시 시도하세요.');
     return;
   }
+  const original = (prefillQuery || $('#pAddr').value || '').trim();
   new daum.Postcode({
     oncomplete: function(data){
-      // 도로명 우선, 없으면 지번
       const base = data.roadAddress || data.jibunAddress || data.address;
       $('#pAddrBase').value = base;
       $('#pAddr').value = base + ($('#pAddrDetail').value ? ' ' + $('#pAddrDetail').value : '');
-      $('#addrWarn').style.display = 'none';
-      // 상세주소 입력칸으로 자동 포커스
+      // 검증 — 입력 주소와 카카오 매칭 결과가 같은 도로/번지인지
+      if(original){
+        const inRB = getRoadBunji(original);
+        const outRB = getRoadBunji(base);
+        if(inRB && outRB && (inRB.road !== outRB.road || inRB.bunji !== outRB.bunji)){
+          $('#addrWarn').innerHTML =
+            `🚨 <b>주소 다름!</b> 입력 "${esc(inRB.road)} ${esc(inRB.bunji)}" → 카카오 "${esc(outRB.road)} ${esc(outRB.bunji)}"<br>`
+          + `<span style="color:var(--mut);font-weight:400">실제 손님 주소가 맞는지 다시 확인! 오타면 [🔍] 다시 눌러 재검색.</span>`;
+          $('#addrWarn').style.color = '#c5221f';
+          $('#addrWarn').style.fontWeight = '600';
+          $('#addrWarn').style.display = '';
+        } else {
+          $('#addrWarn').textContent = '✅ 주소 확인됨';
+          $('#addrWarn').style.color = '#137333';
+          $('#addrWarn').style.fontWeight = '500';
+          $('#addrWarn').style.display = '';
+          setTimeout(()=>{ $('#addrWarn').style.display = 'none'; }, 3000);
+        }
+      } else {
+        $('#addrWarn').style.display = 'none';
+      }
       setTimeout(()=>$('#pAddrDetail').focus(), 100);
     },
     theme: { bgColor:'#fff', searchBgColor:'#1a73e8', contentBgColor:'#fff' }
-  }).open();
+  }).open({ q: original });  // ⭐ 입력 주소로 prefill 검색
 }
 // 상세주소 바뀌면 합쳐서 hidden pAddr 갱신
 function syncAddr(){
@@ -1073,15 +1108,34 @@ function syncAddr(){
   const detail = $('#pAddrDetail').value.trim();
   $('#pAddr').value = base + (detail ? ' ' + detail : '');
 }
-// autoParse가 채팅 분석으로 주소 채울 때도 처리
+// autoParse가 채팅 분석으로 주소 채울 때 — 자동으로 카카오 검색 열기
+let autoSearchTimer = null;
 function setParsedAddr(addr){
   if(!addr) return;
-  $('#pAddrBase').value = addr;
-  $('#pAddrDetail').value = '';
+  // 검색 안 된 raw 텍스트는 hidden pAddr에만 임시 저장 + 경고
   $('#pAddr').value = addr;
-  // 자동분석 결과는 검증 안 된 주소 — 경고 표시
-  $('#addrWarn').textContent = '⚠️ 자동분석 결과 — 정확한지 [🔍 주소 검색]으로 확인하세요';
+  $('#pAddrBase').value = '';
+  $('#pAddrDetail').value = '';
+  $('#addrWarn').innerHTML = `⏳ 카카오 자동 검색 준비 중... <button type="button" class="btn-sec btn-sm" id="btnAddrNow" style="padding:2px 8px;font-size:11px">🔍 지금 검색</button>`;
+  $('#addrWarn').style.color = '#1a73e8';
+  $('#addrWarn').style.fontWeight = '500';
   $('#addrWarn').style.display = '';
+  // 중복 타이머 취소
+  if(autoSearchTimer) clearTimeout(autoSearchTimer);
+  // 1.5초 후 자동으로 카카오 열기 (사용자가 채팅 더 붙여넣을 시간 줌)
+  autoSearchTimer = setTimeout(() => {
+    if($('#pAddr').value === addr && !$('#pAddrBase').value){
+      openAddrSearch(addr);
+    }
+  }, 1500);
+  // 즉시 검색 버튼 핸들러
+  setTimeout(()=>{
+    const b = $('#btnAddrNow');
+    if(b) b.addEventListener('click', () => {
+      if(autoSearchTimer) clearTimeout(autoSearchTimer);
+      openAddrSearch(addr);
+    });
+  }, 50);
 }
 
 async function addOrder(){
@@ -1434,9 +1488,9 @@ function renderCatalog(){
   // 헤더 한 줄 (모바일 좁을 땐 숨김)
   const header = '<div class="cat-row" style="border-bottom:2px solid var(--line);background:#f9fafb;padding:6px 0;font-size:11px;color:var(--mut);font-weight:600">'
     +'<span>상품 / 색상</span>'
-    +'<span>택배 원가</span>'
-    +'<span>직거래 원가</span>'
-    +'<span>기본 납품가</span>'
+    +'<span>① 택배 원가</span>'
+    +'<span>② 직거래 원가</span>'
+    +'<span>③ 기본 판매가</span>'
     +'<span></span><span></span>'
     +'</div>';
   list.innerHTML = CATALOG.length===0
@@ -1533,6 +1587,13 @@ async function deleteUserPrice(id){
   await loadUserPrices();
 }
 
+// 관리자 ID 캐시 (관리자가 직접 입력한 주문은 rep_price = amount 사용)
+let ADMIN_IDS = new Set();
+async function loadAdminIds(){
+  const { data } = await sb.from('profiles').select('id').eq('role','admin');
+  ADMIN_IDS = new Set((data||[]).map(a => a.id));
+}
+
 // ====== 과거 주문 단가 재계산 ======
 // 현재 카탈로그·user_prices 기준으로 cost_price, rep_price 다시 계산
 function computeRecalc(orders){
@@ -1545,13 +1606,20 @@ function computeRecalc(orders){
     const newCost = (o.type === '직거래' && p.default_cost_pickup)
       ? p.default_cost_pickup
       : (p.default_cost || 0);
-    // 새 납품가: user_prices → default_rep_price
+    // 새 판매가(rep_price): 1) 사용자별 특별가 → 2) 관리자면 amount → 3) 기본 판매가
     const userPrice = USER_PRICES.find(up =>
       up.user_id === o.created_by &&
       up.product_name === o.product &&
       norm(up.color) === norm(o.color)
     );
-    const newRep = userPrice ? userPrice.rep_price : (p.default_rep_price || 0);
+    let newRep;
+    if(userPrice){
+      newRep = userPrice.rep_price;
+    } else if(ADMIN_IDS.has(o.created_by) && o.amount){
+      newRep = o.amount;  // 관리자 직접 입력 → 받은 금액 그대로 (네고 반영)
+    } else {
+      newRep = (p.default_rep_price || o.amount || 0);
+    }
     const oldCost = +o.cost_price || 0;
     const oldRep  = +o.rep_price || 0;
     if(oldCost === newCost && oldRep === newRep) continue;  // 변동 없음
@@ -2369,7 +2437,7 @@ document.querySelectorAll('.type-tabs button').forEach(b=>{
 $('#tAll').addEventListener('input', autoParse);
 $('#btnAdd').addEventListener('click', addOrder);
 // 카카오 주소검색
-$('#btnAddrSearch') && $('#btnAddrSearch').addEventListener('click', openAddrSearch);
+$('#btnAddrSearch') && $('#btnAddrSearch').addEventListener('click', () => openAddrSearch());
 $('#pAddrDetail') && $('#pAddrDetail').addEventListener('input', syncAddr);
 $('#btnBulkDone').addEventListener('click', bulkOrderComplete);
 $('#btnCsv').addEventListener('click', exportCsv);
