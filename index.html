@@ -218,6 +218,34 @@ body[data-font="large"]{zoom:1.12}
 body[data-mode="manage"] #ledgerCard{display:block}
 body[data-mode="manage"] #todaySummaryCard{display:block}
 body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:block !important}
+/* 📒 장부 — 핵심 매출/마진 헤드라인 */
+.ls-headline{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.ls-hl-block{padding:14px 16px;background:#f4f5f7;border-radius:10px;text-align:left}
+.ls-hl-block.ls-hl-margin{background:linear-gradient(135deg,#fff7f0,#ffe8d4);border:1px solid var(--pri)}
+.ls-hl-label{font-size:11.5px;color:var(--mut);font-weight:600;margin-bottom:4px}
+.ls-hl-value{font-size:13px;color:var(--txt)}
+.ls-hl-value b{font-size:22px;font-weight:700;color:var(--txt)}
+.ls-hl-margin .ls-hl-value b{color:var(--pri)}
+.ls-hl-value span{font-size:12px;color:var(--mut);margin-left:2px}
+.ls-hl-value small{font-size:12px;color:var(--mut)}
+.ls-sub{margin-top:8px;font-size:12px;color:var(--mut);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ls-sub b{color:var(--txt);font-weight:700}
+/* 🛍 상품별/거래별/입금별 breakdown */
+.ls-breakdown{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.ls-bd-section{padding:10px 12px;background:#f9fafb;border-radius:8px}
+.ls-bd-title{font-size:11.5px;color:var(--mut);font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.ls-bd-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:5px 0;font-size:12.5px;align-items:center;border-bottom:1px dashed #e5e7eb}
+.ls-bd-row:last-child{border-bottom:0}
+.ls-bd-name{font-weight:600;color:var(--txt)}
+.ls-bd-meta{font-size:11px;color:var(--mut)}
+.ls-bd-amount{font-weight:700;color:var(--pri);text-align:right;white-space:nowrap}
+.ls-bd-margin{font-size:11.5px;color:#137333;font-weight:600;text-align:right;white-space:nowrap;min-width:78px}
+.ls-bd-margin.neg{color:#c5221f}
+@media (max-width:480px){
+  .ls-headline{grid-template-columns:1fr;gap:6px}
+  .ls-hl-block{padding:11px 13px}
+  .ls-hl-value b{font-size:19px}
+}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .ls-row{background:#f4f5f7;padding:10px 12px;border-radius:8px;font-size:12.5px;color:var(--mut);display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap}
 .ls-row b{color:var(--txt);font-size:15px;font-weight:700}
@@ -427,19 +455,35 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 </section>
 
 <section class="card" id="ledgerCard">
-  <h2 id="ledgerTitle">📒 장부 요약</h2>
+  <h2 id="ledgerTitle">📒 장부 <span id="ledgerPeriodLabel" class="muted" style="font-size:13px;font-weight:400"></span></h2>
   <div class="chips" style="margin-top:6px">
     <button type="button" class="chip-flt" data-period="today">오늘</button>
     <button type="button" class="chip-flt active" data-period="month">이번달</button>
     <button type="button" class="chip-flt" data-period="all">전체</button>
   </div>
-  <!-- 관리자 통계 (한 줄 압축) -->
-  <div class="ledger-stats admin-only">
-    <div class="ls-row"><span>판매</span><span><b id="lsCount">0</b> 건 · <b id="lsQty">0</b> 개</span></div>
-    <div class="ls-row"><span>매출</span><span><b id="lsRevenue">0</b> 원</span></div>
-    <div class="ls-row"><span>원가</span><span><b id="lsCost">0</b> 원</span></div>
-    <div class="ls-row big"><span>마진</span><span><b id="lsMargin">0</b> 원 (<span id="lsRate">0%</span>)</span></div>
+
+  <!-- ⭐ 핵심 숫자 (가장 크게, 한눈에) -->
+  <div class="ls-headline admin-only">
+    <div class="ls-hl-block">
+      <div class="ls-hl-label">매출</div>
+      <div class="ls-hl-value"><b id="lsRevenue">0</b><span>원</span></div>
+    </div>
+    <div class="ls-hl-block ls-hl-margin">
+      <div class="ls-hl-label">마진</div>
+      <div class="ls-hl-value"><b id="lsMargin">0</b><span>원</span> <small>(<span id="lsRate">0%</span>)</small></div>
+    </div>
   </div>
+  <div class="ls-sub admin-only">
+    <span>📦 <b id="lsCount">0</b>건</span>
+    <span>·</span>
+    <span>수량 <b id="lsQty">0</b>개</span>
+    <span>·</span>
+    <span>원가 <b id="lsCost">0</b>원</span>
+  </div>
+
+  <!-- 🛍 상품별 / 거래별 / 입금별 breakdown -->
+  <div id="lsBreakdown" class="ls-breakdown admin-only"></div>
+
   <!-- 입력자 전용 통계 -->
   <div class="ledger-stats input-only grid">
     <div class="ls-row"><span>내 판매</span><span><b id="myCount">0</b> 건 · <b id="myQty">0</b> 개</span></div>
@@ -2066,11 +2110,104 @@ function renderTodaySummary(){
     + `<div class="ts-line ts-money"><span class="ts-label">💰 매출</span><b>${wonInt(totalRev)}원</b> · 마진 <b>${wonInt(margin)}원</b> (${rate}%)</div>`
     + (userPills   ? `<div class="ts-line"><span class="ts-label">👥 입력자</span>${userPills}</div>` : '');
 }
+// 🛍 상품별/거래별/입금별 breakdown — 장부 요약 핵심
+function renderLedgerBreakdown(list){
+  const el = $('#lsBreakdown'); if(!el) return;
+  if(!list || list.length === 0){
+    el.innerHTML = '<div class="ls-bd-section"><div class="empty" style="text-align:center;padding:14px;color:var(--mut);font-size:12.5px">📭 이 기간 거래 없음</div></div>';
+    return;
+  }
+  // 각 주문의 매출/원가/마진 계산 (관리자 본인은 amount 사용 — 1원 픽스)
+  const calc = o => {
+    const q = +o.qty || 1;
+    const rev = (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
+    const cst = (+o.cost_price||0) * q;
+    return { q, rev, cst, mgn: rev - cst };
+  };
+  // ① 상품별 집계
+  const byProd = {};
+  list.forEach(o => {
+    const k = (o.product||'?') + (o.color ? ' / ' + o.color : '');
+    if(!byProd[k]) byProd[k] = { count:0, qty:0, rev:0, cst:0 };
+    const c = calc(o);
+    byProd[k].count++;
+    byProd[k].qty += c.q;
+    byProd[k].rev += c.rev;
+    byProd[k].cst += c.cst;
+  });
+  const prodRows = Object.entries(byProd)
+    .sort((a,b) => b[1].rev - a[1].rev)
+    .map(([k,v]) => {
+      const mgn = v.rev - v.cst;
+      const rate = v.rev>0 ? Math.round(mgn/v.rev*1000)/10 : 0;
+      return `<div class="ls-bd-row">
+        <div><div class="ls-bd-name">${esc(k)}</div><div class="ls-bd-meta">${v.count}건 · ${v.qty}개</div></div>
+        <div class="ls-bd-amount">${wonInt(v.rev)}원</div>
+        <div class="ls-bd-margin ${mgn<0?'neg':''}">+${wonInt(mgn)}<br><small style="font-weight:500;color:var(--mut)">${rate}%</small></div>
+      </div>`;
+    }).join('');
+  // ② 거래방식별 집계
+  const byType = { '택배':{count:0,rev:0}, '직거래':{count:0,rev:0} };
+  list.forEach(o => {
+    const c = calc(o);
+    const t = o.type || '택배';
+    if(!byType[t]) byType[t] = {count:0,rev:0};
+    byType[t].count++;
+    byType[t].rev += c.rev;
+  });
+  const totalCnt = list.length;
+  const typeRows = Object.entries(byType)
+    .filter(([_,v]) => v.count > 0)
+    .map(([k,v]) => {
+      const pct = totalCnt>0 ? Math.round(v.count/totalCnt*100) : 0;
+      const icon = k==='직거래' ? '🤝' : '📦';
+      return `<div class="ls-bd-row">
+        <div class="ls-bd-name">${icon} ${esc(k)} <span class="ls-bd-meta">${pct}%</span></div>
+        <div class="ls-bd-amount">${v.count}건</div>
+        <div class="ls-bd-margin" style="color:var(--mut)">${wonInt(v.rev)}원</div>
+      </div>`;
+    }).join('');
+  // ③ 입금별 집계
+  let paidCnt=0, paidRev=0, unpaidCnt=0, unpaidRev=0;
+  list.forEach(o => {
+    const c = calc(o);
+    if(o.paid){ paidCnt++; paidRev += c.rev; }
+    else { unpaidCnt++; unpaidRev += c.rev; }
+  });
+  const paidRows = `
+    <div class="ls-bd-row">
+      <div class="ls-bd-name" style="color:#137333">✅ 입금완료</div>
+      <div class="ls-bd-amount">${paidCnt}건</div>
+      <div class="ls-bd-margin" style="color:#137333">${wonInt(paidRev)}원</div>
+    </div>
+    <div class="ls-bd-row">
+      <div class="ls-bd-name" style="color:#b45309">⏳ 미입금</div>
+      <div class="ls-bd-amount">${unpaidCnt}건</div>
+      <div class="ls-bd-margin" style="color:#b45309">${wonInt(unpaidRev)}원</div>
+    </div>`;
+  el.innerHTML =
+      `<div class="ls-bd-section"><div class="ls-bd-title">🛍 상품별</div>${prodRows}</div>`
+    + (typeRows ? `<div class="ls-bd-section"><div class="ls-bd-title">🚚 거래방식별</div>${typeRows}</div>` : '')
+    + `<div class="ls-bd-section"><div class="ls-bd-title">💰 입금 상태별</div>${paidRows}</div>`;
+}
+
 function renderLedger(){
   renderTodaySummary();
   renderLedgerChips();
   if(userRole==='admin') renderMonthlyTrend();
   const r = computeLedger(ledgerPeriod);
+  // 기간 라벨
+  const pLabel = $('#ledgerPeriodLabel');
+  if(pLabel){
+    const now = new Date();
+    const ymd = now.getFullYear()+'.'+String(now.getMonth()+1).padStart(2,'0')+'.'+String(now.getDate()).padStart(2,'0');
+    const lblMap = {
+      today: `(오늘 · ${ymd})`,
+      month: `(${now.getFullYear()}년 ${now.getMonth()+1}월)`,
+      all:   '(전체 기간)'
+    };
+    pLabel.textContent = lblMap[ledgerPeriod] || '';
+  }
   if(userRole==='admin'){
     $('#lsCount').textContent = wonInt(r.count);
     $('#lsQty').textContent   = wonInt(r.qty);
@@ -2078,6 +2215,7 @@ function renderLedger(){
     $('#lsCost').textContent  = wonInt(r.cost);
     $('#lsMargin').textContent = wonInt(r.margin);
     $('#lsRate').textContent  = r.rate + '%';
+    renderLedgerBreakdown(r.list);
     renderSettle();
   } else {
     // 입력자: 본인 주문만 (loadOrders가 이미 필터링), 받은금액=o.amount 합
