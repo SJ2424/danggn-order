@@ -54,8 +54,7 @@ async function markRegistered(id) {
   if (error) throw error;
 }
 
-// ====== 주소 분리 ======
-// 시/도 키워드 — 주소가 진짜 시작하는 지점 찾는 용도
+// ====== 주소 분리·검증 ======
 const SIDO_KEYS = [
   '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종',
   '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주',
@@ -64,18 +63,14 @@ const SIDO_KEYS = [
   '경기도', '강원도', '강원특별자치도', '제주도'
 ];
 
-// 주소 앞에 가게명/상호 같은 접두어가 있으면 떼어내기 (담소소담골육개장 경기도... → 경기도...)
 function stripBusinessPrefix(addr) {
   if (!addr) return { addr: '', business: '' };
   const a = String(addr).replace(/\s+/g, ' ').trim();
-  // 시/도 키워드를 찾고, 그 앞에 있는 단어가 있으면 가게명으로 분리
   for (const key of SIDO_KEYS) {
     const idx = a.indexOf(key);
     if (idx > 0) {
-      // 시/도 앞에 다른 텍스트가 있음 → 가게명 추정
       const prefix = a.slice(0, idx).trim();
       const rest = a.slice(idx).trim();
-      // 합리적 길이의 가게명만 (1~20자, 숫자만은 아님)
       if (prefix.length >= 1 && prefix.length <= 20 && !/^\d+$/.test(prefix)) {
         return { addr: rest, business: prefix };
       }
@@ -84,22 +79,39 @@ function stripBusinessPrefix(addr) {
   return { addr: a, business: '' };
 }
 
+// 한국 주소 표준 패턴 — 동/로/길/가/리 + 번지까지가 기본주소, 그 뒤는 상세주소
+// 예: "경기 안양시 만안구 안양동491-4 담소소담육개장" → base="...안양동491-4", extras="담소소담육개장"
+function smartSplitAddress(addr) {
+  const a = addr.replace(/\s+/g, ' ').trim();
+  const m = a.match(/^(.+?(?:동|로|길|가|리)\s*\d+(?:-\d+)?)(?:번지)?\s+(.+)$/);
+  if (m) return { base: m[1].trim(), extras: m[2].trim() };
+  return null;
+}
+
 function splitAddress(addr) {
   if (!addr) return { base: '', detail: '', business: '' };
-  // 0단계: 가게명/상호 분리
   const { addr: cleaned, business } = stripBusinessPrefix(addr);
   const a = cleaned.replace(/\s+/g, ' ').trim();
-  // 끝의 호/층/동호 패턴
+  // 1) 한국 주소 표준 패턴 (가장 정확)
+  const smart = smartSplitAddress(a);
+  if (smart) return { base: smart.base, detail: smart.extras, business };
+  // 2) 옛 fallback 패턴
   let m = a.match(/^(.+?)\s+(\d+동\s*\d+호)$/);
   if (m) return { base: m[1].trim(), detail: m[2].replace(/\s+/g,'').trim(), business };
   m = a.match(/^(.+?)[\s,]+([\d\-]+호)$/);
   if (m) return { base: m[1].trim(), detail: m[2].trim(), business };
   m = a.match(/^(.+?)[\s,]+(\d+층)$/);
   if (m) return { base: m[1].trim(), detail: m[2].trim(), business };
-  // 콤마 기준
   const i = a.lastIndexOf(',');
   if (i > 0) return { base: a.slice(0, i).trim(), detail: a.slice(i + 1).trim(), business };
   return { base: a, detail: '', business };
+}
+
+// 주소에서 (동/로/길) 이름 + 번지 추출 — 검증용
+function extractRoadAndBunji(addr) {
+  if (!addr) return null;
+  const m = addr.match(/(\S+?(?:동|로|길|가|리))\s*(\d+(?:-\d+)?)/);
+  return m ? { road: m[1].trim(), bunji: m[2].trim() } : null;
 }
 
 // ====== OMS 자동화 ======
@@ -257,6 +269,22 @@ async function registerOrder(page, order, idx) {
       throw new Error(`주소 팝업/모달 못 찾음 (iframe=${iframeCount}, dialog=${dialogCount}, newPage=${newPage?'있음':'없음'}) — 캡처 확인 필요`);
     }
     await page.waitForTimeout(800);
+
+    // 🛡️ 안전장치: 카카오가 채운 기본주소를 읽어서 입력값과 비교
+    // 카카오가 비슷한 다른 주소(학연로 vs 학현로)로 자동매칭한 경우 캐치
+    const filledBase = await page.getByPlaceholder(/기본 주소/).inputValue().catch(() => '');
+    if (filledBase) {
+      const inRB  = extractRoadAndBunji(base);
+      const outRB = extractRoadAndBunji(filledBase);
+      console.log(`  주소 검증: 입력 "${inRB?.road} ${inRB?.bunji}" vs 카카오 "${outRB?.road} ${outRB?.bunji}"`);
+      if (inRB && outRB && (inRB.road !== outRB.road || inRB.bunji !== outRB.bunji)) {
+        throw new Error(
+          `🚨 주소 불일치 — 카카오가 다른 곳으로 매칭함\n` +
+          `  입력: "${inRB.road} ${inRB.bunji}"  →  카카오: "${outRB.road} ${outRB.bunji}"\n` +
+          `  앱에서 주소를 수정(검색 버튼으로 정확한 주소 선택) 후 다시 시도하세요.`
+        );
+      }
+    }
   }
 
   // 상세 주소 (가게명 + 동/호 포함)
@@ -305,10 +333,15 @@ async function main() {
       try {
         await registerOrder(page, orders[i], i + 1);
         await markRegistered(orders[i].id);
+        // 성공시 이전 에러 note 클리어
+        await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id).catch(()=>{});
         ok++;
       } catch (e) {
         console.error(`❌ 실패: ${e.message}`);
         try { await page.screenshot({ path: `screenshots/fail-${i+1}.png`, fullPage: true }); } catch {}
+        // 앱에서 보이도록 주문에 에러 메시지 기록 (bot_note 컬럼)
+        const msg = `❌ ${new Date().toISOString().slice(0,16).replace('T',' ')}: ${e.message.slice(0,300)}`;
+        await sb.from('orders').update({ bot_note: msg }).eq('id', orders[i].id).catch(()=>{});
         fail++;
       }
     }

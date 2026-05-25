@@ -240,6 +240,8 @@ body[data-mode="manage"] #ledgerCard{display:block}
 .edit-modal .actions{display:flex;gap:8px;margin-top:16px}
 .edit-modal .actions button{flex:1;padding:11px}
 </style>
+<!-- 카카오 우편번호 (주소 오타 방지) -->
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 </head>
 <body>
 
@@ -306,7 +308,16 @@ body[data-mode="manage"] #ledgerCard{display:block}
     <div class="grid">
       <div><label>받는 사람</label><input id="pName" placeholder="홍길동"></div>
       <div><label>연락처</label><input id="pPhone" placeholder="010-0000-0000"></div>
-      <div class="full"><label>배송 주소</label><input id="pAddr" placeholder="시·구·도로명·건물번호·동/호"></div>
+      <div class="full">
+        <label>배송 주소 <span class="muted" style="font-weight:400;font-size:11px">— 🔍 검색 권장 (오타 방지)</span></label>
+        <div style="display:flex;gap:6px;margin-bottom:4px">
+          <input id="pAddrBase" placeholder="기본 주소 (검색 결과)" readonly style="flex:2;background:#f9fafb">
+          <button type="button" class="btn-sec btn-sm" id="btnAddrSearch" style="flex:0 0 auto">🔍 주소 검색</button>
+        </div>
+        <input id="pAddrDetail" placeholder="상세 주소 (건물명·동·호 — 본인이 입력)">
+        <input id="pAddr" type="hidden">
+        <p id="addrWarn" class="muted" style="font-size:11px;margin:4px 0 0;display:none;color:#c5221f"></p>
+      </div>
       <div><label>상품</label><input id="pProduct" placeholder="선반랙"></div>
       <div><label>색상</label><input id="pColor" placeholder="화이트 / 블랙"></div>
       <div><label>수량</label><input id="pQty" type="number" min="1" placeholder="1"></div>
@@ -786,7 +797,8 @@ function parseAll(raw){
 
 function autoParse(){
   const r = parseAll($('#tAll').value);
-  $('#pName').value=r.name; $('#pPhone').value=r.phone; $('#pAddr').value=r.address;
+  $('#pName').value=r.name; $('#pPhone').value=r.phone;
+  setParsedAddr(r.address);  // 자동분석 주소는 검증 안 됨 → 검색 권유
   $('#pProduct').value=r.product; $('#pColor').value=r.color;
   $('#pQty').value=r.qty;
   $('#pType').value=r.type;
@@ -997,6 +1009,42 @@ function subscribeOrders(){
     .on('postgres_changes',{event:'*',schema:'public',table:'orders'}, () => loadOrders())
     .subscribe();
 }
+// 카카오 우편번호 검색 — 오타·잘못된 주소 방지
+function openAddrSearch(){
+  if(typeof daum === 'undefined' || !daum.Postcode){
+    alert('주소 검색을 불러올 수 없습니다. 인터넷 연결 확인 후 다시 시도하세요.');
+    return;
+  }
+  new daum.Postcode({
+    oncomplete: function(data){
+      // 도로명 우선, 없으면 지번
+      const base = data.roadAddress || data.jibunAddress || data.address;
+      $('#pAddrBase').value = base;
+      $('#pAddr').value = base + ($('#pAddrDetail').value ? ' ' + $('#pAddrDetail').value : '');
+      $('#addrWarn').style.display = 'none';
+      // 상세주소 입력칸으로 자동 포커스
+      setTimeout(()=>$('#pAddrDetail').focus(), 100);
+    },
+    theme: { bgColor:'#fff', searchBgColor:'#1a73e8', contentBgColor:'#fff' }
+  }).open();
+}
+// 상세주소 바뀌면 합쳐서 hidden pAddr 갱신
+function syncAddr(){
+  const base = $('#pAddrBase').value.trim();
+  const detail = $('#pAddrDetail').value.trim();
+  $('#pAddr').value = base + (detail ? ' ' + detail : '');
+}
+// autoParse가 채팅 분석으로 주소 채울 때도 처리
+function setParsedAddr(addr){
+  if(!addr) return;
+  $('#pAddrBase').value = addr;
+  $('#pAddrDetail').value = '';
+  $('#pAddr').value = addr;
+  // 자동분석 결과는 검증 안 된 주소 — 경고 표시
+  $('#addrWarn').textContent = '⚠️ 자동분석 결과 — 정확한지 [🔍 주소 검색]으로 확인하세요';
+  $('#addrWarn').style.display = '';
+}
+
 async function addOrder(){
   const o={
     date:kstToday(),
@@ -1015,12 +1063,17 @@ async function addOrder(){
   };
   if(!o.name && !o.tel){ alert('구매자 정보를 입력하세요.'); return; }
   if(!o.product){ alert('상품을 선택하세요.'); return; }
+  // 주소 검증 — 택배일 때 카카오 검색 안 거친 주소 경고
+  if(o.type === '택배' && !$('#pAddrBase').value.trim()){
+    if(!confirm('⚠️ 주소 검색을 하지 않았습니다.\n오타가 있으면 잘못된 곳으로 배송될 수 있습니다.\n그래도 등록할까요?')) return;
+  }
   const btn=$('#btnAdd'); btn.disabled=true; btn.textContent='추가 중...';
   const { error } = await sb.from('orders').insert(o);
   btn.disabled=false; btn.textContent='✓ 주문 목록에 추가';
   if(error){ alert('저장 실패: '+error.message); return; }
-  // 채팅·닉네임·휴대폰 별칭 다 초기화 (매번 자유롭게 다시 입력)
-  ['tAll','fNick','fPhone'].forEach(id=>$('#'+id).value='');
+  // 채팅·닉네임·휴대폰 별칭 + 주소 다 초기화
+  ['tAll','fNick','fPhone','pAddrBase','pAddrDetail','pAddr'].forEach(id=>$('#'+id).value='');
+  $('#addrWarn').style.display = 'none';
   autoParse();
 }
 async function togglePaid(id){
@@ -1168,6 +1221,7 @@ function cardHtml(o){
     +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
     +'<div class="oc-line oc-item"><b>'+esc(o.product)+(o.color?' / '+esc(o.color):'')+' · '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
+    +(o.bot_note?'<div class="oc-line" style="background:#fdebea;border-left:3px solid #c5221f;padding:6px 8px;border-radius:4px;font-size:11.5px;color:#c5221f;white-space:pre-wrap">🤖 봇 메시지: '+esc(o.bot_note)+'</div>':'')
     +'<div class="oc-line oc-track-line">'+trackHtml+'</div>'
     +paidByLine
     +'<div class="oc-foot">'
@@ -2117,6 +2171,9 @@ document.querySelectorAll('.type-tabs button').forEach(b=>{
 
 $('#tAll').addEventListener('input', autoParse);
 $('#btnAdd').addEventListener('click', addOrder);
+// 카카오 주소검색
+$('#btnAddrSearch') && $('#btnAddrSearch').addEventListener('click', openAddrSearch);
+$('#pAddrDetail') && $('#pAddrDetail').addEventListener('input', syncAddr);
 $('#btnBulkDone').addEventListener('click', bulkOrderComplete);
 $('#btnCsv').addEventListener('click', exportCsv);
 $('#btnPoAll').addEventListener('click', copyPoAll);
