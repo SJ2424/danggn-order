@@ -1546,14 +1546,18 @@ async function loadAdminIds(){
   ADMIN_IDS = new Set((data||[]).map(a => a.id));
 }
 
-// 🔧 마진 문제 자동 감지 — 관리자가 입력한 주문인데 rep_price !== amount면 잘못된 것
+// 🔧 마진 문제 자동 감지 — 관리자가 입력한 주문인데 rep_price !== amount/qty면 잘못된 것
+// (amount는 총액, rep_price는 개당 — 곱하면 amount가 나와야 정상)
 function detectMarginIssues(){
   if(userRole !== 'admin') return [];
-  return ORDERS.filter(o =>
-    ADMIN_IDS.has(o.created_by) &&
-    o.amount && +o.amount > 0 &&
-    +o.rep_price !== +o.amount
-  );
+  return ORDERS.filter(o => {
+    if(!ADMIN_IDS.has(o.created_by)) return false;
+    const amt = +o.amount || 0;
+    const qty = +o.qty || 1;
+    if(amt <= 0 || qty <= 0) return false;
+    const expected = Math.round(amt / qty);
+    return Math.abs((+o.rep_price||0) - expected) > 1;  // 1원 오차 허용
+  });
 }
 function showMarginBanner(){
   const banner = $('#marginFixBanner'); if(!banner) return;
@@ -1569,13 +1573,19 @@ function showMarginBanner(){
 async function fixMarginIssues(){
   const issues = detectMarginIssues();
   if(issues.length === 0){ alert('수정할 주문 없음'); return; }
-  const totalChange = issues.reduce((s,o)=>s+(+o.amount-+o.rep_price)*(+o.qty||1), 0);
-  if(!confirm(`${issues.length}건의 rep_price를 amount(받은 금액)로 변경합니다.\n매출 합계 변동: ${totalChange>=0?'+':''}${wonInt(totalChange)}원\n진행할까요?`)) return;
+  // rep_price = 개당 가격 = amount / qty
+  // 마진 변동 = (새 rep_price - 옛 rep_price) × qty
+  const totalChange = issues.reduce((s,o) => {
+    const newRep = Math.round((+o.amount) / (+o.qty || 1));
+    return s + (newRep - (+o.rep_price||0)) * (+o.qty || 1);
+  }, 0);
+  if(!confirm(`${issues.length}건의 개당 가격(rep_price)을 (총액/수량)으로 정정합니다.\n매출 합계 변동: ${totalChange>=0?'+':''}${wonInt(totalChange)}원\n진행할까요?`)) return;
   const btn = $('#btnMarginFix');
   if(btn){ btn.disabled = true; btn.textContent = '수정 중...'; }
   let ok = 0, fail = 0;
   for(const o of issues){
-    const { error } = await sb.from('orders').update({ rep_price: +o.amount }).eq('id', o.id);
+    const newRep = Math.round((+o.amount) / (+o.qty || 1));
+    const { error } = await sb.from('orders').update({ rep_price: newRep }).eq('id', o.id);
     if(error) fail++; else ok++;
   }
   if(btn){ btn.disabled = false; btn.textContent = '🔧 자동 수정'; }
@@ -1602,12 +1612,14 @@ function computeRecalc(orders){
       norm(up.color) === norm(o.color)
     );
     let newRep;
+    const qty = +o.qty || 1;
     if(userPrice){
       newRep = userPrice.rep_price;
-    } else if(ADMIN_IDS.has(o.created_by) && o.amount){
-      newRep = o.amount;  // 관리자 직접 입력 → 받은 금액 그대로 (네고 반영)
+    } else if(ADMIN_IDS.has(o.created_by) && o.amount && qty > 0){
+      // 관리자 직접 입력 → 개당 가격 = 총액 / 수량 (할인도 자동 반영)
+      newRep = Math.round((+o.amount) / qty);
     } else {
-      newRep = (p.default_rep_price || o.amount || 0);
+      newRep = (p.default_rep_price || (o.amount && qty ? Math.round(o.amount/qty) : 0));
     }
     const oldCost = +o.cost_price || 0;
     const oldRep  = +o.rep_price || 0;
