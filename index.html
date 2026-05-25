@@ -212,6 +212,23 @@ body[data-mode="manage"] #ledgerCard{display:block}
 .ls-row.big{grid-column:1/-1;background:#fff7f0;border:1px solid var(--pri)}
 .ls-row.big b{color:var(--pri);font-size:18px}
 .ls-row .gray{color:var(--mut);font-weight:400;font-size:11.5px}
+/* 관리 탭 섹션 헤더 — 카드 그룹 구분 */
+.section-header{
+  margin:22px 0 8px;
+  padding:10px 14px;
+  background:linear-gradient(135deg,#eef4fb,#fff);
+  border-left:4px solid var(--pri);
+  border-radius:6px;
+  font-size:14px;
+  font-weight:700;
+  color:var(--txt);
+}
+.section-header .muted{
+  font-weight:400;
+  font-size:11.5px;
+  color:var(--mut);
+}
+body[data-mode="input"] .section-header{display:none}
 /* 카탈로그/가격 관리 */
 .cat-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr auto auto;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
 .pr-row{display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
@@ -430,7 +447,9 @@ body[data-mode="manage"] #ledgerCard{display:block}
   </div>
 </section>
 
-<details class="card admin-only">
+<div class="section-header admin-only">💰 단가·재고 관리 <span class="muted">— 원가·납품가·입고 기록</span></div>
+
+<details class="card admin-only" open>
   <summary>⚙️ 상품 카탈로그 + 단가</summary>
   <p class="muted" style="margin-top:10px"><b>택배 원가</b> = 포장·배송비 포함. <b>직거래 원가</b> = 매입가 + 물류비만 (직거래 비워두면 택배 원가 그대로 사용). <b>기본 납품가</b> = 일반 입력자한테 받는 가격. 마진 = (납품가 − 원가) × 수량.</p>
   <div id="catalogList"></div>
@@ -473,6 +492,22 @@ body[data-mode="manage"] #ledgerCard{display:block}
 </details>
 
 <details class="card admin-only">
+  <summary>🔄 과거 주문 단가 재계산 (잘못 들어간 거 일괄 수정)</summary>
+  <p class="muted" style="margin-top:10px"><b>현재 카탈로그·사용자별 단가 설정</b>을 기준으로 과거 주문의 <b>원가/납품가</b>만 다시 계산합니다. 입금·송장·상태 등은 안 건드림. 새 트리거 적용 전에 들어간 주문 원가 정정용.</p>
+  <div style="margin-top:10px;display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center;font-size:12.5px">
+    <label>적용 기간 (이 날짜 이후):</label>
+    <input type="date" id="recalcSince" value="2026-05-01" style="padding:6px">
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+    <button class="btn-sec btn-sm" id="btnRecalcPreview">📊 미리보기 (변동분 확인)</button>
+    <button class="btn-pri-sm" id="btnRecalcApply">⚠️ 재계산 적용</button>
+  </div>
+  <div id="recalcMsg" style="margin-top:10px;font-size:12.5px;line-height:1.7"></div>
+</details>
+
+<div class="section-header admin-only">🛠 시스템 관리 <span class="muted">— 계정·알림·CSV·봇·백업</span></div>
+
+<details class="card admin-only">
   <summary>🔑 사용자 비밀번호 재설정 / 푸시 알림</summary>
   <p class="muted" style="margin-top:10px"><b>입력자가 비밀번호 잊었을 때</b> — Supabase 대시보드에서 직접 재설정합니다.</p>
   <ol style="font-size:12.5px;padding-left:20px;margin:6px 0;line-height:1.6">
@@ -501,7 +536,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <div id="csvMsg" style="margin-top:8px;font-size:12px"></div>
 </details>
 
-<details class="card admin-only" id="myAccountCard" open>
+<details class="card admin-only" id="myAccountCard">
   <summary>👤 내 계정 (관리자 아이디·이름)</summary>
   <div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:6px">
     <div style="font-size:12.5px;line-height:1.7">
@@ -1498,6 +1533,94 @@ async function deleteUserPrice(id){
   await loadUserPrices();
 }
 
+// ====== 과거 주문 단가 재계산 ======
+// 현재 카탈로그·user_prices 기준으로 cost_price, rep_price 다시 계산
+function computeRecalc(orders){
+  const norm = c => (c||'');
+  const results = [];
+  for(const o of orders){
+    const p = CATALOG.find(c => c.name === o.product && norm(c.color) === norm(o.color));
+    if(!p){ results.push({order:o, skip:'카탈로그에 없는 상품'}); continue; }
+    // 새 원가: 거래 type 분기
+    const newCost = (o.type === '직거래' && p.default_cost_pickup)
+      ? p.default_cost_pickup
+      : (p.default_cost || 0);
+    // 새 납품가: user_prices → default_rep_price
+    const userPrice = USER_PRICES.find(up =>
+      up.user_id === o.created_by &&
+      up.product_name === o.product &&
+      norm(up.color) === norm(o.color)
+    );
+    const newRep = userPrice ? userPrice.rep_price : (p.default_rep_price || 0);
+    const oldCost = +o.cost_price || 0;
+    const oldRep  = +o.rep_price || 0;
+    if(oldCost === newCost && oldRep === newRep) continue;  // 변동 없음
+    results.push({
+      order: o, newCost, newRep,
+      diffCost: (newCost - oldCost) * (+o.qty||1),
+      diffRep:  (newRep  - oldRep)  * (+o.qty||1)
+    });
+  }
+  return results;
+}
+
+async function recalcPreview(){
+  const since = $('#recalcSince').value;
+  if(!since){ alert('적용 기간을 선택하세요'); return; }
+  $('#recalcMsg').innerHTML = '<span class="muted">조회 중...</span>';
+  const { data: orders, error } = await sb.from('orders').select('*').gte('date', since);
+  if(error){ $('#recalcMsg').innerHTML = '<span style="color:#c5221f">오류: '+esc(error.message)+'</span>'; return; }
+  const list = orders || [];
+  if(list.length === 0){
+    $('#recalcMsg').innerHTML = '<span class="muted">해당 기간 주문 없음 ('+since+' 이후)</span>';
+    return;
+  }
+  const changes = computeRecalc(list);
+  const updated = changes.filter(c => !c.skip);
+  const skipped = changes.filter(c => c.skip);
+  let totalCost=0, totalRep=0;
+  updated.forEach(c => { totalCost += c.diffCost; totalRep += c.diffRep; });
+  const sign = n => (n>0?'+':'') + wonInt(n);
+  $('#recalcMsg').innerHTML =
+      `📊 <b>${list.length}건 조회</b> → 변경 예상 <b style="color:#1a73e8">${updated.length}건</b>`
+    + (skipped.length ? ` · 스킵 ${skipped.length}건 (카탈로그에 없는 상품)` : '')
+    + `<br>총 원가 변동: <b>${sign(totalCost)}원</b>`
+    + `<br>총 매출(납품가) 변동: <b>${sign(totalRep)}원</b>`
+    + `<br>총 마진 변동: <b style="color:${totalRep-totalCost>=0?'#137333':'#c5221f'}">${sign(totalRep-totalCost)}원</b>`
+    + `<br><span class="muted" style="font-size:11px">위 [⚠️ 재계산 적용] 누르면 실제 DB 업데이트</span>`;
+}
+
+async function recalcApply(){
+  const since = $('#recalcSince').value;
+  if(!since){ alert('적용 기간을 선택하세요'); return; }
+  // 먼저 미리보기 다시 계산
+  const { data: orders, error } = await sb.from('orders').select('*').gte('date', since);
+  if(error){ alert('조회 실패: '+error.message); return; }
+  const list = orders || [];
+  const changes = computeRecalc(list).filter(c => !c.skip);
+  if(changes.length === 0){
+    $('#recalcMsg').innerHTML = '<span class="muted">변경할 주문 없음</span>';
+    return;
+  }
+  if(!confirm(`${changes.length}건 업데이트합니다.\n현재 카탈로그 값 기준으로 cost_price + rep_price 덮어씁니다.\n되돌리려면 SQL로 직접 복구해야 합니다.\n진행할까요?`)) return;
+
+  $('#recalcMsg').innerHTML = `<span class="muted">업데이트 중... 0/${changes.length}</span>`;
+  let ok = 0, fail = 0;
+  for(let i=0; i<changes.length; i++){
+    const c = changes[i];
+    const { error } = await sb.from('orders').update({
+      cost_price: c.newCost,
+      rep_price: c.newRep
+    }).eq('id', c.order.id);
+    if(error) fail++; else ok++;
+    if(i % 10 === 9){
+      $('#recalcMsg').innerHTML = `<span class="muted">업데이트 중... ${i+1}/${changes.length} (실패 ${fail})</span>`;
+    }
+  }
+  $('#recalcMsg').innerHTML = `✅ 완료: <b>${ok}건 업데이트</b>` + (fail?` / ❌ ${fail}건 실패`:'');
+  await loadOrders();  // 화면 즉시 갱신
+}
+
 // ====== 입고 기록 (재고 배치) ======
 let RECEIPTS = [];
 // kstToday는 line ~542에 이미 정의됨 — 중복 선언 금지 (SyntaxError → 흰화면)
@@ -2285,6 +2408,9 @@ $('#btnRunBot') && $('#btnRunBot').addEventListener('click', e => manualRunBot('
 $('#btnRunCart') && $('#btnRunCart').addEventListener('click', e => manualRunBot('cart', e.currentTarget));
 $('#btnRunTracking') && $('#btnRunTracking').addEventListener('click', e => manualRunBot('tracking', e.currentTarget));
 
+// 과거 주문 단가 재계산
+$('#btnRecalcPreview') && $('#btnRecalcPreview').addEventListener('click', recalcPreview);
+$('#btnRecalcApply') && $('#btnRecalcApply').addEventListener('click', recalcApply);
 // 내 계정 — 표시 이름 변경
 $('#btnSaveMyName') && $('#btnSaveMyName').addEventListener('click', saveMyName);
 $('#newMyName') && $('#newMyName').addEventListener('keydown', e=>{
