@@ -114,6 +114,9 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .pill-unpaid{background:#fce8e6;color:#c5221f}
 .pill-status{background:#eef0f3;color:var(--txt)}
 .oc-line{font-size:13px;color:#333;margin:3px 0;line-height:1.5;word-break:break-word}
+.oc-line.oc-alias{font-size:11.5px;color:var(--mut)}
+.oc-line.oc-margin{font-size:12.5px;font-weight:600;padding:4px 8px;background:#f0f9ff;border-radius:4px;display:inline-flex;align-items:center;gap:4px;margin-top:6px}
+.oc-line.oc-margin .muted{font-weight:500}
 .oc-ico{display:inline-block;width:18px;color:var(--mut)}
 .oc-item{margin-top:6px;font-size:13.5px}
 .oc-track-line{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12.5px;color:var(--mut)}
@@ -417,60 +420,63 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <button class="btn-sec btn-sm" id="btnPoAll" title="OMS에 손으로 등록할 때 텍스트로 복사">📋 발주서복사</button>
     <button class="btn-sec btn-sm" id="btnCsv" style="display:none">CSV (전체)</button>
   </div>
-  <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처로 내 주문 찾기"></div>
+  <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·휴대폰별칭·상품 검색"></div>
   <div class="chips admin-only" id="filters"></div>
   <p class="muted admin-only" style="font-size:11.5px;margin:6px 0">↕ 정렬: <b>접수</b> → <b>발주대기</b> → <b>발주완료</b> → <b>발송완료-미입금</b> → <b>완료</b> (단계 안에서는 최신 날짜순)</p>
   <div class="order-list" id="list"></div>
 </section>
 
 <section class="card" id="ledgerCard">
-  <h2 id="ledgerTitle">📒 장부</h2>
+  <h2 id="ledgerTitle">📒 장부 요약</h2>
   <div class="chips" style="margin-top:6px">
     <button type="button" class="chip-flt" data-period="today">오늘</button>
     <button type="button" class="chip-flt active" data-period="month">이번달</button>
     <button type="button" class="chip-flt" data-period="all">전체</button>
   </div>
-  <!-- 관리자 전용 통계 -->
+  <!-- 관리자 통계 (한 줄 압축) -->
   <div class="ledger-stats admin-only">
-    <div class="ls-row"><span>판매</span><span><b id="lsCount">0</b> 건</span></div>
-    <div class="ls-row"><span>수량</span><span><b id="lsQty">0</b> 개</span></div>
-    <div class="ls-row"><span>매출 <span class="gray">(납품가 합)</span></span><span><b id="lsRevenue">0</b> 원</span></div>
-    <div class="ls-row"><span>원가 <span class="gray">(공급사 매입가 합)</span></span><span><b id="lsCost">0</b> 원</span></div>
+    <div class="ls-row"><span>판매</span><span><b id="lsCount">0</b> 건 · <b id="lsQty">0</b> 개</span></div>
+    <div class="ls-row"><span>매출</span><span><b id="lsRevenue">0</b> 원</span></div>
+    <div class="ls-row"><span>원가</span><span><b id="lsCost">0</b> 원</span></div>
     <div class="ls-row big"><span>마진</span><span><b id="lsMargin">0</b> 원 (<span id="lsRate">0%</span>)</span></div>
   </div>
-  <!-- 입력자 전용 (본인) 통계 -->
+  <!-- 입력자 전용 통계 -->
   <div class="ledger-stats input-only grid">
-    <div class="ls-row"><span>내 판매</span><span><b id="myCount">0</b> 건</span></div>
-    <div class="ls-row"><span>수량</span><span><b id="myQty">0</b> 개</span></div>
+    <div class="ls-row"><span>내 판매</span><span><b id="myCount">0</b> 건 · <b id="myQty">0</b> 개</span></div>
     <div class="ls-row big"><span>받은 총 금액</span><span><b id="myTotal">0</b> 원</span></div>
     <div class="ls-row"><span>입금완료</span><span><b id="myPaid">0</b> 건</span></div>
     <div class="ls-row"><span>미입금</span><span><b id="myUnpaid">0</b> 건</span></div>
   </div>
-  <!-- 📈 월별 매출 (관리자, 최근 6개월) -->
-  <div class="admin-only monthly-trend">
-    <h3 style="margin:14px 0 6px;font-size:13px;color:var(--mut)">📈 월별 매출·마진 (최근 6개월)</h3>
-    <div id="monthlyTrend" class="monthly-bars"></div>
-  </div>
-  <div class="ledger-filters admin-only">
-    <select id="lfUser"><option value="">전체 입력자</option></select>
-    <input id="lfBuyer" placeholder="🔍 이름·연락처·휴대폰·닉네임 검색">
-  </div>
-  <div class="ledger-chip-stack admin-only">
-    <div class="chip-line"><b>상품</b> <span id="lfProductChips"></span></div>
-    <div class="chip-line"><b>색상</b> <span id="lfColorChips"></span></div>
-    <div class="chip-line"><b>거래</b> <span id="lfTypeChips"></span></div>
-    <div class="chip-line"><b>입금</b> <span id="lfPaidChips"></span></div>
-  </div>
-  <div class="admin-only">
-    <h3 style="margin:18px 0 8px;font-size:14px">👥 입력자별 미정산 (입력자 → 본인한테 입금해야 할 금액)</h3>
-    <p class="muted" style="margin:0 0 4px">'정산 완료' 클릭 시 해당 입력자의 미정산 주문이 모두 정산 표시됨.</p>
+  <!-- 📈 월별 추이 -->
+  <details class="admin-only monthly-trend" style="margin-top:10px">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--mut);font-weight:600;padding:4px 0">📈 월별 매출·마진 (최근 6개월) ▾</summary>
+    <div id="monthlyTrend" class="monthly-bars" style="margin-top:6px"></div>
+  </details>
+  <!-- 👥 입력자 미정산 (있을 때만 표시) -->
+  <details class="admin-only" id="settleSection" style="margin-top:8px;display:none">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--mut);font-weight:600;padding:4px 0">👥 입력자별 미정산 ▾</summary>
+    <p class="muted" style="margin:6px 0;font-size:11.5px">'정산 완료' 클릭 시 해당 입력자의 미정산 주문 모두 정산 표시됨.</p>
     <div id="settleList" class="settle-list"></div>
+  </details>
+  <!-- 부가 필터 (장부 분석용) -->
+  <details class="admin-only" style="margin-top:8px">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--mut);font-weight:600;padding:4px 0">🔍 부가 필터 (입력자/상품/색상/거래/입금) ▾</summary>
+    <p class="muted" style="margin:6px 0;font-size:11px">이 필터는 위 요약 통계에만 적용됩니다. 아래 주문 카드 목록은 별도 필터.</p>
+    <div class="ledger-filters" style="margin-top:6px">
+      <select id="lfUser"><option value="">전체 입력자</option></select>
+      <input id="lfBuyer" placeholder="🔍 이름·연락처·닉네임·휴대폰 검색">
+    </div>
+    <div class="ledger-chip-stack">
+      <div class="chip-line"><b>상품</b> <span id="lfProductChips"></span></div>
+      <div class="chip-line"><b>색상</b> <span id="lfColorChips"></span></div>
+      <div class="chip-line"><b>거래</b> <span id="lfTypeChips"></span></div>
+      <div class="chip-line"><b>입금</b> <span id="lfPaidChips"></span></div>
+    </div>
+  </details>
+  <!-- CSV 다운로드 (현재 필터 적용) -->
+  <div style="margin-top:10px;text-align:right" class="admin-only">
+    <button class="btn-sec btn-sm" id="btnExportLedger">📥 거래내역 CSV 다운로드</button>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 8px;gap:8px;flex-wrap:wrap">
-    <h3 style="margin:0;font-size:14px">📋 거래 내역</h3>
-    <button class="btn-sec btn-sm admin-only" id="btnExportLedger">📥 CSV</button>
-  </div>
-  <div id="lsList" class="tx-list"></div>
 </section>
 
 <!-- ⚙️ 상품 가격 — 가장 자주 손대는 설정 (접혀 있음) -->
@@ -1222,7 +1228,8 @@ function filterMatch(o){
   if(curFilter==='unpaid' && o.paid) return false;
   if(curSearch){
     const q=curSearch.toLowerCase();
-    return [o.name,o.nick,o.tel,o.phone].some(v=>(v||'').toLowerCase().includes(q));
+    // 이름·연락처·휴대폰별칭·닉네임·입금자명·상품 모두 매칭
+    return [o.name,o.nick,o.tel,o.phone,o.paid_by,o.product,o.color].some(v=>(v||'').toLowerCase().includes(q));
   }
   return true;
 }
@@ -1244,32 +1251,48 @@ function cardHtml(o){
   const trackHtml = o.tracking
     ? '🚚 송장: <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'
     : '🚚 송장: <span style="color:var(--mut)">발송 후 자동 조회 (오후 5~6시)</span>';
-  // 관리자 전용: 입금자명 인라인 편집 (은행 입금 매칭용)
   const paidByLine = '<div class="oc-line paid-by-line admin-only">'
     + '💰 입금자명: <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="기본: 구매자명">'
     + '</div>';
-  // 72시간+ 미입금: 시각적 경고
   const isOverdue = !o.paid && status==='발송완료' && o.shipped_at &&
     (Date.now() - new Date(o.shipped_at).getTime()) > 72*3600*1000;
   const overdueCls = isOverdue ? ' overdue' : '';
   const overdueBadge = isOverdue ? '<span class="overdue-badge">🚨 72H+ 미입금</span>' : '';
+  // 💰 마진 정보 (관리자만)
+  const q = +o.qty || 1;
+  const rev = (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
+  const cst = (+o.cost_price||0) * q;
+  const mgn = rev - cst;
+  const mgnRate = rev > 0 ? Math.round(mgn/rev*1000)/10 : 0;
+  const mgnHtml = (userRole==='admin' && (rev > 0 || cst > 0))
+    ? '<div class="oc-line oc-margin" style="color:'+(mgn>=0?'#137333':'#c5221f')+'"><span class="oc-ico">💰</span>마진 <b>'+(mgn>=0?'+':'')+wonInt(mgn)+'원</b> <span class="muted">('+mgnRate+'%)</span></div>'
+    : '';
+  // 📱 통일된 별칭/닉네임 표시 (휴대폰 + 닉네임 한 줄에)
+  const phoneNickParts = [];
+  if(o.phone) phoneNickParts.push('📱 '+esc(o.phone));
+  if(o.nick)  phoneNickParts.push('🎫 '+esc(o.nick));
+  const phoneNickLine = phoneNickParts.length
+    ? '<div class="oc-line oc-alias">'+phoneNickParts.join(' · ')+'</div>'
+    : '';
   return '<div class="card-order'+overdueCls+'">'
     +'<div class="oc-top">'
-      +'<div class="oc-name">'+esc(o.name||'(이름없음)')+(o.nick?'<span class="oc-nick">@'+esc(o.nick)+'</span>':'')+'</div>'
+      +'<div class="oc-name">'+esc(o.name||'(이름없음)')+'</div>'
       +'<div class="oc-tags">'
         +overdueBadge
         +'<button class="pill '+(o.paid?'pill-paid':'pill-unpaid')+'" data-act="paid" data-id="'+id+'">'+(o.paid?'입금완료':'미입금')+'</button>'
         +'<button class="pill pill-status" data-act="status" data-id="'+id+'">'+esc(status)+'</button>'
       +'</div>'
     +'</div>'
+    +phoneNickLine
     +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
     +'<div class="oc-line oc-item"><b>'+esc(o.product)+(o.color?' / '+esc(o.color):'')+' · '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
+    +mgnHtml
     +(o.bot_note?'<div class="oc-line" style="background:#fdebea;border-left:3px solid #c5221f;padding:6px 8px;border-radius:4px;font-size:11.5px;color:#c5221f;white-space:pre-wrap">🤖 봇 메시지: '+esc(o.bot_note)+'</div>':'')
     +'<div class="oc-line oc-track-line">'+trackHtml+'</div>'
     +paidByLine
     +'<div class="oc-foot">'
-      +'<span class="muted">'+esc(o.date)+(o.phone?' · '+esc(o.phone):'')+'</span>'
+      +'<span class="muted">'+esc(o.date)+'</span>'
       +'<span class="oc-actions">'
         +editBtn
         +'<button class="btn-sec btn-sm admin-only" data-act="del" data-id="'+id+'">삭제</button>'
@@ -1815,8 +1838,14 @@ function computeLedger(period){
   let qty=0, revenue=0, cost=0;
   list.forEach(o=>{
     const q=+o.qty||1; qty+=q;
-    revenue += (+o.rep_price||0) * q;
-    cost    += (+o.cost_price||0) * q;
+    // 관리자 본인 주문: amount(받은 돈)를 직접 사용 → 1원 반올림 오차 방지
+    // 입력자 주문: rep_price × qty (입력자가 본인에게 정산하는 금액)
+    if (ADMIN_IDS.has(o.created_by) && o.amount){
+      revenue += +o.amount;
+    } else {
+      revenue += (+o.rep_price||0) * q;
+    }
+    cost += (+o.cost_price||0) * q;
   });
   const margin = revenue - cost;
   const rate = revenue>0 ? Math.round(margin/revenue*1000)/10 : 0;
@@ -1867,7 +1896,12 @@ function renderMonthlyTrend(){
     let rev=0, cost=0, cnt=0;
     rows.forEach(o => {
       const q = +o.qty||1;
-      rev  += (+o.rep_price||0) * q;
+      // 1원 오차 방지: 관리자 주문은 amount 직접 사용
+      if (ADMIN_IDS.has(o.created_by) && o.amount){
+        rev += +o.amount;
+      } else {
+        rev += (+o.rep_price||0) * q;
+      }
       cost += (+o.cost_price||0) * q;
       cnt++;
     });
@@ -1935,10 +1969,13 @@ function renderSettle(){
   if(userRole!=='admin') return;
   const list = computeSettle();
   const el = $('#settleList'); if(!el) return;
+  const sec = $('#settleSection');
   if(list.length===0){
-    el.innerHTML = '<div class="empty">✅ 모든 입력자 정산 완료 (또는 미정산 주문 없음)</div>';
+    if(sec) sec.style.display = 'none';  // 미정산 없으면 섹션 자체 숨김 (어수선함 방지)
+    el.innerHTML = '';
     return;
   }
+  if(sec) sec.style.display = '';
   el.innerHTML = list.map(g=>{
     const u = INPUT_USERS.find(x=>x.id===g.user_id);
     const name = u ? displayOf(u) : g.user_id.slice(0,8);
@@ -2055,71 +2092,7 @@ function renderLedger(){
     $('#myPaid').textContent = wonInt(myPaid);
     $('#myUnpaid').textContent = wonInt(myUnpaid);
   }
-  // 거래 내역 — 카드 스타일 (모바일·PC 둘 다 가독성 좋음)
-  const body = $('#lsList');
-  if(body){
-    if(r.list.length === 0){
-      body.innerHTML = '<div class="empty">조건에 맞는 거래가 없습니다</div>';
-    } else {
-      const sorted = [...r.list].sort((a,b) => {
-        const ad = a.date||'', bd = b.date||'';
-        if(ad !== bd) return bd.localeCompare(ad);
-        return new Date(b.created_at||0) - new Date(a.created_at||0);
-      });
-      const total = sorted.length;
-      const display = sorted.slice(0, ledgerListLimit);
-      body.innerHTML = display.map(o=>{
-        const u = INPUT_USERS.find(x=>x.id===o.created_by);
-        const uLabel = u ? displayOf(u) : '';
-        const q = +o.qty||1;
-        const rev = (+o.rep_price||0)*q;
-        const cst = (+o.cost_price||0)*q;
-        const mgn = rev - cst;
-        const amtShown = (userRole==='admin') ? rev : (+o.amount||0);
-        const typeBadge = (o.type==='직거래')
-          ? '<span class="tx-typ-pic">🤝 직거래</span>'
-          : '<span class="tx-typ-del">📦 택배</span>';
-        const phoneNickParts = [];
-        if(o.phone) phoneNickParts.push(esc(o.phone));
-        if(o.nick)  phoneNickParts.push(esc(o.nick));
-        const phoneNick = phoneNickParts.join(' / ');
-        const mgnHtml = (userRole==='admin' && mgn !== 0)
-          ? `<span class="tx-mgn ${mgn<0?'neg':''}">${mgn>=0?'+':''}${wonInt(mgn)}</span>`
-          : '';
-        const metaParts = [];
-        if(phoneNick) metaParts.push('📱 ' + phoneNick);
-        if(userRole==='admin' && uLabel) metaParts.push('입력 ' + esc(uLabel));
-        const r3 = metaParts.length
-          ? '<div class="tx-r3">'+metaParts.map(p=>'<span>'+p+'</span>').join('<span class="sep">·</span>')+'</div>'
-          : '';
-        return `<div class="tx-card ${o.paid?'tx-paid':'tx-unpaid'}">
-          <div class="tx-r1">
-            <span class="tx-date">${esc(o.date||'-')}</span>
-            <span class="tx-name">${esc(o.paid_by || o.name || '-')}</span>
-            <span class="tx-paid-pill">${o.paid?'✅ 입금':'⏳ 미입금'}</span>
-          </div>
-          <div class="tx-r2">
-            <span class="tx-prod"><b>${esc(o.product||'')}${o.color?' / '+esc(o.color):''}</b> · ${q}개</span>
-            ${typeBadge}
-            <span class="tx-amt">${wonInt(amtShown)}원</span>
-            ${mgnHtml}
-          </div>
-          ${r3}
-        </div>`;
-      }).join('');
-      // 더 보기 / 접기 버튼
-      if(total > display.length){
-        const remain = total - display.length;
-        body.innerHTML += `<div class="tx-more-btn"><button class="btn-sec btn-sm" id="btnMoreLedger">+ ${remain}건 더 보기</button> <span class="muted" style="font-size:11.5px">(${total}건 중 ${display.length}건 표시)</span></div>`;
-        const more = $('#btnMoreLedger');
-        if(more) more.addEventListener('click', () => { ledgerListLimit += 20; renderLedger(); });
-      } else if(total > 20){
-        body.innerHTML += `<div class="tx-more-btn"><button class="btn-sec btn-sm" id="btnCollapseLedger">▲ 처음 20건만 보기</button></div>`;
-        const col = $('#btnCollapseLedger');
-        if(col) col.addEventListener('click', () => { ledgerListLimit = 20; renderLedger(); });
-      }
-    }
-  }
+  // 거래내역 표는 제거 — 주문 카드에 다 표시됨 (중복 제거)
 }
 
 function renderLedgerFilters(){
