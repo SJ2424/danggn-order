@@ -50,7 +50,8 @@ async function fetchPendingOrders() {
 
 async function markRegistered(id) {
   if (isDry) return;
-  const { error } = await sb.from('orders').update({ status: '발주대기' }).eq('id', id);
+  // 카트 봇과 일관성 맞춤 — 등록 후 바로 발주완료 (옛 발주대기 → 일괄완료 수동 단계 제거)
+  const { error } = await sb.from('orders').update({ status: '발주완료' }).eq('id', id);
   if (error) throw error;
 }
 

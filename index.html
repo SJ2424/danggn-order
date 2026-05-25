@@ -159,20 +159,18 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 .modal{display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px}
 .modal.open{display:flex}
 .modal-content{background:#fff;border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto}
-/* 🔍 주소 검색 모달 (embed 방식) — PC: 중앙 고정, 모바일: 전체화면 */
-#addrModal{padding:0}
-#addrModal #addrModalContent{padding:0;max-width:560px;width:100%;max-height:none;height:auto;overflow:hidden;display:flex;flex-direction:column;border-radius:14px}
-#addrModal .addr-modal-head{padding:13px 16px;background:#1a73e8;color:#fff;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-#addrModal .addr-modal-head h3{margin:0;font-size:14px;color:#fff;font-weight:700}
-#addrModal #btnAddrClose{background:transparent;border:0;color:#fff;cursor:pointer;font-size:26px;padding:0 6px;line-height:1;min-width:32px;min-height:32px}
-#addrModal #addrLayer{height:500px;width:100%;overflow:hidden;background:#fff}
+/* 🔍 주소 검색 모달 (embed 방식) — 적당한 크기로 가운데 */
+#addrModal{padding:10px}
+#addrModal #addrModalContent{padding:0;max-width:520px;width:100%;max-height:80vh;height:auto;overflow:hidden;display:flex;flex-direction:column;border-radius:12px}
+#addrModal .addr-modal-head{padding:10px 14px;background:#1a73e8;color:#fff;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#addrModal .addr-modal-head h3{margin:0;font-size:13.5px;color:#fff;font-weight:700}
+#addrModal #btnAddrClose{background:transparent;border:0;color:#fff;cursor:pointer;font-size:22px;padding:0 4px;line-height:1;min-width:28px;min-height:28px}
+#addrModal #addrLayer{height:420px;width:100%;overflow:hidden;background:#fff;border-radius:0 0 12px 12px}
 #addrModal #addrLayer iframe{width:100% !important;height:100% !important;border:0}
 @media (max-width:600px){
-  #addrModal{padding:0}
-  #addrModal #addrModalContent{max-width:100%;width:100vw;height:100vh;max-height:100vh;border-radius:0}
-  #addrModal .addr-modal-head{border-radius:0;padding:14px 16px}
-  #addrModal .addr-modal-head h3{font-size:15px}
-  #addrModal #addrLayer{flex:1;height:auto}
+  #addrModal{padding:8px}
+  #addrModal #addrModalContent{max-width:100%;width:100%;max-height:88vh}
+  #addrModal #addrLayer{height:62vh;max-height:480px}
 }
 /* 주소 입력 행 (모바일 줄바꿈 안전) */
 .addr-row{display:flex;gap:6px;align-items:stretch}
@@ -493,11 +491,11 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
   <div id="summary" class="muted admin-only" style="margin-bottom:8px"></div>
   <div class="toolbar admin-only">
-    <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 주문을 지금 OMS에 자동 등록">🤖 발주실행</button>
-    <button class="btn-pri-sm" id="btnRunCart" title="핸드카트 등 카트사이트 상품 즉시 등록">🛒 카트</button>
-    <button class="btn-pri-sm" id="btnRunTracking" title="OMS에서 송장번호 지금 가져오기">🚚 송장</button>
-    <button class="btn-pri-sm" id="btnBulkDone" title="발주대기 → 발주완료 일괄 변경">✅ 일괄완료</button>
-    <button class="btn-sec btn-sm" id="btnPoAll" title="OMS에 손으로 등록할 때 텍스트로 복사">📋 발주서복사</button>
+    <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문을 OMS에 즉시 등록">🤖 선반랙 발주</button>
+    <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
+    <button class="btn-pri-sm" id="btnRunTracking" title="OMS·카트 발송완료된 주문의 송장번호 즉시 수집">🚚 송장 수집</button>
+    <button class="btn-sec btn-sm" id="btnPoAll" title="봇이 실패했을 때 OMS에 손으로 등록하기 위한 발주서 텍스트 복사">📋 발주서 복사</button>
+    <button class="btn-sec btn-sm" id="btnBulkDone" style="display:none">일괄완료(사용 X)</button>
     <button class="btn-sec btn-sm" id="btnCsv" style="display:none">CSV (전체)</button>
   </div>
   <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·휴대폰별칭·상품 검색"></div>
@@ -1340,7 +1338,8 @@ async function togglePaid(id){
 async function toggleStatus(id){
   if(userRole!=='admin') return;
   const o=ORDERS.find(x=>x.id===id); if(!o) return;
-  const seq=['접수','발주대기','발주완료','발송완료'];
+  // 3단계 사이클 (옛 '발주대기'는 자동 봇이 발주완료로 바로 가서 미사용)
+  const seq=['접수','발주완료','발송완료'];
   const cur=seq.indexOf(o.status||'접수');
   const next=seq[((cur<0?0:cur)+1)%seq.length];
   const updates = { status: next };
@@ -2922,7 +2921,12 @@ $('#search').addEventListener('input', e=>{ curSearch=e.target.value.trim(); ren
 // 수동 발주 + 일괄 발주완료 + CSV + 발주서수동복사
 $('#btnRunBot') && $('#btnRunBot').addEventListener('click', e => manualRunBot('register', e.currentTarget));
 $('#btnRunCart') && $('#btnRunCart').addEventListener('click', e => manualRunBot('cart', e.currentTarget));
-$('#btnRunTracking') && $('#btnRunTracking').addEventListener('click', e => manualRunBot('tracking', e.currentTarget));
+// 송장 수집: OMS + 카트 둘 다 한 번에
+$('#btnRunTracking') && $('#btnRunTracking').addEventListener('click', async e => {
+  await manualRunBot('tracking', e.currentTarget);
+  await new Promise(r => setTimeout(r, 600));
+  await manualRunBot('cartTracking', e.currentTarget);
+});
 
 // 과거 주문 단가 재계산
 $('#btnRecalcPreview') && $('#btnRecalcPreview').addEventListener('click', recalcPreview);
