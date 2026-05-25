@@ -176,6 +176,10 @@ body[data-font="large"]{zoom:1.12}
 .today-summary{background:linear-gradient(135deg,#fff7f0 0%,#ffe8d4 100%);border:1px solid var(--pri);border-radius:10px;padding:13px 14px;margin-bottom:6px}
 .ts-title{font-size:14px;font-weight:700;color:var(--pri);margin-bottom:10px}
 .ts-grid{display:flex;flex-direction:column;gap:8px}
+@media (min-width:900px){
+  .ts-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  .ts-grid .ts-line.ts-money{grid-column:1/-1}
+}
 .ts-line{font-size:12.5px;color:var(--txt);line-height:1.55}
 .ts-line .ts-label{display:inline-block;min-width:62px;color:var(--mut);font-size:11.5px;font-weight:600}
 .ts-line b{color:var(--pri);font-weight:700}
@@ -206,9 +210,11 @@ body[data-font="large"]{zoom:1.12}
 /* 장부 필터 */
 .ledger-filters{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 4px;padding:8px;background:#f9fafb;border-radius:8px}
 .ledger-filters select,.ledger-filters input{padding:7px 9px;font-size:12.5px}
-/* 장부 카드: 관리 모드에서 주문 위에 표시 */
-#ledgerCard{display:none}
+/* 장부 카드 + 일일요약 + 마진 배너: 관리 모드에서만 표시 */
+#ledgerCard,#todaySummaryCard,#marginFixBanner{display:none}
 body[data-mode="manage"] #ledgerCard{display:block}
+body[data-mode="manage"] #todaySummaryCard{display:block}
+body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:block !important}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .ls-row{background:#f4f5f7;padding:10px 12px;border-radius:8px;font-size:12.5px;color:var(--mut);display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap}
 .ls-row b{color:var(--txt);font-size:15px;font-weight:700}
@@ -246,6 +252,10 @@ body[data-mode="manage"] #ledgerCard{display:block}
 @media (max-width:520px){.rcp-row{grid-template-columns:1fr;gap:4px;padding:10px 0}}
 /* 거래내역 카드 (모바일·PC 둘 다 가독성 좋게) */
 .tx-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+@media (min-width:900px){
+  .tx-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .tx-list .tx-more-btn{grid-column:1/-1}
+}
 .tx-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.5}
 .tx-card.tx-unpaid{border-left:3px solid #fbbc04;background:#fffbeb}
 .tx-card.tx-paid{border-left:3px solid #34a853}
@@ -379,6 +389,14 @@ body[data-mode="manage"] #ledgerCard{display:block}
     • 💰 <b>입금은 보통 상품 수령 후</b>에 받습니다 — 미입금 표시는 정상이에요. 입금받으면 해당 주문 카드의 <b>[미입금] 알약을 [입금완료]로 토글</b>해 주세요.
   </div>
 </section>
+
+<!-- 마진 자동수정 배너 (관리자 자기 주문 rep_price ≠ amount일 때) -->
+<div id="marginFixBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fff3cd;border:1px solid #f6c343;border-radius:8px;font-size:12.5px;line-height:1.5">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>⚠️ <b>마진 계산 이상 <span id="mfbCount">0</span>건</b> — 본인이 직접 입력한 주문인데 받은 금액(amount) 대신 카탈로그의 ③ 기본 판매가가 적용되어 마진이 잘못 잡혔습니다.</span>
+    <button class="btn-pri-sm" id="btnMarginFix" style="margin-left:auto">🔧 자동 수정</button>
+  </div>
+</div>
 
 <!-- 오늘 일일 정산 — 관리·장부 탭 최상단 (관리자 전용) -->
 <section class="card admin-only" id="todaySummaryCard" style="padding:14px">
@@ -1261,6 +1279,7 @@ function cardHtml(o){
 }
 function renderList(){
   renderAliases(); renderFilters();
+  showMarginBanner();  // 마진 문제 배너 갱신
   // 상태 우선순위 → 날짜 DESC → 입력시각 DESC 로 정렬
   // (접수가 위에, 같은 상태 안에서는 최신 날짜가 위)
   const items = ORDERS.filter(filterMatch).sort((a,b) => {
@@ -1525,6 +1544,43 @@ let ADMIN_IDS = new Set();
 async function loadAdminIds(){
   const { data } = await sb.from('profiles').select('id').eq('role','admin');
   ADMIN_IDS = new Set((data||[]).map(a => a.id));
+}
+
+// 🔧 마진 문제 자동 감지 — 관리자가 입력한 주문인데 rep_price !== amount면 잘못된 것
+function detectMarginIssues(){
+  if(userRole !== 'admin') return [];
+  return ORDERS.filter(o =>
+    ADMIN_IDS.has(o.created_by) &&
+    o.amount && +o.amount > 0 &&
+    +o.rep_price !== +o.amount
+  );
+}
+function showMarginBanner(){
+  const banner = $('#marginFixBanner'); if(!banner) return;
+  const issues = detectMarginIssues();
+  if(issues.length === 0){
+    banner.classList.remove('has-issues');
+    banner.style.display = 'none';
+  } else {
+    $('#mfbCount').textContent = issues.length;
+    banner.classList.add('has-issues');
+  }
+}
+async function fixMarginIssues(){
+  const issues = detectMarginIssues();
+  if(issues.length === 0){ alert('수정할 주문 없음'); return; }
+  const totalChange = issues.reduce((s,o)=>s+(+o.amount-+o.rep_price)*(+o.qty||1), 0);
+  if(!confirm(`${issues.length}건의 rep_price를 amount(받은 금액)로 변경합니다.\n매출 합계 변동: ${totalChange>=0?'+':''}${wonInt(totalChange)}원\n진행할까요?`)) return;
+  const btn = $('#btnMarginFix');
+  if(btn){ btn.disabled = true; btn.textContent = '수정 중...'; }
+  let ok = 0, fail = 0;
+  for(const o of issues){
+    const { error } = await sb.from('orders').update({ rep_price: +o.amount }).eq('id', o.id);
+    if(error) fail++; else ok++;
+  }
+  if(btn){ btn.disabled = false; btn.textContent = '🔧 자동 수정'; }
+  alert(`✅ ${ok}건 수정 완료${fail?' / ❌ '+fail+'건 실패':''}`);
+  await loadOrders();
 }
 
 // ====== 과거 주문 단가 재계산 ======
@@ -2470,6 +2526,8 @@ $('#btnRunTracking') && $('#btnRunTracking').addEventListener('click', e => manu
 // 과거 주문 단가 재계산
 $('#btnRecalcPreview') && $('#btnRecalcPreview').addEventListener('click', recalcPreview);
 $('#btnRecalcApply') && $('#btnRecalcApply').addEventListener('click', recalcApply);
+// 🔧 마진 자동 수정 (관리자 본인 주문 rep_price → amount)
+$('#btnMarginFix') && $('#btnMarginFix').addEventListener('click', fixMarginIssues);
 // 내 계정 — 표시 이름 변경
 $('#btnSaveMyName') && $('#btnSaveMyName').addEventListener('click', saveMyName);
 $('#newMyName') && $('#newMyName').addEventListener('keydown', e=>{
