@@ -118,39 +118,66 @@ async function scrapeAllTracking(page) {
       await page.waitForTimeout(800);
       await page.screenshot({ path: `screenshots/${tag}-detail.png`, fullPage: true });
 
-      // 받는사람 이름 + 연락처 + 배송정보 추출
-      // "개별 주문 및 배송 상세 내역" 섹션의 내용
-      // 셀렉터 추측: 텍스트 기반
-      const pageText = await page.locator('body').innerText();
-      // 전화번호 패턴 추출
-      const telMatch = pageText.match(/010[-\s]?\d{3,4}[-\s]?\d{4}/);
-      // 송장 패턴: 택배사 이름 + 숫자 (예: "천일 52641766651")
-      const couriers = ['천일','CJ','우체국','한진','롯데','로젠','대한통운','경동'];
-      let courier = '', tracking = '';
-      for (const c of couriers) {
-        const re = new RegExp(c + '\\s*([0-9]{10,15})');
-        const m = pageText.match(re);
-        if (m) { courier = c; tracking = m[1]; break; }
-      }
-      if (!tracking) {
-        // courier 없이 송장만 — 10자리 이상 숫자 (전화번호 제외)
-        const numbers = pageText.match(/\b\d{10,15}\b/g) || [];
-        const telDigits = telMatch ? telMatch[0].replace(/\D/g,'') : '';
-        const trk = numbers.find(n => n !== telDigits && n.length >= 10);
-        if (trk) tracking = trk;
-      }
-      // 받는사람 — "받는사람" 또는 "수취인" 라벨 옆 추출
-      let name = '';
-      const nameMatch = pageText.match(/(?:받는\s*사람|수취인)\s*[:：\n]?\s*([가-힣]{2,4})/);
-      if (nameMatch) name = nameMatch[1];
+      // "개별 주문 및 배송 상세 내역" 섹션을 스크롤하고 그 안의 표만 파싱
+      // (한 OMS 주문 = N개 개별 배송 묶음 — 각 행이 다른 수취인+송장)
+      const sectionHeader = page.locator('text=개별 주문 및 배송 상세 내역').first();
+      try {
+        await sectionHeader.scrollIntoViewIfNeeded({ timeout: 3000 });
+        await page.waitForTimeout(600);
+      } catch {}
+      await page.screenshot({ path: `screenshots/${tag}-detail.png`, fullPage: true });
 
-      if (name && telMatch) {
-        const tel = telMatch[0];
-        const trkStr = courier && tracking ? `${courier} ${tracking}` : (tracking || '');
-        results.push({ name, tel, tracking: trkStr });
-        console.log(`  [${i+1}] ${name} / ${tel} → ${trkStr || '(송장 없음)'}`);
-      } else {
-        console.log(`  [${i+1}] 정보 추출 실패`);
+      // 그 섹션 바로 뒤 표 잡기 (xpath: 형제 중 첫 table)
+      const detailRows = await page.locator(
+        'xpath=//*[contains(text(),"개별 주문 및 배송 상세 내역")]/following::table[1]//tbody/tr'
+      ).all();
+      console.log(`  [${i+1}] 개별 배송 ${detailRows.length}건`);
+
+      if (detailRows.length === 0) {
+        // 표 못 찾으면 전체 페이지 텍스트 일부 덤프 (디버깅)
+        const dump = (await page.locator('body').innerText()).slice(0, 1500);
+        console.log(`     ⚠ 표 못찾음. 페이지 앞부분: ${dump.replace(/\n/g,' | ').slice(0,500)}`);
+      }
+
+      const couriers = ['천일','CJ','우체국','한진','롯데','로젠','대한통운','경동','쿠팡'];
+      for (let j = 0; j < detailRows.length; j++) {
+        try {
+          const cells = await detailRows[j].locator('td').allTextContents();
+          const cellText = cells.join(' | ');
+          // 수취인: 첫 한글 2~4자 + 휴대폰 패턴이 같은 셀에 있을 확률 높음
+          const telMatch = cellText.match(/010[-\s]?\d{3,4}[-\s]?\d{4}/);
+          // 수취인 이름: 011~019, 010 패턴 앞 또는 한글 이름 패턴
+          let name = '';
+          const nameMatches = cellText.match(/([가-힣]{2,4})(?=[\s\(]*010)/g);
+          if (nameMatches && nameMatches.length > 0) name = nameMatches[0];
+          if (!name) {
+            // fallback: 수취인 라벨 직후
+            const lab = cellText.match(/수취인[:\s]+([가-힣]{2,4})/);
+            if (lab) name = lab[1];
+          }
+          // 송장
+          let courier = '', tracking = '';
+          for (const c of couriers) {
+            const m = cellText.match(new RegExp(c + '\\s*([0-9]{10,15})'));
+            if (m) { courier = c; tracking = m[1]; break; }
+          }
+          if (!tracking) {
+            const nums = cellText.match(/\b\d{10,15}\b/g) || [];
+            const telDigits = telMatch ? telMatch[0].replace(/\D/g,'') : '';
+            const trk = nums.find(n => n !== telDigits);
+            if (trk) tracking = trk;
+          }
+          if (name && telMatch) {
+            const tel = telMatch[0];
+            const trkStr = courier && tracking ? `${courier} ${tracking}` : (tracking || '');
+            results.push({ name, tel, tracking: trkStr });
+            console.log(`     · ${name} / ${tel} → ${trkStr || '(송장 없음)'}`);
+          } else {
+            console.log(`     · [${j+1}] 추출실패 — 셀: ${cellText.slice(0,150)}`);
+          }
+        } catch(e){
+          console.log(`     · [${j+1}] 행 파싱 오류: ${e.message}`);
+        }
       }
 
       // 뒤로 (목록으로)
