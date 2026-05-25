@@ -486,7 +486,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </div>
   <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·휴대폰별칭·상품 검색"></div>
   <div class="chips admin-only" id="filters"></div>
-  <p class="muted admin-only" style="font-size:11.5px;margin:6px 0">↕ 정렬: <b>접수</b> → <b>발주대기</b> → <b>발주완료</b> → <b>발송완료-미입금</b> → <b>완료</b> (단계 안에서는 최신 날짜순)</p>
+  <p class="muted admin-only" style="font-size:11.5px;margin:6px 0">↕ 최신 날짜순 (상태 알약 클릭해도 카드 위치 안 바뀜)</p>
   <div class="order-list" id="list"></div>
 </section>
 
@@ -581,6 +581,17 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 <!-- 🔧 설정 · 도구 — 그 외 모든 것 (접혀 있음) -->
 <details class="card admin-only">
   <summary>🔧 설정 · 도구 <span class="muted" style="font-weight:400;font-size:11.5px">(필요할 때만)</span></summary>
+
+  <details class="sub-section">
+    <summary>🔑 GitHub 토큰 (봇 1클릭용)</summary>
+    <p class="muted" style="margin:8px 0;font-size:12px;line-height:1.6">
+      봇 버튼([🛒 카트], [🤖 발주실행] 등) 누를 때 GitHub 토큰이 필요합니다.<br>
+      <b>처음 한 번만 등록</b>하면 이후 1클릭으로 자동 실행됩니다.
+    </p>
+    <div id="ghTokenStatus" class="muted" style="font-size:12px;margin:8px 0"></div>
+    <button class="btn-sec btn-sm" id="btnGhRegister">🔑 토큰 등록 / 갱신</button>
+    <button class="btn-sec btn-sm" id="btnGhClear" style="margin-left:6px">🗑 토큰 삭제</button>
+  </details>
 
   <details class="sub-section">
     <summary>🔔 이 기기 알림 켜기</summary>
@@ -1462,11 +1473,10 @@ function cardHtml(o){
 function renderList(){
   renderAliases(); renderFilters();
   showMarginBanner();  // 마진 문제 배너 갱신
-  // 상태 우선순위 → 날짜 DESC → 입력시각 DESC 로 정렬
-  // (접수가 위에, 같은 상태 안에서는 최신 날짜가 위)
+  // 날짜 DESC → 입력시각 DESC 만으로 정렬 (상태 우선순위 제거)
+  // 사용자가 상태 알약을 클릭해도 카드가 다른 위치로 점프하지 않음
+  // (필터링은 상태별 칩으로 — 진행중/미입금/완료/전체)
   const items = ORDERS.filter(filterMatch).sort((a,b) => {
-    const pA = statusOrder(a), pB = statusOrder(b);
-    if (pA !== pB) return pA - pB;
     const dA = a.date || '', dB = b.date || '';
     if (dA !== dB) return dB.localeCompare(dA);
     return new Date(b.created_at||0) - new Date(a.created_at||0);
@@ -2386,8 +2396,49 @@ function cycleFont(){
   applyFont();
 }
 
+// 🚀 봇 1클릭 실행 — GitHub 토큰 직접 저장 방식 (Vercel 설정 불필요)
+async function ensureGhToken(){
+  let token = load('gh_token', '');
+  if(token) return token;
+  // 토큰 없음 → 등록 안내
+  if(!confirm(
+    '🤖 봇 1클릭 실행을 위해 GitHub 토큰을 한 번만 등록하면 됩니다 (3분 소요).\n\n' +
+    '확인 누르면 GitHub 토큰 발급 페이지가 열립니다.\n' +
+    '아래 순서대로 진행 후 발급된 토큰을 다시 여기에 붙여넣으세요.'
+  )) return null;
+  // 토큰 발급 페이지 열기 (자동 prefill)
+  window.open(
+    'https://github.com/settings/personal-access-tokens/new?' +
+    'description=danggn-bot-trigger',
+    '_blank'
+  );
+  await new Promise(r => setTimeout(r, 500));
+  // 안내 + 입력
+  const t = prompt(
+    '📋 GitHub 토큰 발급 안내:\n\n' +
+    '1️⃣ 열린 페이지에서:\n' +
+    '   • Token name: danggn-bot-trigger\n' +
+    '   • Expiration: No expiration (또는 1년)\n' +
+    '   • Repository access: Only select repositories → danggn-order\n' +
+    '   • Permissions → Actions: Read and write\n\n' +
+    '2️⃣ [Generate token] 클릭 → 토큰 복사 (한 번만 보임!)\n\n' +
+    '3️⃣ 아래에 붙여넣기 (github_pat_... 로 시작):'
+  );
+  if(!t || !t.trim()){
+    alert('취소됨. 봇 실행하려면 [🛒 카트] 다시 클릭하세요.');
+    return null;
+  }
+  const cleaned = t.trim();
+  if(!cleaned.startsWith('github_pat_') && !cleaned.startsWith('ghp_')){
+    alert('❌ 토큰 형식이 잘못됐어요. (github_pat_... 또는 ghp_... 로 시작해야)');
+    return null;
+  }
+  save('gh_token', cleaned);
+  alert('✅ 토큰 저장됨. 이제 모든 봇이 1클릭으로 실행됩니다.');
+  return cleaned;
+}
+
 async function manualRunBot(botKey, btnEl){
-  // botKey: 'register' | 'cart' | 'tracking' | 'cartTracking'
   const fileMap = {
     register:     'register-orders.yml',
     cart:         'register-cart.yml',
@@ -2405,40 +2456,47 @@ async function manualRunBot(botKey, btnEl){
 
   const btn = btnEl;
   const orig = btn ? btn.textContent : '';
+
+  // 토큰 확보
+  const token = await ensureGhToken();
+  if(!token) return;
+
   if(btn){ btn.disabled = true; btn.textContent = '⏳ 실행중...'; }
 
-  // Vercel API 먼저 시도 (설정돼 있으면 한 번에 끝)
-  let apiOk = false;
   try {
-    const { data: { session } } = await sb.auth.getSession();
-    if(session){
-      const res = await fetch('/api/run-bot', {
+    const res = await fetch(
+      `https://api.github.com/repos/SJ2424/danggn-order/actions/workflows/${file}/dispatches`,
+      {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
-        body: JSON.stringify({ bot: botKey })
-      });
-      if(res.ok){ apiOk = true; }
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ref: 'main', inputs: { dry_run: 'false' } })
+      }
+    );
+    if(btn){ btn.disabled = false; btn.textContent = orig; }
+
+    if(res.status === 204){
+      alert(`✅ ${label} 봇 실행 요청 완료!\n2~3분 후 자동 처리됩니다.`);
+    } else if(res.status === 401 || res.status === 403){
+      save('gh_token', '');  // 토큰 무효화
+      alert(`❌ 토큰 만료 또는 권한 부족.\n다시 [${label}] 클릭하면 재등록 안내 뜹니다.`);
+    } else if(res.status === 404){
+      alert(`❌ 워크플로우 못 찾음. 코드 확인 필요.`);
+    } else {
+      const text = await res.text().catch(()=>'');
+      alert(`❌ 실패 (HTTP ${res.status}): ${text.slice(0,200)}`);
     }
-  } catch {}
-
-  if(btn){ btn.disabled = false; btn.textContent = orig; }
-
-  if(apiOk){
-    alert(`✅ ${label} 봇 실행 요청 완료!\n2~3분 후 자동 처리됩니다.`);
-    return;
+  } catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = orig; }
+    alert(`❌ 네트워크 오류: ${e.message}\n\nGitHub Actions 페이지를 직접 열어볼까요?`);
+    if(confirm('GitHub Actions 페이지 열기?')){
+      window.open(`https://github.com/SJ2424/danggn-order/actions/workflows/${file}`, '_blank');
+    }
   }
-
-  // 폴백 — Vercel API 미설정/실패: GitHub Actions 페이지 열기
-  // 다이얼로그 없이 바로 새 탭으로 (사용자가 클릭한 의도가 명확)
-  const url = 'https://github.com/SJ2424/danggn-order/actions/workflows/' + file;
-  window.open(url, '_blank');
-  alert(
-    `${label} 봇 — GitHub Actions 페이지가 열렸어요.\n\n` +
-    `1️⃣ 페이지 우측 [Run workflow ▾] 회색 박스 클릭\n` +
-    `2️⃣ 펼쳐진 초록 [Run workflow] 버튼 클릭\n` +
-    `3️⃣ 2~3분 기다림 (자동으로 처리됨)\n\n` +
-    `※ 자주 쓰면 한 번만 1클릭으로 만들 수 있어요 — 도움말 참고`
-  );
 }
 
 // ====== CSV 일괄 가져오기 (과거 주문) ======
@@ -2831,6 +2889,32 @@ $('#btnRecalcPreview') && $('#btnRecalcPreview').addEventListener('click', recal
 $('#btnRecalcApply') && $('#btnRecalcApply').addEventListener('click', recalcApply);
 // 🔧 마진 자동 수정 (관리자 본인 주문 rep_price → amount)
 $('#btnMarginFix') && $('#btnMarginFix').addEventListener('click', fixMarginIssues);
+// GitHub 토큰 관리
+function refreshGhTokenStatus(){
+  const el = $('#ghTokenStatus'); if(!el) return;
+  const token = load('gh_token','');
+  if(token){
+    el.innerHTML = `✅ 등록됨 (${token.slice(0,10)}...) — 봇 버튼 클릭하면 1클릭 실행`;
+    el.style.color = '#137333';
+  } else {
+    el.innerHTML = '⚠️ 미등록 — 봇 버튼 처음 클릭시 자동 안내 뜸';
+    el.style.color = '#b45309';
+  }
+}
+$('#btnGhRegister') && $('#btnGhRegister').addEventListener('click', async () => {
+  save('gh_token','');  // Clear first to force prompt
+  await ensureGhToken();
+  refreshGhTokenStatus();
+});
+$('#btnGhClear') && $('#btnGhClear').addEventListener('click', () => {
+  if(confirm('GitHub 토큰을 삭제할까요? 다음 봇 클릭시 다시 등록 안내가 뜹니다.')){
+    save('gh_token','');
+    refreshGhTokenStatus();
+    alert('🗑 토큰 삭제됨');
+  }
+});
+// 페이지 로드시 상태 표시
+setTimeout(refreshGhTokenStatus, 500);
 // 내 계정 — 표시 이름 변경
 $('#btnSaveMyName') && $('#btnSaveMyName').addEventListener('click', saveMyName);
 $('#newMyName') && $('#newMyName').addEventListener('keydown', e=>{
