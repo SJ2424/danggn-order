@@ -8,8 +8,11 @@ on:
         type: boolean
         default: true
   schedule:
-    # 12:20 KST 평일 (OMS 봇 12:30보다 10분 일찍)
-    - cron: '20 3 * * 1-5'
+    # 평일 4회 — 선반랙 봇과 동일 스케줄 (8:00 / 12:00 / 12:30 / 12:51 KST)
+    - cron: '0 23 * * 0-4'   # 08:00 KST
+    - cron: '0 3 * * 1-5'    # 12:00 KST
+    - cron: '30 3 * * 1-5'   # 12:30 KST
+    - cron: '51 3 * * 1-5'   # 12:51 KST
 
 jobs:
   register:

@@ -126,8 +126,13 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .pill-status{background:#eef0f3;color:var(--txt)}
 .oc-line{font-size:13px;color:#333;margin:3px 0;line-height:1.5;word-break:break-word}
 .oc-line.oc-alias{font-size:11.5px;color:var(--mut)}
-.oc-line.oc-margin{font-size:12.5px;font-weight:600;padding:4px 8px;background:#f0f9ff;border-radius:4px;display:inline-flex;align-items:center;gap:4px;margin-top:6px}
-.oc-line.oc-margin .muted{font-weight:500}
+.oc-mgn-inline{font-size:11.5px;font-weight:600;margin-left:6px;padding:1px 6px;background:#e8f5e9;border-radius:4px;white-space:nowrap}
+.oc-mgn-inline small{font-size:10px;font-weight:500;opacity:.8}
+.oc-line.memo-line{display:flex;align-items:center;gap:5px;font-size:12px}
+.oc-line.memo-line input{flex:1;padding:4px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px;background:#fff8e1}
+.oc-line.memo-line input:focus{background:#fff;outline:1px solid var(--pri)}
+.oc-line.paid-by-line input{flex:1;padding:4px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px}
+.oc-line.paid-by-line{display:flex;align-items:center;gap:5px;font-size:12px}
 .oc-ico{display:inline-block;width:18px;color:var(--mut)}
 .oc-item{margin-top:6px;font-size:13.5px}
 .oc-track-line{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12.5px;color:var(--mut)}
@@ -602,17 +607,6 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <summary>🔧 설정 · 도구 <span class="muted" style="font-weight:400;font-size:11.5px">(필요할 때만)</span></summary>
 
   <details class="sub-section">
-    <summary>🔑 GitHub 토큰 (봇 1클릭용)</summary>
-    <p class="muted" style="margin:8px 0;font-size:12px;line-height:1.6">
-      봇 버튼([🛒 카트], [🤖 발주실행] 등) 누를 때 GitHub 토큰이 필요합니다.<br>
-      <b>처음 한 번만 등록</b>하면 이후 1클릭으로 자동 실행됩니다.
-    </p>
-    <div id="ghTokenStatus" class="muted" style="font-size:12px;margin:8px 0"></div>
-    <button class="btn-sec btn-sm" id="btnGhRegister">🔑 토큰 등록 / 갱신</button>
-    <button class="btn-sec btn-sm" id="btnGhClear" style="margin-left:6px">🗑 토큰 삭제</button>
-  </details>
-
-  <details class="sub-section">
     <summary>🔔 이 기기 알림 켜기</summary>
     <p class="muted" style="margin:8px 0;font-size:12px">12:30 발주 마감 임박 + 봇 등록 끝났을 때 푸시 받기 (한 번만 설정).</p>
     <button class="btn-sec btn-sm" id="btnEnablePush">🔔 이 기기 알림 켜기</button>
@@ -690,15 +684,8 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </details>
 
   <details class="sub-section">
-    <summary>📖 도움말 (봇·관리자 변경·백업)</summary>
-    <h3 style="margin:10px 0 4px;font-size:12.5px">⚡ 도구바 봇 버튼 원클릭으로 만들기 (선택)</h3>
-    <p class="muted" style="font-size:11.5px;margin:0 0 4px;line-height:1.5">
-      안 해도 OK (봇은 평일 11:30·12:30·12:51 자동 실행). 지금 당장 돌리고 싶을 때만 편함.<br>
-      1) <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">↗ GitHub 토큰</a> (Actions: Read & write) 발급 →
-      2) Vercel 환경변수 <code style="font-size:10px">GITHUB_TOKEN</code>, <code style="font-size:10px">SUPABASE_URL</code>, <code style="font-size:10px">SUPABASE_SERVICE_KEY</code> 3개 추가 →
-      3) Vercel Redeploy
-    </p>
-    <h3 style="margin:14px 0 4px;font-size:12.5px">👑 관리자 권한 다른 사람한테 넘기기</h3>
+    <summary>📖 도움말 (관리자 변경·백업·고급)</summary>
+    <h3 style="margin:10px 0 4px;font-size:12.5px">👑 관리자 권한 다른 사람한테 넘기기</h3>
     <p class="muted" style="font-size:11.5px;margin:0 0 4px;line-height:1.5">
       새 사람이 회원가입 후 Supabase SQL Editor:<br>
       <code style="font-size:10.5px">update profiles set role='admin' where display_name='새이름';</code><br>
@@ -712,6 +699,13 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <p class="muted" style="font-size:11.5px;margin:0;line-height:1.5">
       <a href="https://github.com/SJ2424/danggn-order" target="_blank" rel="noopener">↗ GitHub 저장소</a> → 파일 수정 → commit → Vercel/Actions 자동 반영.
     </p>
+    <h3 style="margin:14px 0 4px;font-size:12.5px">⚡ 봇 즉시 실행 (옵션)</h3>
+    <p class="muted" style="font-size:11.5px;margin:0 0 6px;line-height:1.5">
+      도구바 [🤖 선반랙 발주]/[🛒 카트 발주]/[🚚 송장 수집] 버튼을 1클릭으로 만들기. <b>안 해도 자동 봇은 정상 작동</b>. 정말 급할 때만 필요.
+    </p>
+    <div id="ghTokenStatus" class="muted" style="font-size:11.5px;margin:6px 0"></div>
+    <button class="btn-sec btn-sm" id="btnGhRegister">설정</button>
+    <button class="btn-sec btn-sm" id="btnGhClear" style="margin-left:6px">삭제</button>
   </details>
 </details>
 
@@ -1483,7 +1477,6 @@ function renderFilters(){
 function cardHtml(o){
   const id=o.id;
   const status = o.status || '접수';
-  // 관리자·본인 주문은 항상 수정 버튼 보임 (메모는 어느 상태든 수정 가능)
   const canEdit = (userRole==='admin' || o.created_by===myUserId);
   const fullEditable = (status==='접수' || status==='발주대기');
   const editBtn = canEdit
@@ -1492,25 +1485,32 @@ function cardHtml(o){
         +'</button>'
     : '';
   const trackHtml = o.tracking
-    ? '🚚 송장: <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'
-    : '🚚 송장: <span style="color:var(--mut)">발송 후 자동 조회 (오후 5~6시)</span>';
+    ? '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'
+    : '🚚 <span style="color:var(--mut)">발송 후 자동</span>';
+  // 입금자명 inline 편집 (관리자만)
   const paidByLine = '<div class="oc-line paid-by-line admin-only">'
-    + '💰 입금자명: <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="기본: 구매자명">'
+    + '💰 <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="입금자명">'
     + '</div>';
+  // 메모 inline 편집 (모든 사용자) — 입금자명과 동일 패턴
+  const memoLine = canEdit
+    ? '<div class="oc-line memo-line">'
+      + '📝 <input type="text" class="memo-inp" data-id="'+id+'" value="'+esc(o.memo||'')+'" placeholder="메모 (자유 입력)">'
+      + '</div>'
+    : (o.memo ? '<div class="oc-line memo-line">📝 <span>'+esc(o.memo)+'</span></div>' : '');
   const isOverdue = !o.paid && status==='발송완료' && o.shipped_at &&
     (Date.now() - new Date(o.shipped_at).getTime()) > 72*3600*1000;
   const overdueCls = isOverdue ? ' overdue' : '';
-  const overdueBadge = isOverdue ? '<span class="overdue-badge">🚨 72H+ 미입금</span>' : '';
-  // 💰 마진 정보 (관리자만)
+  const overdueBadge = isOverdue ? '<span class="overdue-badge">🚨 72H+</span>' : '';
+  // 마진 — 가격 옆에 작게 inline (관리자만)
   const q = +o.qty || 1;
   const rev = (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
   const cst = (+o.cost_price||0) * q;
   const mgn = rev - cst;
   const mgnRate = rev > 0 ? Math.round(mgn/rev*1000)/10 : 0;
-  const mgnHtml = (userRole==='admin' && (rev > 0 || cst > 0))
-    ? '<div class="oc-line oc-margin" style="color:'+(mgn>=0?'#137333':'#c5221f')+'"><span class="oc-ico">💰</span>마진 <b>'+(mgn>=0?'+':'')+wonInt(mgn)+'원</b> <span class="muted">('+mgnRate+'%)</span></div>'
+  const mgnInline = (userRole==='admin' && (rev > 0 || cst > 0))
+    ? ' <span class="oc-mgn-inline" style="color:'+(mgn>=0?'#137333':'#c5221f')+'">'+(mgn>=0?'+':'')+wonInt(mgn)+' <small>('+mgnRate+'%)</small></span>'
     : '';
-  // 📱 통일된 별칭/닉네임 표시 (휴대폰 + 닉네임 한 줄에)
+  // 휴대폰별칭/닉네임 한 줄
   const phoneNickParts = [];
   if(o.phone) phoneNickParts.push('📱 '+esc(o.phone));
   if(o.nick)  phoneNickParts.push('🎫 '+esc(o.nick));
@@ -1529,12 +1529,11 @@ function cardHtml(o){
     +phoneNickLine
     +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
-    +'<div class="oc-line oc-item"><b>'+esc(o.product)+(o.color?' / '+esc(o.color):'')+' · '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
-    +mgnHtml
-    +(o.memo?'<div class="oc-line" style="background:#fff8e1;border-left:3px solid #f6c343;padding:6px 9px;border-radius:4px;font-size:12px;color:#704700;white-space:pre-wrap;line-height:1.5">📝 '+esc(o.memo)+'</div>':'')
-    +(o.bot_note?'<div class="oc-line" style="background:#fdebea;border-left:3px solid #c5221f;padding:6px 8px;border-radius:4px;font-size:11.5px;color:#c5221f;white-space:pre-wrap">🤖 봇 메시지: '+esc(o.bot_note)+'</div>':'')
+    +'<div class="oc-line oc-item"><b>'+esc(o.product)+(o.color?' / '+esc(o.color):'')+' · '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b>'+mgnInline+'</div>'
+    +(o.bot_note?'<div class="oc-line" style="background:#fdebea;border-left:3px solid #c5221f;padding:6px 8px;border-radius:4px;font-size:11.5px;color:#c5221f;white-space:pre-wrap">🤖 '+esc(o.bot_note)+'</div>':'')
     +'<div class="oc-line oc-track-line">'+trackHtml+'</div>'
     +paidByLine
+    +memoLine
     +'<div class="oc-foot">'
       +'<span class="muted">'+esc(o.date)+'</span>'
       +'<span class="oc-actions">'
@@ -2502,11 +2501,10 @@ async function manualRunBot(botKey, btnEl){
   if(!token){
     const next = getNextSchedule(botKey);
     toast(
-      `다음 자동 실행: ${next}\n\n` +
-      `즉시 실행하려면 한 번만 설정:\n` +
-      `🎛 관리 모드 → 🔧 설정·도구 → 🔑 GitHub 토큰`,
+      `⏰ 다음 자동 실행: ${next}\n` +
+      `봇이 자동으로 처리하니까 그냥 기다리세요.`,
       'info',
-      7000
+      5000
     );
     return;
   }
@@ -2557,12 +2555,14 @@ function getNextSchedule(botKey){
   const dowMap = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
   const dow = dowMap[parts.weekday];
   const minutes = kstHour*60 + kstMin;
-  // 봇별 스케줄 (평일만)
+  // 봇별 스케줄 (평일만, KST)
+  // 선반랙·카트 동일: 08:00, 12:00, 12:30, 12:51
+  // 송장: 17:00, 17:30, 18:00
   const scheduleByBot = {
-    register: [11*60+30, 12*60+30, 12*60+51],
-    cart:     [12*60+20],
-    tracking: [17*60, 17*60+30, 18*60, 18*60+30],
-    cartTracking: [17*60, 17*60+30, 18*60, 18*60+30]
+    register: [8*60, 12*60, 12*60+30, 12*60+51],
+    cart:     [8*60, 12*60, 12*60+30, 12*60+51],
+    tracking: [17*60, 17*60+30, 18*60],
+    cartTracking: [17*60, 17*60+30, 18*60]
   };
   const slots = scheduleByBot[botKey] || scheduleByBot.register;
   const fmtTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
@@ -2927,10 +2927,21 @@ $('#list').addEventListener('change', e=>{
     if(userRole!=='admin') return;
     const id = e.target.dataset.id;
     const val = e.target.value.trim();
-    sb.from('orders').update({ paid_by: val || null }).eq('id', id);
+    sb.from('orders').update({ paid_by: val || null }).eq('id', id)
+      .then(({error}) => { if(!error) toast('✅ 입금자명 저장', 'success', 2000); });
     return;
   }
-  // 송장 칸은 더 이상 편집 불가 (자동수집 전용)
+  // 메모 인라인 수정 (모든 사용자 — 본인 주문 또는 관리자)
+  if(e.target.classList && e.target.classList.contains('memo-inp')){
+    const id = e.target.dataset.id;
+    const o = ORDERS.find(x => x.id === id);
+    if(!o) return;
+    if(userRole !== 'admin' && o.created_by !== myUserId) return;
+    const val = e.target.value.trim();
+    sb.from('orders').update({ memo: val || null }).eq('id', id)
+      .then(({error}) => { if(!error) toast('✅ 메모 저장', 'success', 2000); });
+    return;
+  }
 });
 
 // 정산 완료 버튼
