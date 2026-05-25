@@ -61,22 +61,37 @@ async function login(page) {
 // (구조: 각 행 클릭 → 주문 상세 → "개별 주문 및 배송 상세 내역"의 배송정보 셀)
 async function scrapeAllTracking(page) {
   console.log('📋 판매 관리 페이지로 이동...');
-  // 좌측 메뉴 "판매 관리" 또는 "주문 확인"
-  try {
-    await page.locator('a:has-text("판매 관리"), text=판매 관리').first().click({ timeout: 5000 });
-  } catch {
-    // text 매칭 실패시 URL 직접 이동 시도
-    console.log('  메뉴 클릭 실패 → URL 직접 이동');
-    const possibles = [
-      'https://dooldool6611.com/sales',
-      'https://dooldool6611.com/sales-management',
-      'https://dooldool6611.com/order-confirm',
-    ];
-    let ok = false;
-    for (const u of possibles) {
-      try { await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 8000 }); ok = true; break; } catch {}
-    }
-    if (!ok) throw new Error('판매관리 페이지 못 찾음 (좌측 메뉴 텍스트·URL 변경 가능성)');
+  // 좌측 사이드바 메뉴 후보들 — OMS 페이지마다 텍스트 다를 수 있어서 여러 개 시도
+  const menuCandidates = [
+    '주문 확인', '주문확인', '주문 내역', '주문내역',
+    '판매 관리', '판매관리', '판매 내역', '판매내역',
+    '거래 명세서', '거래명세서', '출고 관리', '출고관리',
+    '배송 관리', '배송관리', '발송 관리', '발송관리',
+    '주문 관리', '주문관리'
+  ];
+  let clicked = false;
+  for (const txt of menuCandidates) {
+    try {
+      const loc = page.locator(`a:has-text("${txt}"), nav button:has-text("${txt}"), [role="menuitem"]:has-text("${txt}")`).first();
+      if (await loc.count() > 0) {
+        await loc.click({ timeout: 3000 });
+        clicked = true;
+        console.log(`  ✅ 메뉴 "${txt}" 클릭`);
+        break;
+      }
+    } catch {}
+  }
+  if (!clicked) {
+    // 사이드바 링크 텍스트 전부 출력 — 디버깅용
+    const allLinks = await page.locator('a, [role="menuitem"]').allTextContents();
+    const menus = allLinks.map(s=>s.trim()).filter(s=>s && s.length<30 && s.length>1);
+    const uniq = [...new Set(menus)];
+    console.log('  ⚠️  메뉴 매칭 실패. 페이지에서 발견된 클릭가능 텍스트 (앞 40개):');
+    uniq.slice(0,40).forEach(t => console.log(`     - "${t}"`));
+    // 현재 페이지 URL도 로그 (이걸로 정확한 URL 패턴 추정 가능)
+    console.log(`  현재 URL: ${page.url()}`);
+    await page.screenshot({ path: 'screenshots/03-menu-debug.png', fullPage: true });
+    throw new Error('판매관리 메뉴 못 찾음 — 위 로그의 텍스트 목록에서 정확한 메뉴명 알려주세요');
   }
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
