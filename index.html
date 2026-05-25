@@ -736,6 +736,19 @@ let PRODUCTS = load('products', [
   {name:'선반랙', keywords:['선반랙','선반','랙']},
   {name:'핸드카트', keywords:['핸드카트','핸드카','카트']}
 ]);
+// 옛 localStorage에 카트 키워드 없으면 자동 추가 (마이그레이션)
+(function ensureKeywords(){
+  let changed = false;
+  const rack = PRODUCTS.find(p => p.name === '선반랙');
+  if(rack){
+    ['선반랙','선반','랙'].forEach(k => { if(!rack.keywords.includes(k)){ rack.keywords.push(k); changed=true; } });
+  } else { PRODUCTS.push({name:'선반랙', keywords:['선반랙','선반','랙']}); changed=true; }
+  const cart = PRODUCTS.find(p => p.name === '핸드카트');
+  if(cart){
+    ['핸드카트','핸드카','카트'].forEach(k => { if(!cart.keywords.includes(k)){ cart.keywords.push(k); changed=true; } });
+  } else { PRODUCTS.push({name:'핸드카트', keywords:['핸드카트','핸드카','카트']}); changed=true; }
+  if(changed) save('products', PRODUCTS);
+})();
 // 상품명 정규화 — 키워드(별칭) 매칭으로 정식 이름 반환 ('카트'→'핸드카트')
 function normalizeProductName(raw){
   if(!raw) return raw;
