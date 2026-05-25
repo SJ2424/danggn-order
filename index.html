@@ -355,6 +355,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
   </div>
   <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처로 내 주문 찾기"></div>
   <div class="chips admin-only" id="filters"></div>
+  <p class="muted admin-only" style="font-size:11.5px;margin:6px 0">↕ 정렬: <b>접수</b> → <b>발주대기</b> → <b>발주완료</b> → <b>발송완료-미입금</b> → <b>완료</b> (단계 안에서는 최신 날짜순)</p>
   <div class="order-list" id="list"></div>
 </section>
 
@@ -654,6 +655,17 @@ const FILTERS=[
 // '완료' = 발송완료 AND 입금완료 (액션 끝남)
 // '진행중' = 그 외 모두 (발주대기·발송대기·발송완료-미입금)
 function isCompleted(o){ return !!o.paid && o.status === '발송완료'; }
+// 상태 우선순위 — 가장 확인 필요한 단계가 위 (1=급함)
+// 1.접수(즉시 발주 필요) → 2.발주대기(일괄확인) → 3.발주완료(송장대기) → 4.발송완료-미입금(입금추적) → 5.완료
+function statusOrder(o){
+  const s = o.status || '접수';
+  if(s === '접수')      return 1;  // OMS 등록 대기
+  if(s === '발주대기')   return 2;  // 봇이 OMS 등록함, 일괄 발주완료 필요
+  if(s === '발주완료')   return 3;  // 송장 대기 (17시 봇 자동)
+  if(s === '발송완료' && !o.paid) return 4;  // 발송됐는데 미입금
+  if(s === '발송완료' && o.paid)  return 5;  // 완전 끝
+  return 6;
+}
 
 const SIDO = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주','충청','전라','경상'];
 const LABELS = ['성함','이름','성명','연락처','전화번호','전화','휴대폰','핸드폰','번호','주소','수령','받는분','받는','수취인'];
@@ -1122,7 +1134,15 @@ function cardHtml(o){
 }
 function renderList(){
   renderAliases(); renderFilters();
-  const items = ORDERS.filter(filterMatch);
+  // 상태 우선순위 → 날짜 DESC → 입력시각 DESC 로 정렬
+  // (접수가 위에, 같은 상태 안에서는 최신 날짜가 위)
+  const items = ORDERS.filter(filterMatch).sort((a,b) => {
+    const pA = statusOrder(a), pB = statusOrder(b);
+    if (pA !== pB) return pA - pB;
+    const dA = a.date || '', dB = b.date || '';
+    if (dA !== dB) return dB.localeCompare(dA);
+    return new Date(b.created_at||0) - new Date(a.created_at||0);
+  });
   const emptyMsg = ORDERS.length
     ? '<div class="empty">현재 필터에 해당하는 주문이 없습니다<br><span class="muted" style="font-size:12px">전체 '+ORDERS.length+'건 — 위 칩에서 <b>전체</b> 클릭하면 모두 보임</span></div>'
     : '<div class="empty">표시할 주문이 없습니다</div>';
