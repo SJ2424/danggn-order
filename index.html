@@ -148,6 +148,13 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 .modal{display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px}
 .modal.open{display:flex}
 .modal-content{background:#fff;border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto}
+/* 🔍 주소 검색 모달 (embed 방식) */
+#addrModal #addrModalContent{padding:0;max-width:540px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column}
+#addrModal .addr-modal-head{padding:11px 14px;background:#1a73e8;color:#fff;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#addrModal .addr-modal-head h3{margin:0;font-size:14px;color:#fff;font-weight:700}
+#addrModal #btnAddrClose{background:transparent;border:0;color:#fff;cursor:pointer;font-size:22px;padding:0 6px;line-height:1}
+#addrModal #addrLayer{height:480px;overflow:hidden}
+@media (max-width:480px){#addrModal #addrLayer{height:60vh}}
 .modal-content h2{margin:0 0 12px;font-size:17px}
 .pend-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);gap:8px}
 .pend-row:last-child{border-bottom:0}
@@ -655,6 +662,17 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 </main>
 </div>
 
+<!-- 🔍 카카오 주소 검색 모달 (embed 방식 — PWA 안에서도 안정적 작동) -->
+<div id="addrModal" class="modal">
+  <div class="modal-content" id="addrModalContent">
+    <div class="addr-modal-head">
+      <h3>🔍 카카오 주소 검색</h3>
+      <button type="button" id="btnAddrClose" aria-label="닫기">×</button>
+    </div>
+    <div id="addrLayer"></div>
+  </div>
+</div>
+
 <div id="approveModal" class="modal">
   <div class="modal-content">
     <h2>승인 대기 사용자</h2>
@@ -1065,13 +1083,22 @@ function getRoadBunji(s){
   return m ? { road: m[1], bunji: m[2] } : null;
 }
 
-// 카카오 주소검색 — 입력값 prefill + 매칭 결과 검증
+// 카카오 주소검색 — embed 방식 (PWA·iOS 안에서도 안정적, 팝업 차단 없음)
 function openAddrSearch(prefillQuery){
   if(typeof daum === 'undefined' || !daum.Postcode){
-    alert('주소 검색을 불러올 수 없습니다. 인터넷 연결 확인 후 다시 시도하세요.');
+    alert('주소 검색 스크립트가 아직 로딩 중입니다. 잠시 후 다시 시도하세요.');
     return;
   }
   const original = (prefillQuery || $('#pAddr').value || '').trim();
+  const modal = $('#addrModal');
+  const layer = $('#addrLayer');
+  if(!modal || !layer){
+    alert('주소 검색 UI를 찾을 수 없습니다. 새로고침 해주세요.');
+    return;
+  }
+  layer.innerHTML = '';  // 이전 검색 결과 클리어
+  modal.classList.add('open');
+
   new daum.Postcode({
     oncomplete: function(data){
       const base = data.roadAddress || data.jibunAddress || data.address;
@@ -1098,10 +1125,14 @@ function openAddrSearch(prefillQuery){
       } else {
         $('#addrWarn').style.display = 'none';
       }
+      modal.classList.remove('open');
       setTimeout(()=>$('#pAddrDetail').focus(), 100);
     },
-    theme: { bgColor:'#fff', searchBgColor:'#1a73e8', contentBgColor:'#fff' }
-  }).open({ q: original });  // ⭐ 입력 주소로 prefill 검색
+    width: '100%',
+    height: '100%',
+    maxSuggestItems: 5,
+    submitMode: false
+  }).embed(layer, { q: original, autoClose: false });
 }
 // 상세주소 바뀌면 합쳐서 hidden pAddr 갱신
 function syncAddr(){
@@ -1109,34 +1140,16 @@ function syncAddr(){
   const detail = $('#pAddrDetail').value.trim();
   $('#pAddr').value = base + (detail ? ' ' + detail : '');
 }
-// autoParse가 채팅 분석으로 주소 채울 때 — 자동으로 카카오 검색 열기
-let autoSearchTimer = null;
+// autoParse가 채팅 분석으로 주소 채울 때 — 검증 안 됨 경고만 표시 (사용자가 [🔍] 클릭)
 function setParsedAddr(addr){
   if(!addr) return;
-  // 검색 안 된 raw 텍스트는 hidden pAddr에만 임시 저장 + 경고
   $('#pAddr').value = addr;
   $('#pAddrBase').value = '';
   $('#pAddrDetail').value = '';
-  $('#addrWarn').innerHTML = `⏳ 카카오 자동 검색 준비 중... <button type="button" class="btn-sec btn-sm" id="btnAddrNow" style="padding:2px 8px;font-size:11px">🔍 지금 검색</button>`;
-  $('#addrWarn').style.color = '#1a73e8';
+  $('#addrWarn').innerHTML = `⚠️ 자동분석 주소 — 정확한지 위 <b>[🔍 주소 검색]</b> 눌러서 확인하세요`;
+  $('#addrWarn').style.color = '#b45309';
   $('#addrWarn').style.fontWeight = '500';
   $('#addrWarn').style.display = '';
-  // 중복 타이머 취소
-  if(autoSearchTimer) clearTimeout(autoSearchTimer);
-  // 1.5초 후 자동으로 카카오 열기 (사용자가 채팅 더 붙여넣을 시간 줌)
-  autoSearchTimer = setTimeout(() => {
-    if($('#pAddr').value === addr && !$('#pAddrBase').value){
-      openAddrSearch(addr);
-    }
-  }, 1500);
-  // 즉시 검색 버튼 핸들러
-  setTimeout(()=>{
-    const b = $('#btnAddrNow');
-    if(b) b.addEventListener('click', () => {
-      if(autoSearchTimer) clearTimeout(autoSearchTimer);
-      openAddrSearch(addr);
-    });
-  }, 50);
 }
 
 async function addOrder(){
@@ -2557,6 +2570,11 @@ $('#tAll').addEventListener('input', autoParse);
 $('#btnAdd').addEventListener('click', addOrder);
 // 카카오 주소검색
 $('#btnAddrSearch') && $('#btnAddrSearch').addEventListener('click', () => openAddrSearch());
+// 주소 모달 닫기 (× 버튼 + 바깥 클릭)
+$('#btnAddrClose') && $('#btnAddrClose').addEventListener('click', () => $('#addrModal').classList.remove('open'));
+$('#addrModal') && $('#addrModal').addEventListener('click', e => {
+  if(e.target.id === 'addrModal') $('#addrModal').classList.remove('open');
+});
 $('#pAddrDetail') && $('#pAddrDetail').addEventListener('input', syncAddr);
 $('#btnBulkDone').addEventListener('click', bulkOrderComplete);
 $('#btnCsv').addEventListener('click', exportCsv);
