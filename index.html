@@ -148,13 +148,25 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 .modal{display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px}
 .modal.open{display:flex}
 .modal-content{background:#fff;border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto}
-/* 🔍 주소 검색 모달 (embed 방식) */
-#addrModal #addrModalContent{padding:0;max-width:540px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column}
-#addrModal .addr-modal-head{padding:11px 14px;background:#1a73e8;color:#fff;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+/* 🔍 주소 검색 모달 (embed 방식) — PC: 중앙 고정, 모바일: 전체화면 */
+#addrModal{padding:0}
+#addrModal #addrModalContent{padding:0;max-width:560px;width:100%;max-height:none;height:auto;overflow:hidden;display:flex;flex-direction:column;border-radius:14px}
+#addrModal .addr-modal-head{padding:13px 16px;background:#1a73e8;color:#fff;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 #addrModal .addr-modal-head h3{margin:0;font-size:14px;color:#fff;font-weight:700}
-#addrModal #btnAddrClose{background:transparent;border:0;color:#fff;cursor:pointer;font-size:22px;padding:0 6px;line-height:1}
-#addrModal #addrLayer{height:480px;overflow:hidden}
-@media (max-width:480px){#addrModal #addrLayer{height:60vh}}
+#addrModal #btnAddrClose{background:transparent;border:0;color:#fff;cursor:pointer;font-size:26px;padding:0 6px;line-height:1;min-width:32px;min-height:32px}
+#addrModal #addrLayer{height:500px;width:100%;overflow:hidden;background:#fff}
+#addrModal #addrLayer iframe{width:100% !important;height:100% !important;border:0}
+@media (max-width:600px){
+  #addrModal{padding:0}
+  #addrModal #addrModalContent{max-width:100%;width:100vw;height:100vh;max-height:100vh;border-radius:0}
+  #addrModal .addr-modal-head{border-radius:0;padding:14px 16px}
+  #addrModal .addr-modal-head h3{font-size:15px}
+  #addrModal #addrLayer{flex:1;height:auto}
+}
+/* 주소 입력 행 (모바일 줄바꿈 안전) */
+.addr-row{display:flex;gap:6px;align-items:stretch}
+.addr-row input{flex:1;min-width:0}
+.addr-row button{flex:0 0 auto;white-space:nowrap;padding:0 14px}
 .modal-content h2{margin:0 0 12px;font-size:17px}
 .pend-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);gap:8px}
 .pend-row:last-child{border-bottom:0}
@@ -392,21 +404,21 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div class="preview">
     <div class="ttl">📋 자동 분석 — 틀린 부분만 고쳐서 추가</div>
     <div class="grid">
-      <div><label>받는 사람</label><input id="pName" placeholder="홍길동"></div>
-      <div><label>연락처</label><input id="pPhone" placeholder="010-0000-0000"></div>
+      <div><label>받는 사람</label><input id="pName" placeholder="홍길동" autocomplete="name"></div>
+      <div><label>연락처</label><input id="pPhone" type="tel" inputmode="tel" placeholder="010-0000-0000" autocomplete="tel"></div>
       <div class="full">
-        <label>배송 주소 <span class="muted" style="font-weight:400;font-size:11px">— 🔍 검색 권장 (오타 방지)</span></label>
-        <div style="display:flex;gap:6px;margin-bottom:4px">
-          <input id="pAddrBase" placeholder="기본 주소 (검색 결과)" readonly style="flex:2;background:#f9fafb">
-          <button type="button" class="btn-sec btn-sm" id="btnAddrSearch" style="flex:0 0 auto">🔍 주소 검색</button>
+        <label>배송 주소 <span class="muted" style="font-weight:400;font-size:11px">— 🔍 검색 권장</span></label>
+        <div class="addr-row">
+          <input id="pAddrBase" placeholder="기본 주소 (시·구·도로명·번지)">
+          <button type="button" class="btn-pri-sm" id="btnAddrSearch">🔍 검색</button>
         </div>
-        <input id="pAddrDetail" placeholder="상세 주소 (건물명·동·호 — 본인이 입력)">
+        <input id="pAddrDetail" placeholder="상세 주소 (건물명·동·호)" style="margin-top:5px">
         <input id="pAddr" type="hidden">
-        <p id="addrWarn" class="muted" style="font-size:11px;margin:4px 0 0;display:none;color:#c5221f"></p>
+        <p id="addrWarn" class="muted" style="font-size:11px;margin:4px 0 0;display:none"></p>
       </div>
       <div><label>상품</label><input id="pProduct" placeholder="선반랙"></div>
       <div><label>색상</label><input id="pColor" placeholder="화이트 / 블랙"></div>
-      <div><label>수량</label><input id="pQty" type="number" min="1" placeholder="1"></div>
+      <div><label>수량</label><input id="pQty" type="number" inputmode="numeric" min="1" placeholder="1"></div>
       <div class="full"><label>거래방식</label>
         <div class="type-tabs">
           <button type="button" class="active" data-type="택배">📦 택배</button>
@@ -414,7 +426,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
         </div>
         <input id="pType" type="hidden" value="택배">
       </div>
-      <div class="full"><label>판매금액 (원)</label><input id="pAmount" type="number" placeholder="37000"></div>
+      <div class="full"><label>판매금액 (원)</label><input id="pAmount" type="number" inputmode="numeric" placeholder="37000"></div>
     </div>
   </div>
   <button class="btn-pri" id="btnAdd">✓ 주문 목록에 추가</button>
@@ -1083,62 +1095,100 @@ function getRoadBunji(s){
   return m ? { road: m[1], bunji: m[2] } : null;
 }
 
+// 카카오 주소검색 fallback (스크립트 안 떴거나 embed 실패시)
+function fallbackDirectAddr(prefill){
+  const cur = prefill || $('#pAddrBase').value || $('#pAddr').value || '';
+  const addr = prompt(
+    '카카오 주소 검색을 사용할 수 없습니다. 기본 주소를 직접 입력해주세요:\n' +
+    '(예: 서울특별시 동작구 상도로41다길 18)',
+    cur
+  );
+  if(addr && addr.trim()){
+    $('#pAddrBase').value = addr.trim();
+    syncAddr();
+    $('#addrWarn').innerHTML = '⚠️ 직접 입력함 — 오타 없는지 다시 한번 확인';
+    $('#addrWarn').style.color = '#b45309';
+    $('#addrWarn').style.display = '';
+    setTimeout(()=>$('#pAddrDetail').focus(), 100);
+  }
+}
+
 // 카카오 주소검색 — embed 방식 (PWA·iOS 안에서도 안정적, 팝업 차단 없음)
 function openAddrSearch(prefillQuery){
   if(typeof daum === 'undefined' || !daum.Postcode){
-    alert('주소 검색 스크립트가 아직 로딩 중입니다. 잠시 후 다시 시도하세요.');
+    // 스크립트 안 떴으면 직접 입력 fallback
+    if(confirm('주소 검색 스크립트가 안 떴어요. 직접 입력하시겠어요?\n(취소 누르면 5초 후 자동 재시도)')){
+      fallbackDirectAddr(prefillQuery);
+    } else {
+      setTimeout(()=>openAddrSearch(prefillQuery), 5000);
+    }
     return;
   }
-  const original = (prefillQuery || $('#pAddr').value || '').trim();
+  const original = (prefillQuery || $('#pAddrBase').value || $('#pAddr').value || '').trim();
   const modal = $('#addrModal');
   const layer = $('#addrLayer');
   if(!modal || !layer){
-    alert('주소 검색 UI를 찾을 수 없습니다. 새로고침 해주세요.');
+    fallbackDirectAddr(original);
     return;
   }
-  layer.innerHTML = '';  // 이전 검색 결과 클리어
+  layer.innerHTML = '<div style="padding:24px;text-align:center;color:#666;font-size:13px">로딩 중...</div>';
   modal.classList.add('open');
+  // iOS PWA에서 모달 열리면 body 스크롤 잠금
+  document.body.style.overflow = 'hidden';
 
-  new daum.Postcode({
-    oncomplete: function(data){
-      const base = data.roadAddress || data.jibunAddress || data.address;
-      $('#pAddrBase').value = base;
-      $('#pAddr').value = base + ($('#pAddrDetail').value ? ' ' + $('#pAddrDetail').value : '');
-      // 검증 — 입력 주소와 카카오 매칭 결과가 같은 도로/번지인지
-      if(original){
-        const inRB = getRoadBunji(original);
-        const outRB = getRoadBunji(base);
-        if(inRB && outRB && (inRB.road !== outRB.road || inRB.bunji !== outRB.bunji)){
-          $('#addrWarn').innerHTML =
-            `🚨 <b>주소 다름!</b> 입력 "${esc(inRB.road)} ${esc(inRB.bunji)}" → 카카오 "${esc(outRB.road)} ${esc(outRB.bunji)}"<br>`
-          + `<span style="color:var(--mut);font-weight:400">실제 손님 주소가 맞는지 다시 확인! 오타면 [🔍] 다시 눌러 재검색.</span>`;
-          $('#addrWarn').style.color = '#c5221f';
-          $('#addrWarn').style.fontWeight = '600';
-          $('#addrWarn').style.display = '';
+  try {
+    new daum.Postcode({
+      oncomplete: function(data){
+        const base = data.roadAddress || data.jibunAddress || data.address;
+        $('#pAddrBase').value = base;
+        syncAddr();
+        // 검증
+        if(original){
+          const inRB = getRoadBunji(original);
+          const outRB = getRoadBunji(base);
+          if(inRB && outRB && (inRB.road !== outRB.road || inRB.bunji !== outRB.bunji)){
+            $('#addrWarn').innerHTML =
+              `🚨 <b>주소 다름!</b> 입력 "${esc(inRB.road)} ${esc(inRB.bunji)}" → 카카오 "${esc(outRB.road)} ${esc(outRB.bunji)}"<br>`
+            + `<span style="color:var(--mut);font-weight:400">실제 손님 주소가 맞는지 다시 확인!</span>`;
+            $('#addrWarn').style.color = '#c5221f';
+            $('#addrWarn').style.fontWeight = '600';
+            $('#addrWarn').style.display = '';
+          } else {
+            $('#addrWarn').textContent = '✅ 주소 확인됨';
+            $('#addrWarn').style.color = '#137333';
+            $('#addrWarn').style.fontWeight = '500';
+            $('#addrWarn').style.display = '';
+            setTimeout(()=>{ $('#addrWarn').style.display = 'none'; }, 3000);
+          }
         } else {
-          $('#addrWarn').textContent = '✅ 주소 확인됨';
-          $('#addrWarn').style.color = '#137333';
-          $('#addrWarn').style.fontWeight = '500';
-          $('#addrWarn').style.display = '';
-          setTimeout(()=>{ $('#addrWarn').style.display = 'none'; }, 3000);
+          $('#addrWarn').style.display = 'none';
         }
-      } else {
-        $('#addrWarn').style.display = 'none';
-      }
-      modal.classList.remove('open');
-      setTimeout(()=>$('#pAddrDetail').focus(), 100);
-    },
-    width: '100%',
-    height: '100%',
-    maxSuggestItems: 5,
-    submitMode: false
-  }).embed(layer, { q: original, autoClose: false });
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+        setTimeout(()=>$('#pAddrDetail').focus(), 100);
+      },
+      onresize: function(){},
+      width: '100%',
+      height: '100%',
+      maxSuggestItems: 5,
+      submitMode: false,
+      animation: false  // iOS 안정성
+    }).embed(layer, { q: original, autoClose: false });
+  } catch(e){
+    console.error('Daum postcode embed 실패:', e);
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    fallbackDirectAddr(original);
+  }
 }
-// 상세주소 바뀌면 합쳐서 hidden pAddr 갱신
+// 기본·상세주소 어느 쪽이 바뀌어도 hidden pAddr 갱신
 function syncAddr(){
   const base = $('#pAddrBase').value.trim();
   const detail = $('#pAddrDetail').value.trim();
   $('#pAddr').value = base + (detail ? ' ' + detail : '');
+  // 사용자가 직접 수정하면 경고 숨김
+  const warn = $('#addrWarn');
+  if(warn && warn.style.color === 'rgb(180, 83, 9)'){ warn.style.display = 'none'; }
 }
 // autoParse가 채팅 분석으로 주소 채울 때 — 검증 안 됨 경고만 표시 (사용자가 [🔍] 클릭)
 function setParsedAddr(addr){
@@ -2571,11 +2621,16 @@ $('#btnAdd').addEventListener('click', addOrder);
 // 카카오 주소검색
 $('#btnAddrSearch') && $('#btnAddrSearch').addEventListener('click', () => openAddrSearch());
 // 주소 모달 닫기 (× 버튼 + 바깥 클릭)
-$('#btnAddrClose') && $('#btnAddrClose').addEventListener('click', () => $('#addrModal').classList.remove('open'));
+function closeAddrModal(){
+  $('#addrModal') && $('#addrModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+$('#btnAddrClose') && $('#btnAddrClose').addEventListener('click', closeAddrModal);
 $('#addrModal') && $('#addrModal').addEventListener('click', e => {
-  if(e.target.id === 'addrModal') $('#addrModal').classList.remove('open');
+  if(e.target.id === 'addrModal') closeAddrModal();
 });
 $('#pAddrDetail') && $('#pAddrDetail').addEventListener('input', syncAddr);
+$('#pAddrBase')   && $('#pAddrBase').addEventListener('input', syncAddr);
 $('#btnBulkDone').addEventListener('click', bulkOrderComplete);
 $('#btnCsv').addEventListener('click', exportCsv);
 $('#btnPoAll').addEventListener('click', copyPoAll);
