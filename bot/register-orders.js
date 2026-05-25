@@ -355,8 +355,8 @@ async function main() {
   await browser.close();
   console.log(`\n📊 결과: 성공 ${ok}건 / 실패 ${fail}건`);
 
-  // 등록 성공시 관리자에게 즉시 푸시 — "지금 결제하러 가세요" 신호
-  if (ok > 0) {
+  // 푸시 알림 — 성공이든 실패든 발주대기/실패 상황 알림
+  if (ok > 0 || fail > 0) {
     try { await notifyAdmins(ok, fail); } catch (e) { console.warn('푸시 알림 실패(무시):', e.message); }
   }
 
@@ -385,11 +385,19 @@ async function notifyAdmins(okCount, failCount) {
   const { data: orders } = await sb.from('orders').select('id, status');
   const waiting = (orders||[]).filter(o => o.status === '발주대기').length;
 
+  // 실패만 있을 때 vs 성공 있을 때 메시지 다르게
+  const title = (okCount === 0 && failCount > 0)
+    ? `🚨 봇 실패 — ${failCount}건 등록 안 됨`
+    : '🔴 OMS 결제 필요';
+  const body  = (okCount === 0 && failCount > 0)
+    ? `자동 발주 봇이 ${failCount}건 모두 실패했습니다.\n앱에서 빨간 봇 메시지 확인 후 수정·재시도 필요.`
+    : `방금 ${okCount}건 등록 완료. 현재 발주대기 ${waiting}건.\ndooldool6611.com 가서 일괄주문+송금 → 앱에서 [일괄 발주완료] 클릭`
+      + (failCount > 0 ? `\n⚠️ ${failCount}건 실패 — 앱에서 확인` : '');
+
   const payload = JSON.stringify({
-    title: '🔴 OMS 결제 필요',
-    body: `방금 ${okCount}건 등록 완료. 현재 발주대기 ${waiting}건.\ndooldool6611.com 가서 일괄주문+송금 → 앱에서 [일괄 발주완료] 클릭`
-       + (failCount > 0 ? `\n⚠️ ${failCount}건 실패 — 앱에서 확인` : ''),
-    tag: 'post-register',
+    title,
+    body,
+    tag: 'post-register-' + new Date().toISOString().slice(0,13),
     url: '/'
   });
 

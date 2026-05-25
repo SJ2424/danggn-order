@@ -25,7 +25,8 @@ main{max-width:760px;margin:0 auto;padding:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
 .card h2{margin:0 0 10px;font-size:15px}
 label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
-textarea,input,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px;font-family:inherit;background:#fff}
+textarea,input,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:16px;font-family:inherit;background:#fff}
+/* iOS: input/textarea가 16px 미만이면 포커스시 자동 확대됨 → 16px로 고정해서 줌 방지 */
 textarea{resize:vertical;min-height:54px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
@@ -83,6 +84,16 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 }
 #alarm{display:none;position:fixed;left:0;right:0;top:0;z-index:50;background:#c5221f;color:#fff;padding:11px 14px;align-items:center;gap:10px;justify-content:space-between;box-shadow:0 3px 10px rgba(0,0,0,.35)}
 #alarm .alarm-msg{font-weight:600;font-size:13px;line-height:1.4}
+/* 🔔 일반 알림 토스트 (성공·오류·정보) */
+#toastBox{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:90vw;width:420px}
+.toast{background:#fff;border-radius:10px;padding:11px 14px;box-shadow:0 4px 18px rgba(0,0,0,.18);font-size:13.5px;line-height:1.5;border-left:4px solid #1a73e8;pointer-events:auto;animation:slideIn .25s ease;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.toast.success{border-left-color:#137333}
+.toast.error{border-left-color:#c5221f;background:#fef7f7}
+.toast.warn{border-left-color:#f6c343;background:#fffbeb}
+.toast .toast-msg{flex:1;color:#202124;white-space:pre-wrap}
+.toast .toast-x{background:transparent;border:0;font-size:18px;cursor:pointer;color:var(--mut);padding:0 4px;line-height:1;flex-shrink:0}
+@keyframes slideIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+.toast.removing{opacity:0;transform:translateY(-8px);transition:all .2s}
 #alarm button{background:#fff;color:#c5221f;font-weight:700;white-space:nowrap;padding:8px 12px}
 .list-tools{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .list-tools input{flex:1;min-width:180px}
@@ -181,8 +192,12 @@ body[data-role="input"] .pill-status{pointer-events:none;cursor:default}
 /* 입금 알약은 입력자도 본인 주문 토글 가능 (수령 후 입금 구조) */
 body[data-role="input"] .oc-track{background:#f4f5f7;color:var(--mut);pointer-events:none}
 /* 글씨 크기 */
-body[data-font="small"]{zoom:0.92}
-body[data-font="large"]{zoom:1.12}
+/* 글자 크기 — 보통(default) / 크게(노안 친화) 2단계 */
+body[data-font="large"]{zoom:1.28}
+@supports not (zoom: 1){
+  /* Firefox 등 zoom 미지원 브라우저 fallback */
+  body[data-font="large"]{font-size:118%}
+}
 .font-btn{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer;font-weight:700;min-width:32px}
 /* 입금자명 인라인 */
 .paid-by-line{font-size:12px;color:var(--mut);margin-top:6px;padding-top:6px;border-top:1px dashed #f0f0f0}
@@ -386,6 +401,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </div>
 </header>
 <div id="alarm"><span class="alarm-msg"></span><button id="btnAck">발주 확인 →</button></div>
+<div id="toastBox"></div>
 <main>
 
 <div class="modes">
@@ -756,6 +772,24 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const load = (k,d) => { try{return JSON.parse(localStorage.getItem('dg_'+k)) ?? d}catch(e){return d} };
 const save = (k,v) => { try{ localStorage.setItem('dg_'+k, JSON.stringify(v)); }catch(e){} };
+// 🔔 토스트 알림 (alert 대체) — type: 'info'(default) | 'success' | 'error' | 'warn'
+//   timeout: ms (기본 4000, 0이면 자동 제거 안 함 — 사용자가 × 클릭해야)
+function toast(msg, type='info', timeout=4000){
+  const box = document.getElementById('toastBox'); if(!box){ console.log('[toast]', msg); return; }
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = '<span class="toast-msg"></span><button class="toast-x" aria-label="닫기">×</button>';
+  el.querySelector('.toast-msg').textContent = msg;
+  el.querySelector('.toast-x').addEventListener('click', () => removeToast(el));
+  box.appendChild(el);
+  if(timeout > 0) setTimeout(() => removeToast(el), timeout);
+  return el;
+}
+function removeToast(el){
+  if(!el || !el.parentNode) return;
+  el.classList.add('removing');
+  setTimeout(() => { if(el.parentNode) el.parentNode.removeChild(el); }, 200);
+}
 const won = n => (n===''||n==null)?'':Number(n).toLocaleString('ko-KR');
 // 한국시간 기준 오늘 YYYY-MM-DD (UTC 자정 직후 한국에선 이미 다음날인 문제 회피)
 const kstToday = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
@@ -1281,8 +1315,8 @@ async function addOrder(){
     paid:false, status:'접수',
     created_by: myUserId  // 입력자 본인 ID 명시 — DB default 의존하지 않음
   };
-  if(!o.name && !o.tel){ alert('구매자 정보를 입력하세요.'); return; }
-  if(!o.product){ alert('상품을 선택하세요.'); return; }
+  if(!o.name && !o.tel){ toast('구매자 정보(이름·연락처)를 입력하세요', 'warn'); return; }
+  if(!o.product){ toast('상품을 선택하세요', 'warn'); return; }
   // 주소 검증 — 택배일 때 카카오 검색 안 거친 주소 경고
   if(o.type === '택배' && !$('#pAddrBase').value.trim()){
     if(!confirm('⚠️ 주소 검색을 하지 않았습니다.\n오타가 있으면 잘못된 곳으로 배송될 수 있습니다.\n그래도 등록할까요?')) return;
@@ -1290,7 +1324,8 @@ async function addOrder(){
   const btn=$('#btnAdd'); btn.disabled=true; btn.textContent='추가 중...';
   const { error } = await sb.from('orders').insert(o);
   btn.disabled=false; btn.textContent='✓ 주문 목록에 추가';
-  if(error){ alert('저장 실패: '+error.message); return; }
+  if(error){ toast('❌ 저장 실패: '+error.message, 'error', 6000); return; }
+  toast('✅ 주문 추가됨', 'success', 2500);
   // 채팅·닉네임·휴대폰 별칭 + 주소 다 초기화
   ['tAll','fNick','fPhone','pAddrBase','pAddrDetail','pAddr'].forEach(id=>$('#'+id).value='');
   $('#addrWarn').style.display = 'none';
@@ -2381,13 +2416,18 @@ function renderLedgerFilters(){
   ).join('');
 }
 
-// 글씨 크기 토글 (작게/일반/크게 순환)
-const FONT_STATES=['small','normal','large'];
-const FONT_LABELS={small:'가-',normal:'가',large:'가+'};
-let fontState = load('fontState','normal');
+// 글씨 크기 토글 — 보통 ↔ 크게 (노안 친화) 2단계
+const FONT_STATES=['normal','large'];
+const FONT_LABELS={normal:'가', large:'가+'};
+// 옛 'small' 사용자는 normal로 마이그레이션
+let _stored = load('fontState','normal');
+let fontState = (_stored === 'small') ? 'normal' : _stored;
 function applyFont(){
   document.body.dataset.font = fontState;
-  const b=$('#btnFont'); if(b) b.textContent = FONT_LABELS[fontState];
+  const b=$('#btnFont'); if(b){
+    b.textContent = FONT_LABELS[fontState];
+    b.title = fontState === 'large' ? '크게 (노안 친화) — 클릭하면 보통' : '보통 — 클릭하면 크게';
+  }
 }
 function cycleFont(){
   const i=FONT_STATES.indexOf(fontState);
@@ -2480,20 +2520,20 @@ async function manualRunBot(botKey, btnEl){
     if(btn){ btn.disabled = false; btn.textContent = orig; }
 
     if(res.status === 204){
-      alert(`✅ ${label} 봇 실행 요청 완료!\n2~3분 후 자동 처리됩니다.`);
+      toast(`✅ ${label} 봇 실행 요청 완료 — 2~3분 후 자동 처리됩니다`, 'success', 5000);
     } else if(res.status === 401 || res.status === 403){
-      save('gh_token', '');  // 토큰 무효화
-      alert(`❌ 토큰 만료 또는 권한 부족.\n다시 [${label}] 클릭하면 재등록 안내 뜹니다.`);
+      save('gh_token', '');
+      toast(`❌ 토큰 만료/권한 부족 — 다시 [${label}] 클릭하면 재등록 안내가 뜹니다`, 'error', 7000);
     } else if(res.status === 404){
-      alert(`❌ 워크플로우 못 찾음. 코드 확인 필요.`);
+      toast(`❌ 워크플로우를 찾을 수 없습니다`, 'error', 6000);
     } else {
       const text = await res.text().catch(()=>'');
-      alert(`❌ 실패 (HTTP ${res.status}): ${text.slice(0,200)}`);
+      toast(`❌ 봇 실행 실패 (HTTP ${res.status})\n${text.slice(0,150)}`, 'error', 8000);
     }
   } catch(e){
     if(btn){ btn.disabled = false; btn.textContent = orig; }
-    alert(`❌ 네트워크 오류: ${e.message}\n\nGitHub Actions 페이지를 직접 열어볼까요?`);
-    if(confirm('GitHub Actions 페이지 열기?')){
+    toast(`❌ 네트워크 오류 — ${e.message}`, 'error', 6000);
+    if(confirm('GitHub Actions 페이지를 직접 열까요?')){
       window.open(`https://github.com/SJ2424/danggn-order/actions/workflows/${file}`, '_blank');
     }
   }
