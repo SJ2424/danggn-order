@@ -118,7 +118,29 @@ async function navigateToTracking(page, frame){
   ]){
     try { await fn().first().click({ timeout: 3000 }); console.log('  조회 버튼 클릭'); break; } catch {}
   }
-  await page.waitForTimeout(3500);
+  // 카드가 로딩될 때까지 대기 — "조회 중이에요" 사라지고 실제 데이터 나올 때까지
+  console.log('  카드 로딩 대기 중...');
+  let loaded = false;
+  for (let i = 0; i < 30; i++){  // 최대 30초
+    await page.waitForTimeout(1000);
+    try {
+      const bodyText = await frame.locator('body').innerText();
+      // 전화번호 패턴이 나타나면 로딩 완료
+      if (/01[0-9][\s-]?\d{3,4}[\s-]?\d{4}/.test(bodyText)){
+        console.log(`  카드 로딩 완료 (${i+1}초 후)`);
+        loaded = true;
+        break;
+      }
+      // 또는 "조회 중이에요" 안 나오면 (조회 결과 0건 가능)
+      if (!bodyText.includes('조회 중')){
+        console.log(`  조회 완료 (${i+1}초, 결과 0건 가능)`);
+        loaded = true;
+        break;
+      }
+    } catch {}
+  }
+  if (!loaded) console.log('  ⚠️ 30초 대기 후에도 로딩 미완료 — 그래도 추출 시도');
+  await page.waitForTimeout(1500);  // 마지막 안정화
   await page.screenshot({ path:'screenshots/03-tracking-list.png', fullPage:true });
 }
 
