@@ -374,7 +374,7 @@ body[data-mode="manage"] #ledgerCard{display:block}
   <h3 style="margin:18px 0 8px;font-size:14px">📋 거래 내역 (선택 기간)</h3>
   <div class="tx-wrap">
     <table class="tx-table">
-      <thead><tr><th>날짜</th><th>입금자(구매자)</th><th class="admin-only">입력자</th><th>상품</th><th>거래</th><th>수량</th><th>금액</th><th class="admin-only">마진</th><th>입금</th></tr></thead>
+      <thead><tr><th>날짜</th><th>입금자(구매자)</th><th>휴대폰 / 닉네임</th><th class="admin-only">입력자</th><th>상품</th><th>거래</th><th>수량</th><th>금액</th><th class="admin-only">마진</th><th>입금</th></tr></thead>
       <tbody id="lsList"></tbody>
     </table>
   </div>
@@ -1570,7 +1570,7 @@ function renderLedger(){
   const body = $('#lsList');
   if(body){
     if(r.list.length === 0){
-      body.innerHTML = '<tr><td colspan="'+(userRole==='admin'?9:7)+'" class="empty">조건에 맞는 거래가 없습니다</td></tr>';
+      body.innerHTML = '<tr><td colspan="'+(userRole==='admin'?10:8)+'" class="empty">조건에 맞는 거래가 없습니다</td></tr>';
     } else {
       const sorted = [...r.list].sort((a,b) => {
         const ad = a.date||'', bd = b.date||'';
@@ -1591,9 +1591,15 @@ function renderLedger(){
         const typeBadge = (o.type==='직거래')
           ? '<span style="color:#1a73e8">직거래</span>'
           : '<span style="color:#137333">택배</span>';
+        // 휴대폰 별칭(예: 아이폰17) / 닉네임(예: 흑당근) — 둘 다 있으면 ' / '로
+        const phoneNickParts = [];
+        if(o.phone) phoneNickParts.push(esc(o.phone));
+        if(o.nick)  phoneNickParts.push(esc(o.nick));
+        const phoneNick = phoneNickParts.length ? phoneNickParts.join(' / ') : '<span class="muted">-</span>';
         return '<tr>'
           +'<td>'+esc(o.date||'-')+'</td>'
           +'<td><b>'+esc(o.paid_by || o.name || '-')+'</b></td>'
+          +'<td style="font-size:11.5px">'+phoneNick+'</td>'
           +(userRole==='admin' ? '<td class="admin-only">'+esc(uLabel)+'</td>' : '')
           +'<td>'+esc(o.product||'')+(o.color?' / '+esc(o.color):'')+'</td>'
           +'<td>'+typeBadge+'</td>'
@@ -1606,12 +1612,12 @@ function renderLedger(){
       // 더 보기 버튼
       if(total > display.length){
         const remain = total - display.length;
-        const cols = userRole==='admin' ? 9 : 7;
+        const cols = userRole==='admin' ? 10 : 8;
         body.innerHTML += '<tr><td colspan="'+cols+'" style="text-align:center;padding:14px;background:#f9fafb"><button class="btn-sec btn-sm" id="btnMoreLedger">+ '+remain+'건 더 보기</button> <span class="muted">(총 '+total+'건 중 '+display.length+'건 표시)</span></td></tr>';
         const more = $('#btnMoreLedger');
         if(more) more.addEventListener('click', () => { ledgerListLimit += 20; renderLedger(); });
       } else if(total > 20){
-        const cols = userRole==='admin' ? 9 : 7;
+        const cols = userRole==='admin' ? 10 : 8;
         body.innerHTML += '<tr><td colspan="'+cols+'" style="text-align:center;padding:10px;background:#f9fafb"><button class="btn-sec btn-sm" id="btnCollapseLedger">▲ 처음 20건만 보기</button></td></tr>';
         const col = $('#btnCollapseLedger');
         if(col) col.addEventListener('click', () => { ledgerListLimit = 20; renderLedger(); });
