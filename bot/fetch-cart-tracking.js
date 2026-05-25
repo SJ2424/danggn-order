@@ -122,53 +122,58 @@ async function navigateToTracking(page, frame){
   await page.screenshot({ path:'screenshots/03-tracking-list.png', fullPage:true });
 }
 
-// 카트사이트 카드 구조 파싱
-// 각 카드: [출고완료/배송중] 0514·핸드카트·중형·1개 / 이름 전화 / 주소 / 택배사 · 송장번호
+// 카트사이트 카드 구조 파싱 — 전화번호 기준으로 카드 단위 추출
 async function extractTrackings(frame){
   console.log('🔍 송장 정보 추출 중...');
   const bodyText = await frame.locator('body').innerText();
-  // 택배사 목록 (긴 이름 먼저)
-  const couriers = ['CJ대한통운','대한통운','한진택배','한진','롯데택배','롯데','로젠','우체국','천일','경동','쿠팡','CJ'];
+  // 디버그: 페이지 텍스트 일부 출력 (셀렉터 보강 단서)
+  console.log('--- 페이지 텍스트 (앞 1500자) ---');
+  console.log(bodyText.slice(0, 1500));
+  console.log('--- /끝 ---');
+
+  const couriers = ['CJ대한통운','대한통운','한진택배','한진','롯데택배','롯데','로젠','우체국','천일','경동','쿠팡','CJ','GS'];
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const phoneRe = /01[0-9]\s*[-]?\s*\d{3,4}\s*[-]?\s*\d{4}/g;
+  const addressTerms = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주','충청','전라','경상','특별시','광역시','시','구','동','로','길','번지','읍','면','리','아파트','빌라','오피스텔','빌딩'];
+
   const results = [];
-  // 카드 단위로 분리 (출고완료/배송중/주문확인 등으로 시작하는 블록)
-  // 정규식으로 [이름 + 전화 + ... + 택배사 + 송장번호] 패턴 찾기
-  // 더 강력한 방법: 각 줄에서 정보 누적
-  const lines = bodyText.split('\n').map(l=>l.trim()).filter(Boolean);
-  let curName = null, curTel = null;
-  for (let i = 0; i < lines.length; i++){
-    const line = lines[i];
-    // 전화번호 패턴 (01N + 7~8자리)
-    const telMatch = line.match(/01[0-9]\s*[-]?\s*\d{3,4}\s*[-]?\s*\d{4}/);
-    if (telMatch){
-      curTel = telMatch[0];
-      // 같은 줄에 이름 (전화 앞)
-      const before = line.slice(0, telMatch.index).trim();
-      const nameMatch = before.match(/([가-힣]{2,4})\s*$/);
-      if (nameMatch){
-        curName = nameMatch[1];
-      } else {
-        // 다른 줄 (직전 줄)에 이름 있을 수도
-        for (let j = i-1; j >= Math.max(0, i-3); j--){
-          const nm = lines[j].match(/^([가-힣]{2,4})$/);
-          if (nm){ curName = nm[1]; break; }
-        }
-      }
-    }
-    // 송장 패턴 — 택배사 + 숫자
+  const matches = [...bodyText.matchAll(phoneRe)];
+  console.log(`  전화번호 ${matches.length}개 발견`);
+
+  for (let i = 0; i < matches.length; i++){
+    const m = matches[i];
+    const startIdx = m.index;
+    const endIdx = i+1 < matches.length ? matches[i+1].index : bodyText.length;
+    const tel = m[0];
+
+    // 이름 — 전화번호 직전 100자 안의 마지막 한글 (주소 키워드 제외)
+    const beforePhone = bodyText.slice(Math.max(0, startIdx - 120), startIdx);
+    const koreans = beforePhone.match(/[가-힣]{2,4}/g) || [];
+    const validNames = koreans.filter(k =>
+      !addressTerms.some(a => k.includes(a) || a.includes(k))
+    );
+    const name = validNames.length > 0 ? validNames[validNames.length - 1] : null;
+
+    // 송장 — 전화번호 직후 ~500자 안의 택배사 + 숫자 (다음 전화번호 전까지)
+    const afterPhone = bodyText.slice(startIdx, Math.min(endIdx, startIdx + 500));
+    let tracking = null;
     for (const c of couriers){
-      const re = new RegExp(c + '\\s*[·\\-]?\\s*(\\d{10,15})');
-      const m = line.match(re);
-      if (m){
-        if (curName && curTel){
-          results.push({
-            name: curName,
-            tel: curTel,
-            tracking: c + ' ' + m[1]
-          });
-          curName = null; curTel = null;
-        }
-        break;
-      }
+      const re = new RegExp(escRe(c) + '\\s*[·\\-]?\\s*(\\d{10,15})');
+      const tm = afterPhone.match(re);
+      if (tm){ tracking = c + ' ' + tm[1]; break; }
+    }
+    // 택배사 없이 숫자만 있는 경우 fallback (전화번호 아닌 10~15자리)
+    if (!tracking){
+      const telDigits = tel.replace(/\D/g,'');
+      const nums = afterPhone.match(/\b\d{10,15}\b/g) || [];
+      const trk = nums.find(n => n !== telDigits && n.length >= 10);
+      if (trk) tracking = trk;
+    }
+
+    if (name && tracking){
+      results.push({ name, tel, tracking });
+    } else {
+      console.log(`  [${i+1}] 미완성 — 이름:${name||'?'} 전화:${tel} 송장:${tracking||'?'}`);
     }
   }
   results.forEach((r,i) => {
