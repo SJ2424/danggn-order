@@ -2333,46 +2333,58 @@ function cycleFont(){
 }
 
 async function manualRunBot(botKey, btnEl){
-  // botKey: 'register' | 'cart' | 'tracking'
-  const botLabels = { register:'선반랙 OMS 등록 봇', cart:'카트사이트 등록 봇', tracking:'송장 자동수집 봇' };
-  const label = botLabels[botKey] || '봇';
-  if(!confirm(`${label}을 지금 실행할까요?\n(2~3분 소요. 완료되면 화면에 자동 반영)`)) return;
+  // botKey: 'register' | 'cart' | 'tracking' | 'cartTracking'
+  const fileMap = {
+    register:     'register-orders.yml',
+    cart:         'register-cart.yml',
+    tracking:     'fetch-tracking.yml',
+    cartTracking: 'fetch-cart-tracking.yml'
+  };
+  const labels = {
+    register:     '선반랙 발주',
+    cart:         '카트 발주',
+    tracking:     '선반랙 송장 수집',
+    cartTracking: '카트 송장 수집'
+  };
+  const label = labels[botKey] || '봇';
+  const file  = fileMap[botKey] || fileMap.register;
 
-  const btn = btnEl || $('#btnRunBot');
+  const btn = btnEl;
   const orig = btn ? btn.textContent : '';
-  if(btn){ btn.disabled = true; btn.textContent = '🤖 실행 요청 중...'; }
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ 실행중...'; }
 
+  // Vercel API 먼저 시도 (설정돼 있으면 한 번에 끝)
+  let apiOk = false;
   try {
     const { data: { session } } = await sb.auth.getSession();
-    if(!session) throw new Error('세션 만료 — 다시 로그인하세요');
-    const res = await fetch('/api/run-bot', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + session.access_token
-      },
-      body: JSON.stringify({ bot: botKey })
-    });
-    const j = await res.json().catch(()=>({}));
-    if(!res.ok){
-      throw new Error((j && (j.error||j.detail)) || ('서버 오류: HTTP '+res.status));
+    if(session){
+      const res = await fetch('/api/run-bot', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
+        body: JSON.stringify({ bot: botKey })
+      });
+      if(res.ok){ apiOk = true; }
     }
-    if(btn) btn.textContent = '✅ 실행됨 (2~3분)';
-    setTimeout(() => { if(btn){ btn.disabled = false; btn.textContent = orig; } }, 4000);
-    alert(j.message || ('✅ '+label+' 실행 요청 완료'));
-  } catch(e) {
-    if(btn){ btn.disabled = false; btn.textContent = orig; }
-    // 폴백 — Vercel API 미설정 또는 다른 오류면 GitHub Actions로 안내
-    const fallback = confirm(
-      '❌ 자동 실행 실패: ' + e.message +
-      '\n\n임시 우회: GitHub Actions 페이지에서 수동 실행할까요?\n' +
-      '(서버 설정 필요 — 자세한 안내는 [📦 백업/유지보수] 카드 참고)'
-    );
-    if(fallback){
-      const fileMap = { register:'register-orders.yml', cart:'register-cart.yml', tracking:'fetch-tracking.yml' };
-      window.open('https://github.com/SJ2424/danggn-order/actions/workflows/' + (fileMap[botKey]||fileMap.register), '_blank');
-    }
+  } catch {}
+
+  if(btn){ btn.disabled = false; btn.textContent = orig; }
+
+  if(apiOk){
+    alert(`✅ ${label} 봇 실행 요청 완료!\n2~3분 후 자동 처리됩니다.`);
+    return;
   }
+
+  // 폴백 — Vercel API 미설정/실패: GitHub Actions 페이지 열기
+  // 다이얼로그 없이 바로 새 탭으로 (사용자가 클릭한 의도가 명확)
+  const url = 'https://github.com/SJ2424/danggn-order/actions/workflows/' + file;
+  window.open(url, '_blank');
+  alert(
+    `${label} 봇 — GitHub Actions 페이지가 열렸어요.\n\n` +
+    `1️⃣ 페이지 우측 [Run workflow ▾] 회색 박스 클릭\n` +
+    `2️⃣ 펼쳐진 초록 [Run workflow] 버튼 클릭\n` +
+    `3️⃣ 2~3분 기다림 (자동으로 처리됨)\n\n` +
+    `※ 자주 쓰면 한 번만 1클릭으로 만들 수 있어요 — 도움말 참고`
+  );
 }
 
 // ====== CSV 일괄 가져오기 (과거 주문) ======

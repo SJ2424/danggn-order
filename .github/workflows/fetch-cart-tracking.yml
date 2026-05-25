@@ -1,0 +1,44 @@
+name: Fetch cart site tracking
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '시험 모드 (체크하면 실제 DB 업데이트 X)'
+        type: boolean
+        default: false
+  schedule:
+    # 평일 17:00, 17:30, 18:00, 18:30 KST (선반랙 송장봇과 동시)
+    - cron: '0,30 8 * * 1-5'
+    - cron: '0,30 9 * * 1-5'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install deps
+        working-directory: bot
+        run: npm install
+      - name: Install Playwright Chromium
+        working-directory: bot
+        run: npx playwright install --with-deps chromium
+      - name: Run fetch-cart-tracking bot
+        working-directory: bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: node fetch-cart-tracking.js
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cart-tracking-screenshots-${{ github.run_id }}
+          path: bot/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7

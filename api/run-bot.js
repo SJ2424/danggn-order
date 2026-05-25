@@ -16,9 +16,10 @@
 import { createClient } from '@supabase/supabase-js';
 
 const BOT_MAP = {
-  register: 'register-orders.yml',  // 선반랙 OMS 등록
-  cart:     'register-cart.yml',    // 카트사이트 등록
-  tracking: 'fetch-tracking.yml',   // 송장 수집
+  register:     'register-orders.yml',     // 선반랙 OMS 등록
+  cart:         'register-cart.yml',       // 카트사이트 등록
+  tracking:     'fetch-tracking.yml',      // 선반랙 송장 수집
+  cartTracking: 'fetch-cart-tracking.yml', // 카트 송장 수집
 };
 
 export default async function handler(req, res) {
