@@ -395,41 +395,58 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
 <section class="card" id="inputCard">
   <h2>새 주문 입력</h2>
-  <div class="row2">
-    <div><label>휴대폰</label><input id="fPhone" list="phoneAliases" placeholder="예: 갤럭시-S25"><datalist id="phoneAliases"></datalist></div>
-    <div><label>구매자 닉네임</label><input id="fNick" placeholder="예: 분당맘"></div>
-  </div>
-  <label>구매자 채팅 내용 (복사·붙여넣기)</label>
-  <textarea id="tAll" style="min-height:130px" placeholder="예) 박지영&#10;010-9876-5432&#10;서울 성동구 성수일로 56, 갤러리아포레 101동 2502호&#10;선반 블랙 1개 택배 37,000원"></textarea>
-  <div class="preview">
-    <div class="ttl">📋 자동 분석 — 틀린 부분만 고쳐서 추가</div>
-    <div class="grid">
-      <div><label>받는 사람</label><input id="pName" placeholder="홍길동" autocomplete="name"></div>
-      <div><label>연락처</label><input id="pPhone" type="tel" inputmode="tel" placeholder="010-0000-0000" autocomplete="tel"></div>
-      <div class="full">
-        <label>배송 주소 <span class="muted" style="font-weight:400;font-size:11px">— 🔍 검색 권장</span></label>
-        <div class="addr-row">
-          <input id="pAddrBase" placeholder="기본 주소 (시·구·도로명·번지)">
-          <button type="button" class="btn-pri-sm" id="btnAddrSearch">🔍 검색</button>
-        </div>
-        <input id="pAddrDetail" placeholder="상세 주소 (건물명·동·호)" style="margin-top:5px">
-        <input id="pAddr" type="hidden">
-        <p id="addrWarn" class="muted" style="font-size:11px;margin:4px 0 0;display:none"></p>
+
+  <!-- 📋 채팅 자동분석 (선택사항, 접혀 있음) -->
+  <details style="margin-bottom:10px;background:#f9fafb;border-radius:8px;padding:8px 12px">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--mut);font-weight:600">📋 채팅 복사·붙여넣기로 자동 분석 (선택) ▾</summary>
+    <textarea id="tAll" style="min-height:90px;margin-top:8px;font-size:13px" placeholder="채팅 통째로 붙여넣으면 이름·전화·주소·금액 자동 채워짐 (주소는 항상 [🔍 검색]으로 다시 확인 필수)"></textarea>
+    <p class="muted" style="font-size:11px;margin:4px 0 0">자동분석 결과는 ⚠️ 검증 안 됨 — 항상 아래 [🔍 검색]으로 주소 확인하세요.</p>
+  </details>
+
+  <div class="grid">
+    <div><label>받는 사람</label><input id="pName" placeholder="홍길동" autocomplete="name"></div>
+    <div><label>연락처</label><input id="pPhone" type="tel" inputmode="tel" placeholder="010-0000-0000" autocomplete="tel"></div>
+    <div class="full">
+      <label>배송 주소 <span class="muted" style="font-weight:400;font-size:11px">— 🔍 검색으로 정확하게</span></label>
+      <div class="addr-row">
+        <input id="pAddrBase" placeholder="기본 주소 (시·구·도로명·번지)">
+        <button type="button" class="btn-pri-sm" id="btnAddrSearch">🔍 검색</button>
       </div>
-      <div><label>상품</label><input id="pProduct" placeholder="선반랙"></div>
-      <div><label>색상</label><input id="pColor" placeholder="화이트 / 블랙"></div>
-      <div><label>수량</label><input id="pQty" type="number" inputmode="numeric" min="1" placeholder="1"></div>
-      <div class="full"><label>거래방식</label>
-        <div class="type-tabs">
-          <button type="button" class="active" data-type="택배">📦 택배</button>
-          <button type="button" data-type="직거래">🤝 직거래</button>
-        </div>
-        <input id="pType" type="hidden" value="택배">
+      <input id="pAddrDetail" placeholder="상세 주소 (건물명·동·호)" style="margin-top:5px">
+      <input id="pAddr" type="hidden">
+      <p id="addrWarn" class="muted" style="font-size:11px;margin:4px 0 0;display:none"></p>
+    </div>
+    <div>
+      <label>상품</label>
+      <select id="pProductSel" style="width:100%;padding:9px;font-size:13.5px;border:1px solid var(--line);border-radius:8px">
+        <option value="">선택...</option>
+      </select>
+      <input id="pProduct" type="hidden">
+    </div>
+    <div>
+      <label>색상</label>
+      <select id="pColorSel" style="width:100%;padding:9px;font-size:13.5px;border:1px solid var(--line);border-radius:8px">
+        <option value="">선택...</option>
+        <option value="화이트">화이트</option>
+        <option value="블랙">블랙</option>
+      </select>
+      <input id="pColor" type="hidden">
+    </div>
+    <div><label>수량</label><input id="pQty" type="number" inputmode="numeric" min="1" placeholder="1" value="1"></div>
+    <div class="full"><label>거래방식</label>
+      <div class="type-tabs">
+        <button type="button" class="active" data-type="택배">📦 택배</button>
+        <button type="button" data-type="직거래">🤝 직거래</button>
       </div>
-      <div class="full"><label>판매금액 (원)</label><input id="pAmount" type="number" inputmode="numeric" placeholder="37000"></div>
+      <input id="pType" type="hidden" value="택배">
+    </div>
+    <div class="full"><label>판매금액 (원, 손님이 보낸 총액)</label><input id="pAmount" type="number" inputmode="numeric" placeholder="37000"></div>
+    <div class="row2 full" style="margin-top:6px">
+      <div><label>휴대폰 별칭 <span class="muted" style="font-size:10.5px">(선택)</span></label><input id="fPhone" list="phoneAliases" placeholder="예: 아이폰17"><datalist id="phoneAliases"></datalist></div>
+      <div><label>당근 닉네임 <span class="muted" style="font-size:10.5px">(선택)</span></label><input id="fNick" placeholder="예: 분당맘"></div>
     </div>
   </div>
-  <button class="btn-pri" id="btnAdd">✓ 주문 목록에 추가</button>
+  <button class="btn-pri" id="btnAdd" style="margin-top:14px">✓ 주문 목록에 추가</button>
   <div class="help-note">
     <b>📌 안내</b><br>
     • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
@@ -887,8 +904,29 @@ function parseAll(raw){
 function autoParse(){
   const r = parseAll($('#tAll').value);
   $('#pName').value=r.name; $('#pPhone').value=r.phone;
-  setParsedAddr(r.address);  // 자동분석 주소는 검증 안 됨 → 검색 권유
-  $('#pProduct').value=r.product; $('#pColor').value=r.color;
+  setParsedAddr(r.address);
+  // 상품/색상 — 숨겨진 input + select 둘 다 동기화
+  $('#pProduct').value = r.product || '';
+  $('#pColor').value = r.color || '';
+  const pSel = $('#pProductSel');
+  if(pSel){
+    if(r.product){
+      // dropdown에 있으면 선택, 없으면 임시 option 추가
+      let opt = pSel.querySelector('option[value="'+r.product+'"]');
+      if(!opt){
+        opt = document.createElement('option');
+        opt.value = r.product;
+        opt.textContent = r.product;
+        const other = pSel.querySelector('option[value="__other__"]');
+        pSel.insertBefore(opt, other);
+      }
+      pSel.value = r.product;
+    } else {
+      pSel.value = '';
+    }
+  }
+  const cSel = $('#pColorSel');
+  if(cSel) cSel.value = r.color || '';
   $('#pQty').value=r.qty;
   $('#pType').value=r.type;
   // 거래방식 탭 활성화 동기화
@@ -966,6 +1004,7 @@ async function showApp(session){
   myUserId = session.user.id;
   myEmail = session.user.email || '';
   renderMyAccount();
+  fillProductDropdown();  // 입력자도 상품 dropdown 사용 가능 (defaults)
   await loadOrders();
   subscribeOrders();
   setMode('input');
@@ -1577,6 +1616,21 @@ async function loadCatalog(){
   const { data } = await sb.from('products').select('*').order('name').order('color');
   CATALOG = data || [];
   renderCatalog();
+  // 주문 입력 폼의 상품 dropdown도 갱신 (관리자 + 입력자 모두)
+  fillProductDropdown();
+}
+// 상품 dropdown 채움 — 카탈로그에서 distinct name 가져옴
+function fillProductDropdown(){
+  const sel = $('#pProductSel');
+  if(!sel) return;
+  const products = [...new Set((CATALOG||[]).map(p => p.name))];
+  // 카탈로그가 비어있으면 기본 (선반랙/핸드카트) 사용
+  const list = products.length ? products : ['선반랙','핸드카트'];
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">선택...</option>'
+    + list.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')
+    + '<option value="__other__">+ 직접 입력</option>';
+  if(cur && list.includes(cur)) sel.value = cur;
 }
 function renderCatalog(){
   const list=$('#catalogList'); if(!list) return;
@@ -2645,6 +2699,34 @@ $('#tAll').addEventListener('input', autoParse);
 $('#btnAdd').addEventListener('click', addOrder);
 // 카카오 주소검색
 $('#btnAddrSearch') && $('#btnAddrSearch').addEventListener('click', () => openAddrSearch());
+// 상품/색상 dropdown → hidden input 동기화
+$('#pProductSel') && $('#pProductSel').addEventListener('change', e => {
+  if(e.target.value === '__other__'){
+    const v = prompt('상품명을 직접 입력해주세요 (카탈로그에 없는 새 상품):');
+    if(v && v.trim()){
+      const name = v.trim();
+      $('#pProduct').value = name;
+      // 임시 option 추가 + 선택
+      let opt = e.target.querySelector('option[value="'+name+'"]');
+      if(!opt){
+        opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        const other = e.target.querySelector('option[value="__other__"]');
+        e.target.insertBefore(opt, other);
+      }
+      e.target.value = name;
+    } else {
+      e.target.value = '';
+      $('#pProduct').value = '';
+    }
+  } else {
+    $('#pProduct').value = e.target.value;
+  }
+});
+$('#pColorSel') && $('#pColorSel').addEventListener('change', e => {
+  $('#pColor').value = e.target.value;
+});
 // 주소 모달 닫기 (× 버튼 + 바깥 클릭)
 function closeAddrModal(){
   $('#addrModal') && $('#addrModal').classList.remove('open');
