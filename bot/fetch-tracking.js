@@ -216,11 +216,31 @@ async function main() {
     const scraped = await scrapeAllTracking(page);
     console.log(`📦 OMS에서 ${scraped.length}건 송장 정보 추출`);
 
-    // 매칭 (이름 + 전화번호)
+    // 매칭 (이름 + 전화번호 우선, 전화 없으면 이름으로)
     for (const o of pending) {
       const name = normName(o.name);
       const tel = normTel(o.tel);
-      const m = scraped.find(s => normTel(s.tel) === tel && normName(s.name).includes(name.slice(0,2)));
+      if (!name) { missed++; continue; }
+
+      let m = null;
+      // 1단계: 이름+전화 둘 다 정확 매칭 (가장 안전)
+      if (tel) {
+        m = scraped.find(s => normTel(s.tel) === tel && normName(s.name) === name);
+      }
+      // 2단계: 전화 없거나 1단계 실패 → 이름 정확 매칭 (동명이인 없는 경우만)
+      if (!m) {
+        const sameName = scraped.filter(s => normName(s.name) === name);
+        if (sameName.length === 1) m = sameName[0];
+        else if (sameName.length > 1) {
+          console.log(`  ⚠ 동명이인 ${sameName.length}명: "${o.name}" — 전화번호 없어서 매칭 보류`);
+        }
+      }
+      // 3단계: 부분일치 (이름 앞 2자 같고 1건만) - 보수적
+      if (!m && name.length >= 2) {
+        const partial = scraped.filter(s => normName(s.name).startsWith(name.slice(0,2)));
+        if (partial.length === 1) m = partial[0];
+      }
+
       if (m && m.tracking) {
         await updateTracking(o.id, m.tracking);
         matched++;
