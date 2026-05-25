@@ -493,12 +493,13 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div class="toolbar admin-only">
     <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문을 OMS에 즉시 등록">🤖 선반랙 발주</button>
     <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
-    <button class="btn-pri-sm" id="btnRunTracking" title="OMS·카트 발송완료된 주문의 송장번호 즉시 수집">🚚 송장 수집</button>
-    <button class="btn-sec btn-sm" id="btnPoAll" title="봇이 실패했을 때 OMS에 손으로 등록하기 위한 발주서 텍스트 복사">📋 발주서 복사</button>
-    <button class="btn-sec btn-sm" id="btnBulkDone" style="display:none">일괄완료(사용 X)</button>
-    <button class="btn-sec btn-sm" id="btnCsv" style="display:none">CSV (전체)</button>
+    <button class="btn-pri-sm" id="btnRunTracking" title="OMS·카트 송장 자동 수집">🚚 송장 수집</button>
+    <!-- 옛 버튼들은 hidden (JS 참조 유지) -->
+    <button id="btnPoAll" style="display:none"></button>
+    <button id="btnBulkDone" style="display:none"></button>
+    <button id="btnCsv" style="display:none"></button>
   </div>
-  <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·휴대폰별칭·상품 검색"></div>
+  <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·상품·주소·메모·송장 검색 (부분일치)"></div>
   <div class="chips admin-only" id="filters"></div>
   <p class="muted admin-only" style="font-size:11.5px;margin:6px 0">↕ 최신 날짜순 (상태 알약 클릭해도 카드 위치 안 바뀜)</p>
   <div class="order-list" id="list"></div>
@@ -752,6 +753,10 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
       <div class="full"><label>판매금액 (원)</label><input id="eAmount" type="number"></div>
       <div><label>내 휴대폰</label><input id="ePhone"></div>
       <div><label>구매자 닉네임</label><input id="eNick"></div>
+      <div class="full">
+        <label>📝 메모 <span class="muted" style="font-size:11px;font-weight:400">(자유 입력, 검색됨)</span></label>
+        <textarea id="eMemo" placeholder="예: 부재시 경비실에 맡겨주세요 / 단골고객 / 사은품 요청 등" style="min-height:60px"></textarea>
+      </div>
     </div>
     <div class="actions">
       <button class="btn-sec" id="btnEditCancel">취소</button>
@@ -1364,7 +1369,8 @@ let editingId = null;
 function openEditModal(id){
   const o = ORDERS.find(x=>x.id===id); if(!o) return;
   const status = o.status||'접수';
-  if(status!=='접수' && status!=='발주대기'){ alert('이미 발주된 주문은 수정할 수 없습니다. 관리자에게 직접 수정 요청하세요.'); return; }
+  // 메모는 어느 상태에서도 수정 가능 (정보만 수정)
+  // 다른 필드는 발주 전(접수/발주대기)에만 변경 가능
   editingId = id;
   $('#eName').value = o.name||'';
   $('#eTel').value = o.tel||'';
@@ -1376,11 +1382,31 @@ function openEditModal(id){
   $('#eAmount').value = o.amount||'';
   $('#ePhone').value = o.phone||'';
   $('#eNick').value = o.nick||'';
+  $('#eMemo').value = o.memo||'';
+  // 발주 후엔 메모만 편집 가능
+  const editable = (status==='접수' || status==='발주대기');
+  ['eName','eTel','eAddr','eProduct','eColor','eQty','eType','eAmount','ePhone','eNick'].forEach(id => {
+    const el = $('#'+id);
+    if(el){
+      el.disabled = !editable;
+      el.style.background = editable ? '' : '#f4f5f7';
+    }
+  });
+  const note = $('#editModal').querySelector('p.muted');
+  if(note){
+    note.innerHTML = editable
+      ? '발주 전(접수)인 주문은 모든 항목 수정 가능. 메모는 언제나 가능.'
+      : '⚠️ 이미 발주된 주문 — <b>메모만 수정 가능</b>합니다. 다른 항목은 잠금.';
+  }
   $('#editModal').classList.add('open');
 }
 async function saveEdit(){
   if(!editingId) return;
-  const updates = {
+  const o = ORDERS.find(x=>x.id===editingId);
+  const status = o ? (o.status||'접수') : '접수';
+  const editable = (status==='접수' || status==='발주대기');
+  // 메모는 항상 저장. 나머지는 editable일 때만
+  const updates = editable ? {
     name: $('#eName').value.trim(),
     tel: $('#eTel').value.trim(),
     addr: $('#eAddr').value.trim(),
@@ -1390,7 +1416,10 @@ async function saveEdit(){
     type: $('#eType').value.trim() || '택배',
     amount: $('#eAmount').value ? +$('#eAmount').value : null,
     phone: $('#ePhone').value.trim(),
-    nick: $('#eNick').value.trim()
+    nick: $('#eNick').value.trim(),
+    memo: $('#eMemo').value.trim() || null
+  } : {
+    memo: $('#eMemo').value.trim() || null
   };
   const btn = $('#btnEditSave'); btn.disabled=true; btn.textContent='저장 중...';
   const { error } = await sb.from('orders').update(updates).eq('id', editingId);
@@ -1432,8 +1461,9 @@ function filterMatch(o){
   if(curFilter==='unpaid' && o.paid) return false;
   if(curSearch){
     const q=curSearch.toLowerCase();
-    // 이름·연락처·휴대폰별칭·닉네임·입금자명·상품 모두 매칭
-    return [o.name,o.nick,o.tel,o.phone,o.paid_by,o.product,o.color].some(v=>(v||'').toLowerCase().includes(q));
+    // 이름·연락처·휴대폰별칭·닉네임·입금자명·상품·색상·주소·메모·송장 — 모두 부분일치
+    return [o.name,o.nick,o.tel,o.phone,o.paid_by,o.product,o.color,o.addr,o.memo,o.tracking]
+      .some(v=>(v||'').toLowerCase().includes(q));
   }
   return true;
 }
@@ -1449,9 +1479,14 @@ function renderFilters(){
 function cardHtml(o){
   const id=o.id;
   const status = o.status || '접수';
-  const editable = (status==='접수' || status==='발주대기')
-    && (userRole==='admin' || o.created_by===myUserId);
-  const editBtn = editable ? '<button class="btn-sec btn-sm" data-act="edit" data-id="'+id+'">✏️ 수정</button>' : '';
+  // 관리자·본인 주문은 항상 수정 버튼 보임 (메모는 어느 상태든 수정 가능)
+  const canEdit = (userRole==='admin' || o.created_by===myUserId);
+  const fullEditable = (status==='접수' || status==='발주대기');
+  const editBtn = canEdit
+    ? '<button class="btn-sec btn-sm" data-act="edit" data-id="'+id+'" title="'+(fullEditable?'주문 정보 + 메모 수정':'메모만 수정 가능')+'">'
+        + (fullEditable ? '✏️ 수정' : '📝 메모')
+        +'</button>'
+    : '';
   const trackHtml = o.tracking
     ? '🚚 송장: <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'
     : '🚚 송장: <span style="color:var(--mut)">발송 후 자동 조회 (오후 5~6시)</span>';
@@ -1492,6 +1527,7 @@ function cardHtml(o){
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
     +'<div class="oc-line oc-item"><b>'+esc(o.product)+(o.color?' / '+esc(o.color):'')+' · '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b></div>'
     +mgnHtml
+    +(o.memo?'<div class="oc-line" style="background:#fff8e1;border-left:3px solid #f6c343;padding:6px 9px;border-radius:4px;font-size:12px;color:#704700;white-space:pre-wrap;line-height:1.5">📝 '+esc(o.memo)+'</div>':'')
     +(o.bot_note?'<div class="oc-line" style="background:#fdebea;border-left:3px solid #c5221f;padding:6px 8px;border-radius:4px;font-size:11.5px;color:#c5221f;white-space:pre-wrap">🤖 봇 메시지: '+esc(o.bot_note)+'</div>':'')
     +'<div class="oc-line oc-track-line">'+trackHtml+'</div>'
     +paidByLine
@@ -2037,9 +2073,10 @@ function getLedgerBase(){
   if(ledgerUserFilter) list = list.filter(o => o.created_by === ledgerUserFilter);
   if(ledgerBuyerFilter){
     const q = ledgerBuyerFilter.toLowerCase();
-    // 이름·연락처·휴대폰별칭·닉네임·입금자명 모두 검색
+    // 이름·연락처·휴대폰별칭·닉네임·입금자명·주소·메모·상품·송장 — 부분일치
     list = list.filter(o =>
-      [o.name, o.tel, o.phone, o.nick, o.paid_by].some(v => (v||'').toLowerCase().includes(q))
+      [o.name, o.tel, o.phone, o.nick, o.paid_by, o.addr, o.memo, o.product, o.tracking]
+        .some(v => (v||'').toLowerCase().includes(q))
     );
   }
   return list;
