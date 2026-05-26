@@ -635,6 +635,19 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </details>
 
   <details class="sub-section">
+    <summary>🧹 발주대기 일괄 정리 (옛 주문 보이면 클릭)</summary>
+    <p class="muted" style="margin:8px 0;font-size:11.5px;line-height:1.5">
+      옛날 봇은 등록 후 '발주대기'에서 멈췄다가 사용자가 수동으로 '발주완료'로 바꿔야 했어요.
+      지금은 봇이 자동으로 발주완료로 마킹합니다.<br>
+      <b>아직 발주대기로 남아있는 옛 주문</b>이 있으면 한 번에 발주완료로 정리할 수 있어요.
+      (이미 본인이 OMS에서 결제·처리한 주문이라면 안전)
+    </p>
+    <div id="bdCount" class="muted" style="font-size:12px;margin:8px 0"></div>
+    <button class="btn-pri-sm" id="btnBdCleanup">🧹 발주대기 → 발주완료 일괄 정리</button>
+    <div id="bdMsg" style="margin-top:8px;font-size:12px"></div>
+  </details>
+
+  <details class="sub-section">
     <summary>🔄 과거 주문 단가 재계산</summary>
     <p class="muted" style="margin:8px 0;font-size:11.5px">현재 카탈로그 값으로 과거 주문 원가·판매가 다시 계산 (입금·송장·상태 안 건드림).</p>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center;font-size:12px">
@@ -753,6 +766,10 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
       <div class="full"><label>판매금액 (원)</label><input id="eAmount" type="number"></div>
       <div><label>내 휴대폰</label><input id="ePhone"></div>
       <div><label>구매자 닉네임</label><input id="eNick"></div>
+      <div class="full">
+        <label>🚚 송장번호 <span class="muted" style="font-size:11px;font-weight:400">(자동수집 안 되면 직접 입력)</span></label>
+        <input id="eTracking" placeholder="예: CJ대한통운 521883786472">
+      </div>
       <div class="full">
         <label>📝 메모 <span class="muted" style="font-size:11px;font-weight:400">(자유 입력, 검색됨)</span></label>
         <textarea id="eMemo" placeholder="예: 부재시 경비실에 맡겨주세요 / 단골고객 / 사은품 요청 등" style="min-height:60px"></textarea>
@@ -1383,6 +1400,7 @@ function openEditModal(id){
   $('#ePhone').value = o.phone||'';
   $('#eNick').value = o.nick||'';
   $('#eMemo').value = o.memo||'';
+  $('#eTracking').value = o.tracking||'';
   // 발주 후엔 메모만 편집 가능
   const editable = (status==='접수' || status==='발주대기');
   ['eName','eTel','eAddr','eProduct','eColor','eQty','eType','eAmount','ePhone','eNick'].forEach(id => {
@@ -1405,7 +1423,8 @@ async function saveEdit(){
   const o = ORDERS.find(x=>x.id===editingId);
   const status = o ? (o.status||'접수') : '접수';
   const editable = (status==='접수' || status==='발주대기');
-  // 메모는 항상 저장. 나머지는 editable일 때만
+  // 메모·송장은 항상 저장 가능 (정보 보완용). 나머지는 editable일 때만
+  const trackingNew = $('#eTracking').value.trim() || null;
   const updates = editable ? {
     name: $('#eName').value.trim(),
     tel: $('#eTel').value.trim(),
@@ -1417,10 +1436,17 @@ async function saveEdit(){
     amount: $('#eAmount').value ? +$('#eAmount').value : null,
     phone: $('#ePhone').value.trim(),
     nick: $('#eNick').value.trim(),
-    memo: $('#eMemo').value.trim() || null
+    memo: $('#eMemo').value.trim() || null,
+    tracking: trackingNew
   } : {
-    memo: $('#eMemo').value.trim() || null
+    memo: $('#eMemo').value.trim() || null,
+    tracking: trackingNew
   };
+  // 송장 수동 입력시 상태 자동 → 발송완료 (입력 + 변경된 경우만)
+  if(trackingNew && trackingNew !== (o.tracking||'') && o.status !== '발송완료'){
+    updates.status = '발송완료';
+    if(!o.shipped_at) updates.shipped_at = new Date().toISOString();
+  }
   // ⭐ 관리자 본인 주문 수정시 rep_price 재계산 (네고·할인 반영)
   // 트리거는 INSERT만 — UPDATE는 수동 재계산 필요
   if(editable && ADMIN_IDS.has(o.created_by) && updates.amount && updates.qty){
@@ -1501,9 +1527,25 @@ function cardHtml(o){
         + (fullEditable ? '✏️ 수정' : '📝 메모')
         +'</button>'
     : '';
-  const trackHtml = o.tracking
-    ? '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'
-    : '🚚 <span style="color:var(--mut)">발송 후 자동</span>';
+  // 송장 — 있으면 보여주고, 없으면 며칠째 대기인지 표시
+  let trackHtml;
+  if(o.tracking){
+    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b>';
+  } else if(status === '발주완료'){
+    // 발주완료 + 송장 없음 = 발송 대기. 며칠째인지 계산 (created_at 또는 date 기준)
+    const baseTime = new Date(o.date ? o.date + 'T00:00:00+09:00' : o.created_at).getTime();
+    const days = Math.floor((Date.now() - baseTime) / (24*3600*1000));
+    if(days >= 3){
+      trackHtml = '🚚 <span style="color:#c5221f;font-weight:600">⏰ 송장 대기 '+days+'일째</span> <span class="muted" style="font-size:11px">— 카트사이트/OMS에서 확인 후 [✏️ 수정]에 직접 입력</span>';
+    } else {
+      trackHtml = '🚚 <span style="color:var(--mut)">발송 후 자동 (16~17시)</span>';
+    }
+  } else if(status === '발주대기'){
+    // 발주대기 = 옛날 상태. 이미 진행했으면 발주완료로 바꿔야
+    trackHtml = '🚚 <span style="color:#b45309;font-weight:600">⚠️ 발주대기 상태 — 상태 알약 클릭해서 발주완료로 변경</span>';
+  } else {
+    trackHtml = '🚚 <span style="color:var(--mut)">발송 후 자동</span>';
+  }
   // 입금자명 inline 편집 (관리자만)
   const paidByLine = '<div class="oc-line paid-by-line admin-only">'
     + '💰 <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="입금자명">'
@@ -3072,6 +3114,30 @@ $('#btnRunTracking') && $('#btnRunTracking').addEventListener('click', async e =
 // 과거 주문 단가 재계산
 $('#btnRecalcPreview') && $('#btnRecalcPreview').addEventListener('click', recalcPreview);
 $('#btnRecalcApply') && $('#btnRecalcApply').addEventListener('click', recalcApply);
+// 발주대기 일괄 정리
+function refreshBdCount(){
+  const el = $('#bdCount'); if(!el) return;
+  const cnt = ORDERS.filter(o => o.status === '발주대기').length;
+  el.innerHTML = cnt > 0
+    ? `현재 <b style="color:#b45309">발주대기 ${cnt}건</b> 있음`
+    : '<span style="color:#137333">✅ 발주대기 0건 — 정리할 거 없음</span>';
+}
+setTimeout(refreshBdCount, 500);
+$('#btnBdCleanup') && $('#btnBdCleanup').addEventListener('click', async () => {
+  const cnt = ORDERS.filter(o => o.status === '발주대기').length;
+  if(cnt === 0){ toast('정리할 발주대기 없음', 'info'); return; }
+  if(!confirm(`발주대기 ${cnt}건을 모두 '발주완료'로 변경합니다.\n(이미 OMS·카트사이트 등록·결제 완료된 옛 주문 가정)\n진행할까요?`)) return;
+  $('#bdMsg').textContent = '처리 중...';
+  const { error } = await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기');
+  if(error){
+    $('#bdMsg').innerHTML = '<span style="color:#c5221f">❌ '+esc(error.message)+'</span>';
+    return;
+  }
+  $('#bdMsg').innerHTML = `<span style="color:#137333">✅ ${cnt}건 발주완료로 변경됨</span>`;
+  toast(`✅ ${cnt}건 정리 완료`, 'success', 3000);
+  await loadOrders();
+  refreshBdCount();
+});
 // 🔧 마진 자동 수정 (관리자 본인 주문 rep_price → amount)
 $('#btnMarginFix') && $('#btnMarginFix').addEventListener('click', fixMarginIssues);
 // GitHub 토큰 관리
