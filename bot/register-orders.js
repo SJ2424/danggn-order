@@ -373,13 +373,15 @@ async function main() {
 
 // 등록 직후 관리자 푸시 — 발주완료 → 결제 필요 알리기
 async function notifyAdmins(okCount, failCount) {
-  // ⏰ KST 시간 가드 — 지연 발화로 한밤에 알림 가지 않도록
-  // 정상 발화는 평일 08·12·12:30·12:51 KST → 07~14시 사이면 OK
+  // ⏰ KST 시간 가드 — 푸시는 점심 시간대만 (12~14시)
+  // 이유: 08:00 봇 등록은 OK지만 푸시는 너무 이른 아침이라 차단
+  //       OMS 결제는 어차피 점심 시간에 함 → 그때 알림이 의미 있음
+  //       또한 GitHub 지연 발화로 새벽·한밤 푸시 가는 거 차단
   const kstHour = parseInt(new Date().toLocaleString('en-US', {
     timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
   }));
-  if (kstHour < 7 || kstHour > 14) {
-    console.log(`  ⏭️  현재 KST ${kstHour}시 — 발주 시간대(7~14) 아님. 푸시 skip (지연 발화 보정).`);
+  if (kstHour < 12 || kstHour > 14) {
+    console.log(`  ⏭️  현재 KST ${kstHour}시 — 푸시 시간대(12~14) 아님. 등록은 OK, 푸시만 skip.`);
     return;
   }
 
