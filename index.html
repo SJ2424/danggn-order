@@ -548,6 +548,8 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div class="ledger-stats input-only grid">
     <div class="ls-row"><span>내 판매</span><span><b id="myCount">0</b> 건 · <b id="myQty">0</b> 개</span></div>
     <div class="ls-row big"><span>받은 총 금액</span><span><b id="myTotal">0</b> 원</span></div>
+    <div class="ls-row"><span>관리자에게 정산할 금액</span><span><b id="mySettleAmt">0</b> 원</span></div>
+    <div class="ls-row big" style="background:#e8f5e9;border-color:#137333"><span>내 마진 (받은 - 정산할)</span><span style="color:#137333"><b id="myMargin">0</b> 원</span></div>
     <div class="ls-row"><span>입금완료</span><span><b id="myPaid">0</b> 건</span></div>
     <div class="ls-row"><span>미입금</span><span><b id="myUnpaid">0</b> 건</span></div>
   </div>
@@ -1419,6 +1421,21 @@ async function saveEdit(){
   } : {
     memo: $('#eMemo').value.trim() || null
   };
+  // ⭐ 관리자 본인 주문 수정시 rep_price 재계산 (네고·할인 반영)
+  // 트리거는 INSERT만 — UPDATE는 수동 재계산 필요
+  if(editable && ADMIN_IDS.has(o.created_by) && updates.amount && updates.qty){
+    updates.rep_price = Math.round(updates.amount / updates.qty);
+  }
+  // 거래 type 변경시 cost_price도 재계산 (직거래 ↔ 택배 단가 다름)
+  if(editable && updates.type && updates.product){
+    const p = CATALOG.find(c => c.name === updates.product && (c.color||'') === (updates.color||''));
+    if(p){
+      const newCost = (updates.type === '직거래' && p.default_cost_pickup)
+        ? p.default_cost_pickup
+        : (p.default_cost || 0);
+      if(newCost > 0) updates.cost_price = newCost;
+    }
+  }
   const btn = $('#btnEditSave'); btn.disabled=true; btn.textContent='저장 중...';
   const { error } = await sb.from('orders').update(updates).eq('id', editingId);
   btn.disabled=false; btn.textContent='저장';
@@ -2443,15 +2460,24 @@ function renderLedger(){
     renderLedgerBreakdown(r.list);
     renderSettle();
   } else {
-    // 입력자: 본인 주문만 (loadOrders가 이미 필터링), 받은금액=o.amount 합
+    // 입력자: 본인 주문만 (loadOrders가 이미 필터링)
     const my = r.list;
     const myQty = my.reduce((s,o)=>s+(+o.qty||1), 0);
-    const myTotal = my.reduce((s,o)=>s+(+o.amount||0), 0);
+    const myTotal = my.reduce((s,o)=>s+(+o.amount||0), 0);  // 손님한테 받은 총액
+    // 관리자에게 정산할 금액 = rep_price × qty 합 (미정산만)
+    const mySettleAmt = my.filter(o => !o.settled).reduce(
+      (s,o) => s + (+o.rep_price||0) * (+o.qty||1), 0
+    );
+    // 내 마진 = 받은 - 정산해야 할 (단순화: 전체 기준)
+    const totalRep = my.reduce((s,o) => s + (+o.rep_price||0) * (+o.qty||1), 0);
+    const myMargin = myTotal - totalRep;
     const myPaid = my.filter(o=>o.paid).length;
     const myUnpaid = my.filter(o=>!o.paid).length;
     $('#myCount').textContent = wonInt(my.length);
     $('#myQty').textContent = wonInt(myQty);
     $('#myTotal').textContent = wonInt(myTotal);
+    if($('#mySettleAmt')) $('#mySettleAmt').textContent = wonInt(mySettleAmt);
+    if($('#myMargin'))    $('#myMargin').textContent = wonInt(myMargin);
     $('#myPaid').textContent = wonInt(myPaid);
     $('#myUnpaid').textContent = wonInt(myUnpaid);
   }

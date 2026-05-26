@@ -42,9 +42,16 @@ async function fetchPendingOrders() {
     .order('created_at', { ascending: true });
   if (error) throw error;
   const all = data || [];
-  const supported = all.filter(o => PRODUCT_URLS[`${o.product}|${o.color}`]);
-  const skipped = all.length - supported.length;
-  if (skipped > 0) console.log(`⏭️  지원 안 하는 상품 ${skipped}건 건너뜀`);
+  // 직거래는 OMS 등록 X (손님과 직접 만나서 전달)
+  // 지원 상품 매핑된 것만 + 택배(또는 미지정)만
+  const supported = all.filter(o =>
+    o.type !== '직거래' &&
+    PRODUCT_URLS[`${o.product}|${o.color}`]
+  );
+  const skippedDirect = all.filter(o => o.type === '직거래').length;
+  const skippedProduct = all.length - supported.length - skippedDirect;
+  if (skippedDirect > 0)   console.log(`⏭️  직거래 ${skippedDirect}건 스킵 (OMS 등록 X)`);
+  if (skippedProduct > 0)  console.log(`⏭️  지원 안 하는 상품 ${skippedProduct}건 스킵`);
   return supported;
 }
 

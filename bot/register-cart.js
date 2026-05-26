@@ -28,7 +28,11 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 async function fetchPending(){
   const { data, error } = await sb.from('orders').select('*').eq('status','접수');
   if(error) throw error;
-  const list = (data||[]).filter(o => isCartProduct(o.product));
+  // 직거래는 카트사이트 등록 X (손님과 직접 만나서 전달)
+  const all = (data||[]);
+  const list = all.filter(o => o.type !== '직거래' && isCartProduct(o.product));
+  const skippedDirect = all.filter(o => o.type === '직거래' && isCartProduct(o.product)).length;
+  if(skippedDirect > 0) console.log(`⏭️  직거래 ${skippedDirect}건 스킵 (카트사이트 등록 X)`);
   return list;
 }
 
