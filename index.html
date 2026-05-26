@@ -1641,8 +1641,17 @@ function showAlarm(msg){
 }
 function checkDeadline(){
   if(userRole!=='admin') return;
-  const now=new Date(), today=now.toISOString().slice(0,10);
-  const wd=now.getDay(), nowMin=now.getHours()*60+now.getMinutes();
+  // KST 기준으로 통일 (ackDate도 kstToday로 저장됨)
+  const now=new Date();
+  const kstParts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Seoul',
+      weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false
+    }).formatToParts(now).map(p => [p.type, p.value])
+  );
+  const today = kstToday();
+  const dowMap = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+  const wd = dowMap[kstParts.weekday];
+  const nowMin = (+kstParts.hour)*60 + (+kstParts.minute);
   const inWindow = wd>=1 && wd<=5 && nowMin>=toMin(ALARM_START) && nowMin<=toMin(CUTOFF);
   const active = inWindow && pendingCount()>0 && load('ackDate','')!==today;
   if(active){
@@ -2253,10 +2262,11 @@ async function settleUser(uid){
 }
 function renderTodaySummary(){
   if(userRole!=='admin') return;
-  const today = new Date();
-  const todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  const weekday = ['일','월','화','수','목','금','토'][today.getDay()];
-  $('#tsDate').textContent = `(${todayStr} ${weekday})`;
+  // KST 기준 (폰 시계가 다른 timezone이어도 한국 영업일 기준 유지)
+  const now = new Date();
+  const todayStr = kstToday();  // YYYY-MM-DD KST
+  const kstWeekday = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', weekday:'short' }).format(now);
+  $('#tsDate').textContent = `(${todayStr} ${kstWeekday})`;
   // 오늘 = date 컬럼이 오늘 날짜인 주문만 (created_at 무시 — 임포트 데이터 안 잡힘)
   const todayOrders = ORDERS.filter(o => (o.date||'') === todayStr);
   const grid = $('#tsGrid');
@@ -2921,25 +2931,31 @@ $('#btnEditCancel').addEventListener('click', closeEditModal);
 $('#editModal').addEventListener('click', e=>{
   if(e.target.id==='editModal') closeEditModal();
 });
-$('#list').addEventListener('change', e=>{
+$('#list').addEventListener('change', async e=>{
   // 입금자명 인라인 수정
   if(e.target.classList && e.target.classList.contains('paid-by-inp')){
     if(userRole!=='admin') return;
     const id = e.target.dataset.id;
     const val = e.target.value.trim();
-    sb.from('orders').update({ paid_by: val || null }).eq('id', id)
-      .then(({error}) => { if(!error) toast('✅ 입금자명 저장', 'success', 2000); });
+    try {
+      const { error } = await sb.from('orders').update({ paid_by: val || null }).eq('id', id);
+      if(error) toast('❌ 입금자명 저장 실패: '+error.message, 'error', 4000);
+      else toast('✅ 입금자명 저장', 'success', 2000);
+    } catch(err){ toast('❌ '+err.message, 'error', 4000); }
     return;
   }
-  // 메모 인라인 수정 (모든 사용자 — 본인 주문 또는 관리자)
+  // 메모 인라인 수정 (본인 주문 또는 관리자)
   if(e.target.classList && e.target.classList.contains('memo-inp')){
     const id = e.target.dataset.id;
     const o = ORDERS.find(x => x.id === id);
     if(!o) return;
     if(userRole !== 'admin' && o.created_by !== myUserId) return;
     const val = e.target.value.trim();
-    sb.from('orders').update({ memo: val || null }).eq('id', id)
-      .then(({error}) => { if(!error) toast('✅ 메모 저장', 'success', 2000); });
+    try {
+      const { error } = await sb.from('orders').update({ memo: val || null }).eq('id', id);
+      if(error) toast('❌ 메모 저장 실패: '+error.message, 'error', 4000);
+      else toast('✅ 메모 저장', 'success', 2000);
+    } catch(err){ toast('❌ '+err.message, 'error', 4000); }
     return;
   }
 });

@@ -34,7 +34,9 @@ async function fetchPending(){
 
 async function markRegistered(id){
   if(isDry) return;
-  await sb.from('orders').update({ status:'발주완료' }).eq('id', id);
+  // 에러 체크 필수 — 실패시 status='접수' 그대로라 다음 크론에 중복 등록 위험
+  const { error } = await sb.from('orders').update({ status:'발주완료' }).eq('id', id);
+  if(error) throw error;
 }
 
 // GAS 웹앱은 다중 iframe (안내문 iframe + 실제 앱 sandbox iframe)

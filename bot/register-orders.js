@@ -382,17 +382,13 @@ async function notifyAdmins(okCount, failCount) {
   const { data: subs } = await sb.from('push_subscriptions').select('*').in('user_id', adminIds);
   if (!subs || subs.length === 0) return;
 
-  // 발주대기 총 카운트 (오늘 + 누적)
-  const { data: orders } = await sb.from('orders').select('id, status');
-  const waiting = (orders||[]).filter(o => o.status === '발주대기').length;
-
   // 실패만 있을 때 vs 성공 있을 때 메시지 다르게
   const title = (okCount === 0 && failCount > 0)
     ? `🚨 봇 실패 — ${failCount}건 등록 안 됨`
     : '🔴 OMS 결제 필요';
   const body  = (okCount === 0 && failCount > 0)
     ? `자동 발주 봇이 ${failCount}건 모두 실패했습니다.\n앱에서 빨간 봇 메시지 확인 후 수정·재시도 필요.`
-    : `방금 ${okCount}건 등록 완료. 현재 발주대기 ${waiting}건.\ndooldool6611.com 가서 일괄주문+송금 → 앱에서 [일괄 발주완료] 클릭`
+    : `방금 ${okCount}건 OMS에 등록됨.\ndooldool6611.com 가서 12:55 마감 전 결제·일괄주문하세요.`
       + (failCount > 0 ? `\n⚠️ ${failCount}건 실패 — 앱에서 확인` : '');
 
   const payload = JSON.stringify({

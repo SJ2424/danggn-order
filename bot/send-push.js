@@ -20,17 +20,16 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 async function main(){
   console.log('🔔 푸시 알림 봇 시작');
 
-  // 상태별 분리 카운트
+  // 상태별 분리 카운트 (현 상태 사이클: 접수 → 발주완료 → 발송완료)
   const { data: orders, error: oErr } = await sb.from('orders').select('id, status, paid');
   if (oErr) throw oErr;
   const all = orders || [];
-  const recv      = all.filter(o => (o.status||'접수')==='접수').length;         // 봇이 OMS 등록 예정
-  const waitingPay= all.filter(o => o.status==='발주대기').length;               // 본인 결제 필요!
-  const ordered   = all.filter(o => o.status==='발주완료' && !o.paid).length;    // 결제됨, 송장 대기
+  const recv      = all.filter(o => (o.status||'접수')==='접수').length;         // 봇이 곧 OMS 등록
+  const ordered   = all.filter(o => o.status==='발주완료' && !o.paid).length;    // OMS 결제 필요!
   const shippedUnpaid = all.filter(o => o.status==='발송완료' && !o.paid).length;// 발송됐는데 손님 미입금
 
-  // 알림 보낼 필요 없는 경우 (행동 필요 없음)
-  if (recv === 0 && waitingPay === 0 && shippedUnpaid === 0){
+  // 알림 보낼 필요 없는 경우
+  if (recv === 0 && ordered === 0 && shippedUnpaid === 0){
     console.log('알림 보낼 내용 없음 (행동 필요한 주문 0건)');
     return;
   }
@@ -44,17 +43,17 @@ async function main(){
   if (sErr) throw sErr;
   if (!subs || subs.length === 0){ console.log('등록된 구독 없음 (관리자가 [알림 켜기] 버튼을 한 번도 안 누른 상태)'); return; }
 
-  console.log(`📋 접수 ${recv} · 발주대기(결제필요) ${waitingPay} · 발주완료(송장대기) ${ordered} · 발송완료-미입금 ${shippedUnpaid} · 구독 ${subs.length}건`);
+  console.log(`📋 접수 ${recv} · 발주완료(OMS결제필요) ${ordered} · 발송완료-미입금 ${shippedUnpaid} · 구독 ${subs.length}건`);
 
   // 본문 — 가장 시급한 액션을 맨 위에
   const lines = [];
-  if (waitingPay > 0) lines.push(`🔴 결제 필요 ${waitingPay}건 — OMS 일괄주문+송금`);
-  if (recv > 0)       lines.push(`🟠 접수 ${recv}건 — 봇이 곧 OMS 등록`);
+  if (ordered > 0)    lines.push(`🔴 OMS 결제 필요 ${ordered}건 — 12:55 마감`);
+  if (recv > 0)       lines.push(`🟠 접수 ${recv}건 — 봇이 곧 자동 등록`);
   if (shippedUnpaid > 0) lines.push(`💰 손님 미입금 ${shippedUnpaid}건 — 입금 확인 필요`);
 
   // 제목 — 가장 큰 액션 기준
   let title = '🚨 발주 마감 12:55';
-  if (waitingPay === 0 && recv === 0 && shippedUnpaid > 0) title = '💰 손님 미입금 확인';
+  if (ordered === 0 && recv === 0 && shippedUnpaid > 0) title = '💰 손님 미입금 확인';
 
   const payload = JSON.stringify({
     title,

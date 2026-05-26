@@ -14,6 +14,11 @@ on:
     - cron: '30 3 * * 1-5'   # 12:30 KST
     - cron: '51 3 * * 1-5'   # 12:51 KST
 
+# 동시 실행 방지 — 중복 등록 위험 차단
+concurrency:
+  group: register-cart
+  cancel-in-progress: false
+
 jobs:
   register:
     runs-on: ubuntu-latest
