@@ -334,15 +334,15 @@ async function main() {
       try {
         await registerOrder(page, orders[i], i + 1);
         await markRegistered(orders[i].id);
-        // 성공시 이전 에러 note 클리어
-        await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id).catch(()=>{});
+        // 성공시 이전 에러 note 클리어 (Supabase는 .catch 없음 → try/catch로 래핑)
+        try { await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id); } catch {}
         ok++;
       } catch (e) {
         console.error(`❌ 실패: ${e.message}`);
         try { await page.screenshot({ path: `screenshots/fail-${i+1}.png`, fullPage: true }); } catch {}
         // 앱에서 보이도록 주문에 에러 메시지 기록 (bot_note 컬럼)
         const msg = `❌ ${new Date().toISOString().slice(0,16).replace('T',' ')}: ${e.message.slice(0,300)}`;
-        await sb.from('orders').update({ bot_note: msg }).eq('id', orders[i].id).catch(()=>{});
+        try { await sb.from('orders').update({ bot_note: msg }).eq('id', orders[i].id); } catch {}
         fail++;
       }
     }
