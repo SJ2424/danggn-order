@@ -2427,10 +2427,48 @@ function renderLedgerBreakdown(list){
       <div class="ls-bd-amount">${unpaidCnt}건</div>
       <div class="ls-bd-margin" style="color:#b45309">${wonInt(unpaidRev)}원</div>
     </div>`;
+
+  // ④ 입력자별 집계 (관리자 본인 + 각 입력자) — 누가 얼마 가져왔나
+  const byUser = {};
+  list.forEach(o => {
+    const k = o.created_by || 'unknown';
+    if(!byUser[k]) byUser[k] = { count:0, qty:0, rev:0, cst:0 };
+    const c = calc(o);
+    byUser[k].count++;
+    byUser[k].qty += c.q;
+    byUser[k].rev += c.rev;
+    byUser[k].cst += c.cst;
+  });
+  // 관리자(나) 먼저, 그다음 매출 큰 순으로
+  const userEntries = Object.entries(byUser).sort((a,b) => {
+    const aAdmin = ADMIN_IDS.has(a[0]) ? 1 : 0;
+    const bAdmin = ADMIN_IDS.has(b[0]) ? 1 : 0;
+    if (aAdmin !== bAdmin) return bAdmin - aAdmin;  // admin 먼저
+    return b[1].rev - a[1].rev;
+  });
+  const userRows = userEntries.map(([uid, v]) => {
+    const u = INPUT_USERS.find(x => x.id === uid);
+    const isAdmin = ADMIN_IDS.has(uid);
+    const name = u ? displayOf(u) : (uid === 'unknown' ? '미지정' : uid.slice(0,8));
+    const label = isAdmin
+      ? `🛡 ${esc(name)} <span class="muted" style="font-weight:500;font-size:11px">(직접 판매)</span>`
+      : `👤 ${esc(name)}`;
+    const mgn = v.rev - v.cst;
+    const rate = v.rev > 0 ? Math.round(mgn/v.rev*1000)/10 : 0;
+    return `<div class="ls-bd-row">
+      <div><div class="ls-bd-name">${label}</div><div class="ls-bd-meta">${v.count}건 · ${v.qty}개</div></div>
+      <div class="ls-bd-amount">${wonInt(v.rev)}원</div>
+      <div class="ls-bd-margin ${mgn<0?'neg':''}">+${wonInt(mgn)}<br><small style="font-weight:500;color:var(--mut)">${rate}%</small></div>
+    </div>`;
+  }).join('');
+
   el.innerHTML =
       `<div class="ls-bd-section"><div class="ls-bd-title">🛍 상품별</div>${prodRows}</div>`
     + (typeRows ? `<div class="ls-bd-section"><div class="ls-bd-title">🚚 거래방식별</div>${typeRows}</div>` : '')
-    + `<div class="ls-bd-section"><div class="ls-bd-title">💰 입금 상태별</div>${paidRows}</div>`;
+    + `<div class="ls-bd-section"><div class="ls-bd-title">💰 입금 상태별</div>${paidRows}</div>`
+    + (userEntries.length > 1
+        ? `<div class="ls-bd-section"><div class="ls-bd-title">👥 입력자별 (본인 + 각 사용자) <span style="color:var(--mut);font-weight:500;font-size:10.5px">— 매출 큰 순</span></div>${userRows}</div>`
+        : '');  // 사용자 1명이면 숨김 (본인뿐이면 굳이 안 표시)
 }
 
 function renderLedger(){
