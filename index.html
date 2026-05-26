@@ -610,7 +610,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
   <details class="sub-section">
     <summary>🔔 이 기기 알림 켜기</summary>
-    <p class="muted" style="margin:8px 0;font-size:12px">12:30 발주 마감 임박 + 봇 등록 끝났을 때 푸시 받기 (한 번만 설정).</p>
+    <p class="muted" style="margin:8px 0;font-size:12px">12:35 마감 임박 + 발주 완료 + 손님 미입금 3일+ 알림 받기 (한 번만 설정).</p>
     <button class="btn-sec btn-sm" id="btnEnablePush">🔔 이 기기 알림 켜기</button>
     <button class="btn-sec btn-sm" id="btnTestAlarm" style="margin-left:6px">🔔 테스트 알람</button>
     <div id="pushMsg" class="muted" style="margin-top:6px;font-size:11.5px"></div>
@@ -1716,7 +1716,7 @@ function checkDeadline(){
   if(active){
     if(Date.now()-lastAlarm > REPEAT_MIN*60000-5000){
       lastAlarm=Date.now();
-      showAlarm('발주 마감 임박 — 처리 대기 '+pendingCount()+'건. '+CUTOFF+' 전에 주문 사이트에서 일괄주문·입금하세요.');
+      showAlarm('⏰ 발주 마감 임박 — 처리 대기 '+pendingCount()+'건 · '+CUTOFF+' 전 결제 필요');
     }
   } else { $('#alarm').style.display='none'; }
 }
@@ -1726,7 +1726,7 @@ function ackDeadline(){
   setMode('manage');
 }
 function testAlarm(){
-  showAlarm('[테스트] 발주 마감 임박 — 처리 대기 '+pendingCount()+'건. 확인 후 주문 사이트에서 일괄주문하세요.');
+  showAlarm('🔔 [테스트] 알람 정상 작동 — 처리 대기 '+pendingCount()+'건');
 }
 
 // ====== 내 계정 카드 (관리자 본인 표시 이름 변경) ======

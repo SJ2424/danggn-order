@@ -55,17 +55,17 @@ async function main(){
   if (sErr) throw sErr;
   if (!subs || subs.length === 0){ console.log('등록된 구독 없음 (관리자가 [알림 켜기] 버튼을 한 번도 안 누른 상태)'); return; }
 
-  console.log(`📋 접수 ${recv} · 발주완료(OMS결제필요) ${ordered} · 발송완료-미입금 ${shippedUnpaid} · 구독 ${subs.length}건`);
+  console.log(`📋 접수 ${recv} · 발주완료(결제필요) ${ordered} · 발송완료-미입금 ${shippedUnpaid} · 구독 ${subs.length}건`);
 
-  // 본문 — 가장 시급한 액션을 맨 위에
+  // 본문 — 짧고 한눈에 (잠금화면 2-3줄 가독성)
   const lines = [];
-  if (ordered > 0)    lines.push(`🔴 OMS 결제 필요 ${ordered}건 — 12:55 마감`);
-  if (recv > 0)       lines.push(`🟠 접수 ${recv}건 — 봇이 곧 자동 등록`);
-  if (shippedUnpaid > 0) lines.push(`💰 손님 미입금 ${shippedUnpaid}건 — 입금 확인 필요`);
+  if (ordered > 0)       lines.push(`💳 결제 필요 ${ordered}건`);
+  if (recv > 0)          lines.push(`📥 접수 ${recv}건 (봇 처리중)`);
+  if (shippedUnpaid > 0) lines.push(`💰 손님 미입금 ${shippedUnpaid}건`);
 
   // 제목 — 가장 큰 액션 기준
-  let title = '🚨 발주 마감 12:55';
-  if (ordered === 0 && recv === 0 && shippedUnpaid > 0) title = '💰 손님 미입금 확인';
+  let title = '⏰ 12:55 결제 마감';
+  if (ordered === 0 && recv === 0 && shippedUnpaid > 0) title = '💰 손님 입금 확인';
 
   const payload = JSON.stringify({
     title,

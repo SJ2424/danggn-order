@@ -47,8 +47,8 @@ async function main(){
     const count = g.count;
     const total = g.total;
     const payload = JSON.stringify({
-      title: `🚨 미입금 ${count}건 (72시간+ 경과)`,
-      body: `합계 ₩${total.toLocaleString('ko-KR')}. 입금 확인 후 카드에서 [미입금]→[입금완료]로 바꿔주세요.`,
+      title: `💸 미입금 ${count}건 (3일+)`,
+      body: `합계 ${total.toLocaleString('ko-KR')}원 — 입금 확인 필요`,
       url: '/',
       tag: 'overdue-unpaid'
     });
