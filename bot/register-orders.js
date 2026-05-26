@@ -371,8 +371,18 @@ async function main() {
   if (fail > 0 && ok === 0) process.exit(1);
 }
 
-// 등록 직후 관리자 푸시 — 발주대기 → 결제 필요 알리기
+// 등록 직후 관리자 푸시 — 발주완료 → 결제 필요 알리기
 async function notifyAdmins(okCount, failCount) {
+  // ⏰ KST 시간 가드 — 지연 발화로 한밤에 알림 가지 않도록
+  // 정상 발화는 평일 08·12·12:30·12:51 KST → 07~14시 사이면 OK
+  const kstHour = parseInt(new Date().toLocaleString('en-US', {
+    timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
+  }));
+  if (kstHour < 7 || kstHour > 14) {
+    console.log(`  ⏭️  현재 KST ${kstHour}시 — 발주 시간대(7~14) 아님. 푸시 skip (지연 발화 보정).`);
+    return;
+  }
+
   const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY;
   const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
   const VAPID_SUBJECT     = process.env.VAPID_SUBJECT;
