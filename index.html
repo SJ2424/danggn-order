@@ -2557,12 +2557,12 @@ function getNextSchedule(botKey){
   const minutes = kstHour*60 + kstMin;
   // 봇별 스케줄 (평일만, KST)
   // 선반랙·카트 동일: 08:00, 12:00, 12:30, 12:51
-  // 송장: 16:00, 16:30, 17:00, 17:30, 18:00
+  // 송장: 16:00, 17:00
   const scheduleByBot = {
     register: [8*60, 12*60, 12*60+30, 12*60+51],
     cart:     [8*60, 12*60, 12*60+30, 12*60+51],
-    tracking: [16*60, 16*60+30, 17*60, 17*60+30, 18*60],
-    cartTracking: [16*60, 16*60+30, 17*60, 17*60+30, 18*60]
+    tracking: [16*60, 17*60],
+    cartTracking: [16*60, 17*60]
   };
   const slots = scheduleByBot[botKey] || scheduleByBot.register;
   const fmtTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;

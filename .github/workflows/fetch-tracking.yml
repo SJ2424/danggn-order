@@ -8,11 +8,10 @@ on:
         type: boolean
         default: true
   schedule:
-    # 평일 16:00 ~ 18:00 KST 5회 (16:00 추가, 송장 발급 빠른 케이스 잡음)
-    # GitHub Actions 정시 트래픽 지연 회피용 슬라이트 offset
-    - cron: '2,32 7 * * 1-5'   # 16:02, 16:32 KST
-    - cron: '2,32 8 * * 1-5'   # 17:02, 17:32 KST
-    - cron: '2 9 * * 1-5'      # 18:02 KST
+    # 평일 16:00, 17:00 KST 2회 (간소화)
+    # offset 분 (:02) — GitHub Actions 정시 트래픽 지연 회피
+    - cron: '2 7 * * 1-5'   # 16:02 KST
+    - cron: '2 8 * * 1-5'   # 17:02 KST
 
 jobs:
   fetch:
