@@ -496,6 +496,16 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </div>
 </section>
 
+<!-- 배너 우선순위: 빨강(긴급) → 노랑(주의) → 정보 -->
+
+<!-- 🚨 발주 실패 배너 — bot_note 있는 주문 (긴급 — 사용자 즉시 행동 필요) -->
+<div id="botFailBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fdebea;border:1px solid #c5221f;border-radius:8px;font-size:12.5px;line-height:1.5;color:#7f1d1d">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>🚨 <b id="bfbMsg">발주 오류</b></span>
+    <button class="btn-pri-sm" id="btnBotFailScroll" style="margin-left:auto;background:#c5221f">🔍 문제 주문 보기</button>
+  </div>
+</div>
+
 <!-- 마진 자동수정 배너 (관리자 자기 주문 rep_price ≠ amount일 때) -->
 <div id="marginFixBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fff3cd;border:1px solid #f6c343;border-radius:8px;font-size:12.5px;line-height:1.5">
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -525,14 +535,6 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </div>
 </div>
 
-<!-- 발주 실패 배너 — bot_note 있는 주문 = 자동 발주가 시도했다가 실패한 것 -->
-<div id="botFailBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fdebea;border:1px solid #c5221f;border-radius:8px;font-size:12.5px;line-height:1.5;color:#7f1d1d">
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>🚨 <b id="bfbMsg">발주 오류</b></span>
-    <button class="btn-pri-sm" id="btnBotFailScroll" style="margin-left:auto;background:#c5221f">🔍 문제 주문 보기</button>
-  </div>
-</div>
-
 <!-- 접수 적체 배너 — 점심 시간 지났는데 등록 안 된 주문이 남아 있을 때 -->
 <div id="botStaleBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fef3c7;border:1px solid #b45309;border-radius:8px;font-size:12.5px;line-height:1.5;color:#78350f">
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -555,7 +557,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28e-앱내부디자인</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28f-최종점검</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">

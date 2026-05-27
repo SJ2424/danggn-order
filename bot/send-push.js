@@ -28,8 +28,9 @@ async function main(){
       timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
     });
     const kstHour = parseInt(kstHourStr);
-    if (kstHour < 11 || kstHour > 13){
-      console.log(`⏭️  현재 KST ${kstHour}시 — 마감 알림 시간대(11~13) 아님. 푸시 skip (지연 발화 보정).`);
+    // 12:50 cron이 1~10분 지연 발화하면 13:xx가 됨 — 14시까지 허용 (그 이상이면 의미 없음)
+    if (kstHour < 11 || kstHour > 14){
+      console.log(`⏭️  현재 KST ${kstHour}시 — 마감 알림 시간대(11~14) 아님. 푸시 skip (지연 발화 보정).`);
       return;
     }
   } else {
