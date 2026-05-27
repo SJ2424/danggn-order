@@ -522,7 +522,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.27c-친절한봇셋업</b></span>
+    <span>버전: <b id="appVersion">v2026.05.27d-Vercel우선시도</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -2745,17 +2745,47 @@ async function manualRunBot(botKey, btnEl){
   const token = load('gh_token', '');
 
   const restoreBtn = () => { if(btn){ btn.disabled=false; btn.textContent=orig; } };
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ 요청중...'; }
 
-  // ── 토큰이 아예 없으면 친절한 모달 바로 띄움 (네트워크 시도 X — 사용자 헷갈림 방지) ──
+  // ── 토큰 없으면 Vercel API 먼저 시도 (서버에 GITHUB_TOKEN 있으면 동작) ──
   if(!token){
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if(session){
+        const res = await fetch('/api/run-bot', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + session.access_token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ bot: botKey })
+        });
+        if(res.ok){
+          restoreBtn();
+          toast(`✅ ${label} 실행 시작 — 2~3분 후 완료 알림 옴`, 'success', 4500);
+          return;
+        }
+        const j = await res.json().catch(() => ({}));
+        // Vercel 환경변수 없음 → 그때만 모달 띄움
+        if(res.status === 500 && /SUPABASE_URL|SUPABASE_SERVICE_KEY|GITHUB_TOKEN/.test(j.error || '')){
+          restoreBtn();
+          openBotSetupModal(botKey);
+          return;
+        }
+        restoreBtn();
+        toast(`봇 실행 실패: ${j.error || ('HTTP '+res.status)}`, 'error', 6000);
+        return;
+      }
+    } catch(e){
+      // 네트워크 끊김 등
+    }
+    // 어떤 이유든 Vercel 실패 → 모달
     restoreBtn();
     openBotSetupModal(botKey);
     return;
   }
 
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ 요청중...'; }
-
-  // ── 경로 1: 개인 GitHub 토큰 ──
+  // ── 경로 1: 개인 GitHub 토큰 (옛 사용자 — localStorage에 토큰 남아있음) ──
   if(token){
     try {
       const res = await fetch(
