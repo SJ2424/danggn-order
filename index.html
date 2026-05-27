@@ -31,25 +31,28 @@ header button:hover{background:#ebe9e3}
 .pending-badge{background:#fbbf24!important;color:#7c2d12!important;font-weight:700;font-size:11px;padding:4px 9px;border-radius:999px;cursor:pointer;border:0}
 main{max-width:760px;margin:0 auto;padding:14px}
 @media (min-width:760px){main{max-width:1100px}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
-.card h2{margin:0 0 10px;font-size:15px}
-label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
-textarea,input,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:16px;font-family:inherit;background:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,0.02),0 0 1px rgba(0,0,0,0.04)}
+.card h2{margin:0 0 10px;font-size:15px;font-weight:700;letter-spacing:-0.01em}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px;font-weight:500}
+textarea,input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;font-family:inherit;background:#fff;transition:border-color 0.15s, box-shadow 0.15s;color:var(--txt)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(234,88,12,0.1)}
 /* iOS: input/textarea가 16px 미만이면 포커스시 자동 확대됨 → 16px로 고정해서 줌 방지 */
 textarea{resize:vertical;min-height:54px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .grid .full{grid-column:1/-1}
-button{border:0;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer}
-.btn-pri{background:var(--pri);color:#fff;width:100%;margin-top:12px;padding:13px}
-.btn-sec{background:#eef0f3;color:var(--txt)}
-.btn-sm{padding:5px 9px;font-size:12px;font-weight:500}
-.btn-pri-sm{background:var(--pri);color:#fff;padding:5px 9px;font-size:12px;font-weight:600}
-.preview{background:#fff7f0;border:1px dashed var(--pri);border-radius:8px;padding:10px;margin-top:10px}
+button{border:0;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.15s;letter-spacing:-0.005em}
+.btn-pri{background:var(--pri);color:#fff;width:100%;margin-top:12px;padding:13px;box-shadow:0 1px 2px rgba(234,88,12,0.2)}
+.btn-pri:hover{background:#dc2626;background:#c2410c}
+.btn-sec{background:#f4f3ef;color:var(--txt);border:1px solid var(--line)}
+.btn-sec:hover{background:#ebe9e3}
+.btn-sm{padding:6px 11px;font-size:12px;font-weight:500;border-radius:8px}
+.btn-pri-sm{background:var(--pri);color:#fff;padding:6px 11px;font-size:12px;font-weight:600;border-radius:8px;box-shadow:0 1px 2px rgba(234,88,12,0.15)}
+.preview{background:var(--pri-soft);border:1px solid #fed7aa;border-radius:10px;padding:11px 12px;margin-top:10px}
 .preview .ttl{font-size:12px;color:var(--pri);font-weight:700;margin-bottom:6px}
-.modes{display:flex;gap:8px;margin-bottom:14px}
-.mode-btn{flex:1;background:#fff;border:1px solid var(--line);color:var(--mut);padding:11px}
-.mode-btn.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.modes{display:flex;gap:6px;margin-bottom:14px;background:#f4f3ef;padding:4px;border-radius:12px}
+.mode-btn{flex:1;background:transparent;border:0;color:var(--mut);padding:10px;font-weight:600;border-radius:9px;transition:all 0.15s}
+.mode-btn.active{background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
 /* 2개 모드: ✏️입력 / 📋관리 */
 body[data-mode="input"] #ordersSection,
 body[data-mode="input"] #ledgerCard,
@@ -107,8 +110,9 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .list-tools{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .list-tools input{flex:1;min-width:180px}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.chip-flt{background:#fff;border:1px solid var(--line);color:var(--mut);padding:6px 11px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer}
-.chip-flt.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.chip-flt{background:#fff;border:1px solid var(--line);color:var(--mut);padding:6px 12px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.15s}
+.chip-flt:hover{border-color:var(--pri);color:var(--pri)}
+.chip-flt.active{background:var(--pri);color:#fff;border-color:var(--pri);box-shadow:0 1px 3px rgba(234,88,12,0.2)}
 .monthly-bars{display:flex;flex-direction:column;gap:6px;padding:10px;background:#f9fafb;border-radius:8px;margin-bottom:10px}
 .mb-row{display:grid;grid-template-columns:48px 1fr auto;gap:8px;align-items:center;font-size:12px}
 .mb-row .mb-month{font-weight:600;color:var(--mut)}
@@ -122,17 +126,20 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .chip-line .chip-flt{font-size:11px;padding:3px 9px}
 .order-list{display:flex;flex-direction:column;gap:10px}
 @media (min-width:760px){.order-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
-.card-order{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+.card-order{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,0.025),0 0 1px rgba(0,0,0,0.04);transition:box-shadow 0.15s}
+.card-order:hover{box-shadow:0 2px 8px rgba(0,0,0,0.04),0 0 1px rgba(0,0,0,0.06)}
+.card-order.overdue{border-color:#fb923c;background:#fffbf6}
 .card-order.overdue{border-color:#fbbf24;border-width:2px;background:linear-gradient(135deg,#fff7ed 0%,#fff 60%)}
 .overdue-badge{display:inline-block;background:#fbbf24;color:#7c2d12;font-weight:700;font-size:10.5px;padding:2px 8px;border-radius:999px;margin-left:6px}
 .oc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
 .oc-name{font-size:15px;font-weight:700;line-height:1.3}
 .oc-nick{font-size:12px;color:var(--mut);font-weight:400;margin-left:6px}
 .oc-tags{display:flex;gap:5px;flex-shrink:0}
-.pill{border:0;border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap}
-.pill-paid{background:#e6f4ea;color:#137333}
-.pill-unpaid{background:#fce8e6;color:#c5221f}
-.pill-status{background:#eef0f3;color:var(--txt)}
+.pill{border:0;border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.15s;letter-spacing:-0.005em}
+.pill:hover{transform:translateY(-1px);box-shadow:0 1px 4px rgba(0,0,0,0.1)}
+.pill-paid{background:#d4ede0;color:#0f6e34}
+.pill-unpaid{background:#fde2e0;color:#b91c1c}
+.pill-status{background:#f0efea;color:var(--txt);border:1px solid #e8e6e0}
 .oc-line{font-size:13px;color:#333;margin:3px 0;line-height:1.5;word-break:break-word}
 .oc-line.oc-alias{font-size:11.5px;color:var(--mut)}
 .oc-mgn-inline{font-size:11.5px;font-weight:600;margin-left:6px;padding:1px 6px;background:#e8f5e9;border-radius:4px;white-space:nowrap}
@@ -548,7 +555,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28d-디자인리프레시</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28e-앱내부디자인</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
