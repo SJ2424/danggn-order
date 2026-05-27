@@ -474,8 +474,8 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <b>📌 안내</b><br>
     • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
     • <b>같은 색상·같은 상품 여러 개만 묶고</b>, 다른 색이나 다른 상품은 따로 입력해 주세요 (배송이 따로 나갑니다).<br>
-    • <b>영업일 오후 12:50 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).<br>
-    • 12:50 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (12:55 마감).<br>
+    • <b>영업일 오후 12:47 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).<br>
+    • 12:47 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (12:55 마감).<br>
     • 💰 <b>입금은 보통 상품 수령 후</b>에 받습니다 — 미입금 표시는 정상이에요. 입금받으면 해당 주문 카드의 <b>[미입금] 알약을 [입금완료]로 토글</b>해 주세요.
   </div>
 </section>
@@ -485,6 +485,22 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span>⚠️ <b>마진 계산 이상 <span id="mfbCount">0</span>건</b> — 본인이 직접 입력한 주문인데 받은 금액(amount) 대신 카탈로그의 ③ 기본 판매가가 적용되어 마진이 잘못 잡혔습니다.</span>
     <button class="btn-pri-sm" id="btnMarginFix" style="margin-left:auto">🔧 자동 수정</button>
+  </div>
+</div>
+
+<!-- 봇 실패 배너 — bot_note 있는 주문 + 발주봇 미작동 감지 -->
+<div id="botFailBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fdebea;border:1px solid #c5221f;border-radius:8px;font-size:12.5px;line-height:1.5;color:#7f1d1d">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>🚨 <b id="bfbMsg">봇 문제 감지</b></span>
+    <button class="btn-pri-sm" id="btnBotFailScroll" style="margin-left:auto;background:#c5221f">🔍 첫 실패 주문 보기</button>
+  </div>
+</div>
+
+<!-- 접수 적체 배너 — 접수 상태 주문이 12:30 지나도 남아 있으면 (자동봇 미발화) -->
+<div id="botStaleBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fef3c7;border:1px solid #b45309;border-radius:8px;font-size:12.5px;line-height:1.5;color:#78350f">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>⏰ <b id="bsbMsg">자동봇 미발화 감지</b></span>
+    <button class="btn-pri-sm" id="btnBotStaleRun" style="margin-left:auto;background:#b45309">🤖 지금 바로 실행</button>
   </div>
 </div>
 
@@ -1386,8 +1402,6 @@ let editingId = null;
 function openEditModal(id){
   const o = ORDERS.find(x=>x.id===id); if(!o) return;
   const status = o.status||'접수';
-  // 메모는 어느 상태에서도 수정 가능 (정보만 수정)
-  // 다른 필드는 발주 전(접수/발주대기)에만 변경 가능
   editingId = id;
   $('#eName').value = o.name||'';
   $('#eTel').value = o.tel||'';
@@ -1401,20 +1415,31 @@ function openEditModal(id){
   $('#eNick').value = o.nick||'';
   $('#eMemo').value = o.memo||'';
   $('#eTracking').value = o.tracking||'';
-  // 발주 후엔 메모만 편집 가능
+  // 편집 권한 3단계:
+  //   editable      = 접수/발주대기 → 모든 필드 (이름·주소 등 OMS 미반영이라 위험)
+  //   priceEditable = 발주완료/발송완료 → 금액·수량·메모·송장만 (할인·환불 반영용)
+  //   readOnly      = 그 외 (해당 없음 — 위 둘 중 하나임)
   const editable = (status==='접수' || status==='발주대기');
-  ['eName','eTel','eAddr','eProduct','eColor','eQty','eType','eAmount','ePhone','eNick'].forEach(id => {
+  // 금액·수량은 항상 풀어서 할인·환불·정정 가능
+  const PRICE_FIELDS = ['eQty','eAmount','ePhone','eNick'];
+  const FROZEN_AFTER_REGISTER = ['eName','eTel','eAddr','eProduct','eColor','eType'];
+  FROZEN_AFTER_REGISTER.forEach(id => {
     const el = $('#'+id);
     if(el){
       el.disabled = !editable;
       el.style.background = editable ? '' : '#f4f5f7';
     }
   });
+  // 금액·수량 등은 모든 상태에서 풀기
+  PRICE_FIELDS.forEach(id => {
+    const el = $('#'+id);
+    if(el){ el.disabled = false; el.style.background = ''; }
+  });
   const note = $('#editModal').querySelector('p.muted');
   if(note){
     note.innerHTML = editable
-      ? '발주 전(접수)인 주문은 모든 항목 수정 가능. 메모는 언제나 가능.'
-      : '⚠️ 이미 발주된 주문 — <b>메모만 수정 가능</b>합니다. 다른 항목은 잠금.';
+      ? '접수 상태 — 모든 항목 수정 가능. 메모·송장도 언제나 가능.'
+      : '⚠️ 이미 발주됨 — 이름·주소·상품 등 OMS 반영 항목은 잠금. <b>금액·수량·메모·송장은 수정 가능</b> (할인·환불 반영).';
   }
   $('#editModal').classList.add('open');
 }
@@ -1423,36 +1448,40 @@ async function saveEdit(){
   const o = ORDERS.find(x=>x.id===editingId);
   const status = o ? (o.status||'접수') : '접수';
   const editable = (status==='접수' || status==='발주대기');
-  // 메모·송장은 항상 저장 가능 (정보 보완용). 나머지는 editable일 때만
   const trackingNew = $('#eTracking').value.trim() || null;
-  const updates = editable ? {
+  const newAmount = $('#eAmount').value ? +$('#eAmount').value : null;
+  const newQty    = +$('#eQty').value || 1;
+  // 모든 상태에서 풀린 필드 — 금액·수량·정산·메모·송장 (할인·환불 반영용)
+  const alwaysEditable = {
+    qty: newQty,
+    amount: newAmount,
+    phone: $('#ePhone').value.trim(),
+    nick: $('#eNick').value.trim(),
+    memo: $('#eMemo').value.trim() || null,
+    tracking: trackingNew
+  };
+  // 접수 전에만 풀린 필드 — OMS 반영 항목 (이름·주소·상품 등)
+  const onlyBeforeRegister = editable ? {
     name: $('#eName').value.trim(),
     tel: $('#eTel').value.trim(),
     addr: $('#eAddr').value.trim(),
     product: $('#eProduct').value.trim(),
     color: $('#eColor').value.trim(),
-    qty: +$('#eQty').value || 1,
-    type: $('#eType').value.trim() || '택배',
-    amount: $('#eAmount').value ? +$('#eAmount').value : null,
-    phone: $('#ePhone').value.trim(),
-    nick: $('#eNick').value.trim(),
-    memo: $('#eMemo').value.trim() || null,
-    tracking: trackingNew
-  } : {
-    memo: $('#eMemo').value.trim() || null,
-    tracking: trackingNew
-  };
+    type: $('#eType').value.trim() || '택배'
+  } : {};
+  const updates = { ...alwaysEditable, ...onlyBeforeRegister };
+
   // 송장 수동 입력시 상태 자동 → 발송완료 (입력 + 변경된 경우만)
   if(trackingNew && trackingNew !== (o.tracking||'') && o.status !== '발송완료'){
     updates.status = '발송완료';
     if(!o.shipped_at) updates.shipped_at = new Date().toISOString();
   }
-  // ⭐ 관리자 본인 주문 수정시 rep_price 재계산 (네고·할인 반영)
-  // 트리거는 INSERT만 — UPDATE는 수동 재계산 필요
-  if(editable && ADMIN_IDS.has(o.created_by) && updates.amount && updates.qty){
+  // ⭐ 관리자 본인 주문 — amount/qty 변경시 rep_price 재계산 (할인·환불 반영)
+  //    상태와 무관 — 발송완료 후 깎아준 경우도 마진 재계산 필요
+  if(ADMIN_IDS.has(o.created_by) && updates.amount && updates.qty){
     updates.rep_price = Math.round(updates.amount / updates.qty);
   }
-  // 거래 type 변경시 cost_price도 재계산 (직거래 ↔ 택배 단가 다름)
+  // 거래 type 변경시 cost_price도 재계산 (접수 전만 가능 — type은 그 때만 변경됨)
   if(editable && updates.type && updates.product){
     const p = CATALOG.find(c => c.name === updates.product && (c.color||'') === (updates.color||''));
     if(p){
@@ -1605,6 +1634,8 @@ function cardHtml(o){
 function renderList(){
   renderAliases(); renderFilters();
   showMarginBanner();  // 마진 문제 배너 갱신
+  showBotFailBanner(); // 🚨 봇 실패 배너
+  showBotStaleBanner(); // ⏰ 자동봇 미발화 배너
   renderNextSchedule();  // 📅 다음 자동 실행 시간표
   // 날짜 DESC → 입력시각 DESC 만으로 정렬 (상태 우선순위 제거)
   // 사용자가 상태 알약을 클릭해도 카드가 다른 위치로 점프하지 않음
@@ -1918,6 +1949,49 @@ function showMarginBanner(){
     $('#mfbCount').textContent = issues.length;
     banner.classList.add('has-issues');
   }
+}
+
+// 🚨 봇 실패 배너 — bot_note 있는 주문 = 봇이 시도했는데 실패한 것
+function showBotFailBanner(){
+  const banner = $('#botFailBanner'); if(!banner) return;
+  if(userRole !== 'admin'){ banner.style.display = 'none'; return; }
+  const failed = ORDERS.filter(o => o.bot_note && (o.status === '접수' || o.status === '발주대기'));
+  if(failed.length === 0){
+    banner.style.display = 'none';
+    return;
+  }
+  // 가장 최근 실패 메시지 첫 줄
+  const last = failed[0];
+  const noteFirstLine = (last.bot_note || '').split('\n')[0].slice(0, 80);
+  $('#bfbMsg').innerHTML = `봇 실패 <b>${failed.length}건</b> — ${esc(noteFirstLine)}`;
+  banner.style.display = 'block';
+}
+
+// ⏰ 접수 적체 배너 — 평일 12시 이후인데 접수 상태 주문이 남아있으면 자동봇이 안 돈 것
+function showBotStaleBanner(){
+  const banner = $('#botStaleBanner'); if(!banner) return;
+  if(userRole !== 'admin'){ banner.style.display = 'none'; return; }
+  // KST 기준 요일·시간
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'Asia/Seoul', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map(p => [p.type, p.value]));
+  const dowMap = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+  const dow = dowMap[parts.weekday];
+  const kstMin = (+parts.hour) * 60 + (+parts.minute);
+  // 평일이 아니거나 12:35 전이면 정상 (아직 봇 안 돌아도 됨)
+  if(dow === 0 || dow === 6 || kstMin < 12*60 + 35){
+    banner.style.display = 'none';
+    return;
+  }
+  // 접수 상태 주문 중 직거래 빼고 (직거래는 봇 처리 안 함)
+  const stuck = ORDERS.filter(o => (o.status||'접수') === '접수' && o.type !== '직거래');
+  if(stuck.length === 0){
+    banner.style.display = 'none';
+    return;
+  }
+  $('#bsbMsg').innerHTML = `자동봇 미발화 의심 — 접수 상태 <b>${stuck.length}건</b> 남아있음 (현재 KST ${parts.hour}:${parts.minute})`;
+  banner.style.display = 'block';
 }
 async function fixMarginIssues(){
   const issues = detectMarginIssues();
@@ -2592,7 +2666,7 @@ function cycleFont(){
   applyFont();
 }
 
-// 🚀 봇 1클릭 — 토큰 있으면 silent 실행, 없으면 친절한 toast (popup·prompt 없음)
+// 🚀 봇 1클릭 — 우선순위: 1) localStorage 토큰  2) Vercel /api/run-bot 폴백  3) 토큰 등록 안내
 async function manualRunBot(botKey, btnEl){
   const fileMap = {
     register:     'register-orders.yml',
@@ -2613,47 +2687,89 @@ async function manualRunBot(botKey, btnEl){
   const orig = btn ? btn.textContent : '';
   const token = load('gh_token', '');
 
-  // 토큰 없음 — popup 안 뜨고 친절한 toast만 (자동 봇은 이미 작동 중)
-  if(!token){
-    const next = getNextSchedule(botKey);
-    toast(
-      `⏰ 다음 자동 실행: ${next}\n` +
-      `봇이 자동으로 처리하니까 그냥 기다리세요.`,
-      'info',
-      5000
-    );
-    return;
-  }
-
+  const restoreBtn = () => { if(btn){ btn.disabled=false; btn.textContent=orig; } };
   if(btn){ btn.disabled = true; btn.textContent = '⏳ 요청중...'; }
 
-  try {
-    const res = await fetch(
-      `https://api.github.com/repos/SJ2424/danggn-order/actions/workflows/${file}/dispatches`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ref: 'main', inputs: { dry_run: 'false' } })
+  // ── 경로 1: 개인 GitHub 토큰 ──
+  if(token){
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/SJ2424/danggn-order/actions/workflows/${file}/dispatches`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ ref: 'main', inputs: { dry_run: 'false' } })
+        }
+      );
+      restoreBtn();
+      if(res.status === 204){
+        toast(`✅ ${label} 실행 시작 — 2~3분 후 완료 알림 옴`, 'success', 4500);
+        return;
       }
-    );
-    if(btn){ btn.disabled = false; btn.textContent = orig; }
-
-    if(res.status === 204){
-      toast(`✅ ${label} 실행 시작 — 2~3분 후 완료 알림 옴`, 'success', 4500);
-    } else if(res.status === 401 || res.status === 403){
-      save('gh_token', '');
-      toast(`토큰 만료/잘못됨 — 🔧 설정·도구에서 재등록 필요`, 'error', 6000);
-    } else {
-      toast(`봇 실행 실패 (HTTP ${res.status})`, 'error', 5000);
+      if(res.status === 401 || res.status === 403){
+        save('gh_token', '');  // 만료된 토큰 정리
+        toast(`개인 토큰 만료 — Vercel 서버 통해서 재시도...`, 'info', 3000);
+        // 폴백으로 계속 진행 (return X)
+      } else {
+        toast(`봇 실행 실패 (HTTP ${res.status}) — Vercel 서버 통해서 재시도...`, 'info', 3000);
+      }
+    } catch(e){
+      toast(`네트워크 오류 — Vercel 서버 통해서 재시도... (${e.message})`, 'info', 3000);
     }
+  }
+
+  // ── 경로 2: Vercel /api/run-bot (서버에 GITHUB_TOKEN 있으면 동작) ──
+  try {
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ 서버요청중...'; }
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session){
+      restoreBtn();
+      toast(`로그인이 풀렸어요 — 새로고침 후 다시 로그인하세요`, 'error', 6000);
+      return;
+    }
+    const res = await fetch('/api/run-bot', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ bot: botKey })
+    });
+    restoreBtn();
+    const j = await res.json().catch(() => ({}));
+    if(res.ok){
+      toast(`✅ ${label} 실행 시작 — 2~3분 후 완료 알림 옴`, 'success', 4500);
+      return;
+    }
+    // Vercel 서버 토큰 없음 → 개인 토큰 등록 안내
+    if(res.status === 500 && /SUPABASE_URL|SUPABASE_SERVICE_KEY|GITHUB_TOKEN/.test(j.error || '')){
+      if(confirm(
+        `⚠️ Vercel 서버에 GitHub 토큰이 등록 안 됨\n\n` +
+        `즉시 봇 실행하려면 개인 GitHub 토큰을 등록해야 합니다.\n` +
+        `(다음 자동 실행: ${getNextSchedule(botKey)})\n\n` +
+        `지금 등록할까요? (브라우저에서 GitHub 새 탭으로 이동)`
+      )){
+        if(typeof openGitHubTokenSetup === 'function') openGitHubTokenSetup();
+        else window.open('https://github.com/settings/personal-access-tokens/new?description=danggn-bot-trigger', '_blank');
+      }
+      return;
+    }
+    toast(`봇 실행 실패: ${j.error || ('HTTP '+res.status)}`, 'error', 6000);
   } catch(e){
-    if(btn){ btn.disabled = false; btn.textContent = orig; }
-    toast(`네트워크 오류: ${e.message}`, 'error', 5000);
+    restoreBtn();
+    // 마지막 안전망 — Vercel 자체에 접근 못함 (로컬 개발 등)
+    if(confirm(
+      `❌ 봇 실행 실패: ${e.message}\n\n` +
+      `다음 자동 실행: ${getNextSchedule(botKey)}\n\n` +
+      `즉시 실행하려면 개인 GitHub 토큰 등록 필요. 지금 설정할까요?`
+    )){
+      if(typeof openGitHubTokenSetup === 'function') openGitHubTokenSetup();
+    }
   }
 }
 
@@ -2671,14 +2787,14 @@ function getNextSchedule(botKey){
   const dowMap = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
   const dow = dowMap[parts.weekday];
   const minutes = kstHour*60 + kstMin;
-  // 봇별 스케줄 (평일만, KST)
-  // 선반랙·카트 동일: 08:00, 12:00, 12:30, 12:51
-  // 송장: 16:00, 17:00
+  // 봇별 스케줄 (평일만, KST) — offset 분 사용 (GitHub Actions 정시 지연 회피)
+  // 선반랙·카트 동일: 08:02, 12:02, 12:32, 12:47
+  // 송장: 16:02, 17:02
   const scheduleByBot = {
-    register: [8*60, 12*60, 12*60+30, 12*60+51],
-    cart:     [8*60, 12*60, 12*60+30, 12*60+51],
-    tracking: [16*60, 17*60],
-    cartTracking: [16*60, 17*60]
+    register: [8*60+2, 12*60+2, 12*60+32, 12*60+47],
+    cart:     [8*60+2, 12*60+2, 12*60+32, 12*60+47],
+    tracking: [16*60+2, 17*60+2],
+    cartTracking: [16*60+2, 17*60+2]
   };
   const slots = scheduleByBot[botKey] || scheduleByBot.register;
   const fmtTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
@@ -3140,6 +3256,30 @@ $('#btnBdCleanup') && $('#btnBdCleanup').addEventListener('click', async () => {
 });
 // 🔧 마진 자동 수정 (관리자 본인 주문 rep_price → amount)
 $('#btnMarginFix') && $('#btnMarginFix').addEventListener('click', fixMarginIssues);
+
+// 🚨 봇 실패 배너 — 첫 실패 주문으로 스크롤
+$('#btnBotFailScroll') && $('#btnBotFailScroll').addEventListener('click', () => {
+  const failed = ORDERS.filter(o => o.bot_note && (o.status === '접수' || o.status === '발주대기'));
+  if(failed.length === 0) return;
+  // 첫 실패 주문 카드 찾기 (data-id로) — 잠시 깜빡임
+  setTimeout(() => {
+    const card = document.querySelector(`[data-id="${failed[0].id}"]`)?.closest('.card-order');
+    if(card){
+      card.scrollIntoView({ behavior:'smooth', block:'center' });
+      card.style.transition = 'box-shadow 0.4s';
+      card.style.boxShadow = '0 0 0 3px #c5221f';
+      setTimeout(() => { card.style.boxShadow = ''; }, 2500);
+    }
+  }, 100);
+});
+
+// ⏰ 자동봇 미발화 배너 — 지금 바로 수동 실행
+$('#btnBotStaleRun') && $('#btnBotStaleRun').addEventListener('click', async (e) => {
+  // 두 봇 다 실행 (선반랙 + 카트)
+  await manualRunBot('register', e.target);
+  // 살짝 텀 두고 카트 봇도
+  setTimeout(() => manualRunBot('cart', null), 1500);
+});
 // GitHub 토큰 관리
 function refreshGhTokenStatus(){
   const el = $('#ghTokenStatus'); if(!el) return;
@@ -3152,8 +3292,8 @@ function refreshGhTokenStatus(){
     el.style.color = '#b45309';
   }
 }
-$('#btnGhRegister') && $('#btnGhRegister').addEventListener('click', async () => {
-  // 토큰 발급 페이지 열기
+// 토큰 등록 흐름 — manualRunBot에서도 호출되므로 별도 함수로 분리
+async function openGitHubTokenSetup(){
   window.open('https://github.com/settings/personal-access-tokens/new?description=danggn-bot-trigger', '_blank');
   await new Promise(r => setTimeout(r, 400));
   const t = prompt(
@@ -3166,16 +3306,18 @@ $('#btnGhRegister') && $('#btnGhRegister').addEventListener('click', async () =>
     '2️⃣ [Generate token] → 토큰 복사\n' +
     '3️⃣ 아래에 붙여넣기 (github_pat_... 시작):'
   );
-  if(!t || !t.trim()){ toast('토큰 등록 취소됨', 'info'); return; }
+  if(!t || !t.trim()){ toast('토큰 등록 취소됨', 'info'); return false; }
   const cleaned = t.trim();
   if(!cleaned.startsWith('github_pat_') && !cleaned.startsWith('ghp_')){
     toast('토큰 형식 오류 (github_pat_... 시작해야)', 'error');
-    return;
+    return false;
   }
   save('gh_token', cleaned);
   refreshGhTokenStatus();
   toast('✅ 토큰 저장됨 — 이제 봇 버튼 1클릭으로 실행됩니다', 'success', 5000);
-});
+  return true;
+}
+$('#btnGhRegister') && $('#btnGhRegister').addEventListener('click', openGitHubTokenSetup);
 $('#btnGhClear') && $('#btnGhClear').addEventListener('click', () => {
   if(confirm('GitHub 토큰을 삭제할까요? 다음 봇 클릭시 다시 등록 안내가 뜹니다.')){
     save('gh_token','');
