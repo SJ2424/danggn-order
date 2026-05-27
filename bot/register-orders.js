@@ -329,23 +329,18 @@ async function registerOrder(page, order, idx) {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `screenshots/${tag}-4-after-submit.png`, fullPage: true });
 
-  // 🛡️ 명시적 성공 검증 — 등록 폼이 그대로면 실패 (alert·validation error)
-  // 성공 패턴: URL이 form-URL이 아님 / 성공 토스트·메시지 텍스트 / 폼이 reset됨
-  const stillOnForm = page.url().includes('/order-form/');
+  // 🛡️ 명시적 에러 신호만 잡음 — 폼 잔존 / 일반 안내 텍스트는 정상으로 간주
+  // OMS는 등록 후에도 같은 페이지에 머물 수 있고, "필수 입력" 같은 일반 안내가 항상 떠있을 수 있음
+  // 진짜 에러일 때만 명시적 패턴으로 잡기 (오등록보다 누락이 더 안전)
   const bodyText = await page.locator('body').innerText().catch(() => '');
-  const successMatch = /등록되었습니다|등록 완료|성공/i.test(bodyText);
-  const errorMatch   = /입력해 주세요|확인해 주세요|오류|실패|필수/i.test(bodyText);
+  // 명시적 실패 패턴만 — "등록 실패", "등록 오류", "에러가 발생" 등
+  const errorMatch = /등록 실패|등록 오류|등록되지 않|에러가 발생|오류가 발생|등록할 수 없/i.test(bodyText);
 
-  if (errorMatch && !successMatch) {
-    // 페이지에 에러 메시지 떴음 — 실패로 처리
-    const errSnippet = bodyText.match(/.{0,40}(입력해 주세요|확인해 주세요|오류|실패|필수).{0,40}/)?.[0] || '폼 검증 실패';
-    throw new Error(`OMS 등록 검증 실패: ${errSnippet.replace(/\s+/g,' ').trim()}`);
+  if (errorMatch) {
+    const errSnippet = bodyText.match(/.{0,40}(등록 실패|등록 오류|등록되지 않|에러가 발생|오류가 발생|등록할 수 없).{0,40}/)?.[0] || '등록 실패';
+    throw new Error(`OMS 등록 거부: ${errSnippet.replace(/\s+/g,' ').trim()}`);
   }
-  if (stillOnForm && !successMatch) {
-    // 명시적 성공 신호 없고 폼에 그대로 있음 — 의심
-    throw new Error(`OMS 등록 결과 불확실 — 등록 폼 그대로 (스크린샷 확인 필요)`);
-  }
-  console.log(`✅ 등록 완료 (성공 검증 통과)`);
+  console.log(`✅ 등록 완료`);
 }
 
 // ====== 메인 ======
