@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: '시험 모드 (실제 등록 X, 화면 캡처만)'
+        description: '시험 모드 (체크하면 실제 등록 X, 화면 캡처만)'
         type: boolean
-        default: true
+        default: false
   schedule:
     # 평일 4회 — 선반랙 봇과 동일 스케줄 (08:02 / 12:02 / 12:32 / 12:47 KST)
     # offset 분 사용 — GitHub Actions 정시 트래픽 지연 회피

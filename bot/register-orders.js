@@ -373,16 +373,22 @@ async function main() {
 
 // 등록 직후 관리자 푸시 — 발주완료 → 결제 필요 알리기
 async function notifyAdmins(okCount, failCount) {
-  // ⏰ KST 시간 가드 — 푸시는 점심 시간대만 (12~14시)
+  const isManual = process.env.MANUAL_RUN === 'true';
+  // ⏰ KST 시간 가드 — 자동 cron만 (수동 실행은 항상 푸시)
   // 이유: 08:00 봇 등록은 OK지만 푸시는 너무 이른 아침이라 차단
   //       OMS 결제는 어차피 점심 시간에 함 → 그때 알림이 의미 있음
   //       또한 GitHub 지연 발화로 새벽·한밤 푸시 가는 거 차단
-  const kstHour = parseInt(new Date().toLocaleString('en-US', {
-    timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
-  }));
-  if (kstHour < 12 || kstHour > 14) {
-    console.log(`  ⏭️  현재 KST ${kstHour}시 — 푸시 시간대(12~14) 아님. 등록은 OK, 푸시만 skip.`);
-    return;
+  // 수동 실행(workflow_dispatch)이면 관리자가 결과 보고 싶어서 누른 거니 우회
+  if (!isManual) {
+    const kstHour = parseInt(new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
+    }));
+    if (kstHour < 12 || kstHour > 14) {
+      console.log(`  ⏭️  현재 KST ${kstHour}시 — 푸시 시간대(12~14) 아님. 등록은 OK, 푸시만 skip.`);
+      return;
+    }
+  } else {
+    console.log('  📣 수동 실행 — 시간 가드 우회, 푸시 전송');
   }
 
   const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY;

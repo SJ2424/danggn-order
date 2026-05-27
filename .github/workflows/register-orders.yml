@@ -52,6 +52,8 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
           DRY_RUN: ${{ inputs.dry_run }}
+          # 수동 실행이면 푸시 시간 가드 우회 (관리자가 결과 보고 싶어서 누른 거라)
+          MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' }}
         run: node register-orders.js
 
       - name: Upload screenshots (성공·실패 모두)

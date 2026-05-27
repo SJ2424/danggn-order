@@ -20,16 +20,20 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 async function main(){
   console.log('🔔 푸시 알림 봇 시작');
 
-  // ⏰ KST 시간 가드 — GitHub Actions가 cron을 늦게 발화해도 (장애로 지연됐다가
-  // 큐에 쌓인 거 늦게 실행되는 경우) 점심시간 외 알림은 무의미하므로 skip
-  const kstHourStr = new Date().toLocaleString('en-US', {
-    timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
-  });
-  const kstHour = parseInt(kstHourStr);
-  // 정상 발화는 12:35 KST. 11~13시 사이가 아니면 지연 발화로 보고 무시.
-  if (kstHour < 11 || kstHour > 13){
-    console.log(`⏭️  현재 KST ${kstHour}시 — 마감 알림 시간대(11~13) 아님. 푸시 skip (지연 발화 보정).`);
-    return;
+  const isManual = process.env.MANUAL_RUN === 'true';
+  // ⏰ KST 시간 가드 — 자동 cron만 (수동 실행은 항상 푸시)
+  // GitHub Actions cron 지연 발화 보정용. 수동은 관리자가 의도한 거니 우회.
+  if (!isManual){
+    const kstHourStr = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
+    });
+    const kstHour = parseInt(kstHourStr);
+    if (kstHour < 11 || kstHour > 13){
+      console.log(`⏭️  현재 KST ${kstHour}시 — 마감 알림 시간대(11~13) 아님. 푸시 skip (지연 발화 보정).`);
+      return;
+    }
+  } else {
+    console.log('📣 수동 실행 — 시간 가드 우회');
   }
 
   // 상태별 분리 카운트 (현 상태 사이클: 접수 → 발주완료 → 발송완료)

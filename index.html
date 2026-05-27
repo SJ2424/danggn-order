@@ -9,6 +9,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="당근주문">
 <link rel="manifest" href="manifest.json">
+<!-- 캐시 무효화 — PWA가 옛 HTML 잡지 않게 -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--line:#e3e5e9;--pri:#ff6f0f;--txt:#1c1f23;--mut:#6b7280}
 *{box-sizing:border-box}
@@ -516,6 +520,10 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
   <div id="summary" class="muted admin-only" style="margin-bottom:8px"></div>
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
+  <div class="admin-only" style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <span>버전: <b id="appVersion">v2026.05.27-금액수정·봇폴백</b></span>
+    <button id="btnHardReload" class="btn-sec btn-sm" title="캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
+  </div>
   <div class="toolbar admin-only">
     <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문을 OMS에 즉시 등록">🤖 선반랙 발주</button>
     <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
@@ -3389,6 +3397,25 @@ applyFont();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+
+// 🔄 강제 새로고침 — 캐시·서비스워커 다 비우고 다시 받기 (iOS PWA 옛 코드 잡힐 때)
+$('#btnHardReload') && $('#btnHardReload').addEventListener('click', async () => {
+  if(!confirm('캐시를 비우고 새로 받습니다. 잠시 후 화면이 새로고침됩니다.')) return;
+  try {
+    // 1) 모든 캐시 삭제
+    if('caches' in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    // 2) 서비스워커 등록 해제 (다음 로드시 새로 등록)
+    if(navigator.serviceWorker){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+  } catch(e){ console.warn('캐시 정리 실패:', e); }
+  // 3) ?v= 쿼리 붙여서 강제 새로받기 (CDN/브라우저 캐시 우회)
+  location.href = location.pathname + '?v=' + Date.now();
+});
 
 checkAuth();
 setInterval(checkDeadline, 20000);
