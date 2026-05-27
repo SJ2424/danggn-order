@@ -520,9 +520,10 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
   <div id="summary" class="muted admin-only" style="margin-bottom:8px"></div>
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
-  <div class="admin-only" style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
-    <span>버전: <b id="appVersion">v2026.05.27-금액수정·봇폴백</b></span>
-    <button id="btnHardReload" class="btn-sec btn-sm" title="캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
+  <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
+  <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>버전: <b id="appVersion">v2026.05.27b-수정버튼·라벨픽스</b></span>
+    <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
     <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문을 OMS에 즉시 등록">🤖 선반랙 발주</button>
@@ -778,7 +779,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 <div id="editModal" class="modal edit-modal">
   <div class="modal-content">
     <h2>✏️ 주문 수정</h2>
-    <p class="muted" style="margin:0">발주 전(접수/발주대기)인 주문만 수정할 수 있어요.</p>
+    <p class="muted" style="margin:0">금액·수량·메모·송장은 언제나 수정 가능 (할인·환불 반영). 이름·주소·상품 등은 발주 전에만.</p>
     <div class="grid">
       <div><label>받는 사람</label><input id="eName"></div>
       <div><label>연락처</label><input id="eTel"></div>
@@ -1454,7 +1455,8 @@ function openEditModal(id){
 async function saveEdit(){
   if(!editingId) return;
   const o = ORDERS.find(x=>x.id===editingId);
-  const status = o ? (o.status||'접수') : '접수';
+  if(!o){ alert('주문을 찾을 수 없어요 (다른 기기에서 삭제됐을 수 있음). 새로고침 후 다시 시도하세요.'); closeEditModal(); return; }
+  const status = o.status||'접수';
   const editable = (status==='접수' || status==='발주대기');
   const trackingNew = $('#eTracking').value.trim() || null;
   const newAmount = $('#eAmount').value ? +$('#eAmount').value : null;
@@ -1559,10 +1561,12 @@ function cardHtml(o){
   const status = o.status || '접수';
   const canEdit = (userRole==='admin' || o.created_by===myUserId);
   const fullEditable = (status==='접수' || status==='발주대기');
+  // ✏️ 수정 버튼 — 발주 전: 전체 / 발주 후: 금액·수량·메모·송장 (할인·환불용)
+  const editTitle = fullEditable
+    ? '주문 정보 전체 수정 가능'
+    : '금액·수량·메모·송장 수정 가능 (할인·환불용)';
   const editBtn = canEdit
-    ? '<button class="btn-sec btn-sm" data-act="edit" data-id="'+id+'" title="'+(fullEditable?'주문 정보 + 메모 수정':'메모만 수정 가능')+'">'
-        + (fullEditable ? '✏️ 수정' : '📝 메모')
-        +'</button>'
+    ? '<button class="btn-sec btn-sm" data-act="edit" data-id="'+id+'" title="'+editTitle+'">✏️ 수정</button>'
     : '';
   // 송장 — 있으면 보여주고, 없으면 며칠째 대기인지 표시
   let trackHtml;
