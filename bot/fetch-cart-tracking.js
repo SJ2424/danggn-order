@@ -32,18 +32,23 @@ async function fetchPending(){
   // 카트 상품 중 송장 없는 것 (발주완료/발송완료 둘 다)
   const { data, error } = await sb.from('orders').select('*')
     .in('status', ['발주완료','발송완료'])
-    .or('tracking.is.null,tracking.eq.');
+    .or('tracking.is.null,tracking.eq.""');
   if(error) throw error;
   return (data||[]).filter(o => isCartProduct(o.product));
 }
 
-async function updateTracking(id, value){
+async function updateTracking(id, value, currentOrder){
   if(isDry) return;
-  const { error } = await sb.from('orders').update({
+  // shipped_at 이미 있으면 보존 (72H 카운터 리셋 방지)
+  const updates = {
     tracking: value,
     status: '발송완료',
-    shipped_at: new Date().toISOString()
-  }).eq('id', id);
+    bot_note: null
+  };
+  if (!currentOrder?.shipped_at) {
+    updates.shipped_at = new Date().toISOString();
+  }
+  const { error } = await sb.from('orders').update(updates).eq('id', id);
   if(error) throw error;
 }
 
@@ -245,7 +250,7 @@ async function main(){
       }
 
       if (m && m.tracking){
-        await updateTracking(o.id, m.tracking);
+        await updateTracking(o.id, m.tracking, o);
         matched++;
         console.log(`✅ ${o.name} → ${m.tracking}`);
       } else {

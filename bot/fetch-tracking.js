@@ -19,21 +19,27 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 
 async function fetchPending() {
   // 송장 아직 없는 주문 — 발주완료(신규) + 발송완료(과거 임포트분도 OMS에 있으면 가져오기 시도)
+  // 명시적으로 tracking IS NULL OR tracking = '' (PostgREST문법 안전성)
   const { data, error } = await sb.from('orders').select('*')
     .in('status', ['발주완료', '발송완료'])
-    .or('tracking.is.null,tracking.eq.');
+    .or('tracking.is.null,tracking.eq.""');
   if (error) throw error;
   return data || [];
 }
 
-async function updateTracking(id, value) {
+// 한 주문 캐시 — shipped_at 보존 결정용
+async function updateTracking(id, value, currentOrder) {
   if (isDry) return;
-  // shipped_at도 함께 세팅해야 72H 미입금 알람이 기준 시각을 가질 수 있음
-  const { error } = await sb.from('orders').update({
+  // shipped_at은 이미 있으면 보존 (72H 카운터 리셋 방지) — 없으면 지금 시각으로 세팅
+  const updates = {
     tracking: value,
     status: '발송완료',
-    shipped_at: new Date().toISOString()
-  }).eq('id', id);
+    bot_note: null  // 송장 들어왔으면 옛 봇 에러 메시지 클리어
+  };
+  if (!currentOrder?.shipped_at) {
+    updates.shipped_at = new Date().toISOString();
+  }
+  const { error } = await sb.from('orders').update(updates).eq('id', id);
   if (error) throw error;
 }
 
@@ -242,7 +248,7 @@ async function main() {
       }
 
       if (m && m.tracking) {
-        await updateTracking(o.id, m.tracking);
+        await updateTracking(o.id, m.tracking, o);
         matched++;
         console.log(`✅ 매칭+업데이트: ${o.name} → ${m.tracking}`);
       } else {

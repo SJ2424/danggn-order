@@ -4,14 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: '시험 모드 (실제 DB 업데이트 X, 화면 캡처만)'
+        description: '시험 모드 (체크하면 실제 DB 업데이트 X, 화면 캡처만)'
         type: boolean
-        default: true
+        default: false
   schedule:
     # 평일 16:00, 17:00 KST 2회 (간소화)
     # offset 분 (:02) — GitHub Actions 정시 트래픽 지연 회피
     - cron: '2 7 * * 1-5'   # 16:02 KST
     - cron: '2 8 * * 1-5'   # 17:02 KST
+
+# 동시 실행 방지 — 16:02 봇이 길어져 17:02와 겹치면 OMS 동시 로그인 / DB 중복 update 위험
+concurrency:
+  group: fetch-tracking
+  cancel-in-progress: false
 
 jobs:
   fetch:

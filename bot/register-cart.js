@@ -270,10 +270,12 @@ async function registerOrder(page, order, idx){
   const success = /등록되었습니다|등록 완료|성공|접수되었|주문이 완료/.test(afterText);
   if (success){
     console.log('✅ 등록 완료 (성공 메시지 확인됨)');
-  } else if (afterText.includes('오류') || afterText.includes('실패') || afterText.includes('에러')){
-    throw new Error('카트사이트가 오류 메시지를 반환 — 스크린샷 확인 필요');
+  } else if (/오류|실패|에러|입력해 주세요|확인해 주세요|필수/i.test(afterText)){
+    const snippet = afterText.match(/.{0,40}(오류|실패|에러|입력해 주세요|확인해 주세요|필수).{0,40}/)?.[0] || '에러 메시지';
+    throw new Error(`카트사이트 검증 실패: ${snippet.replace(/\s+/g,' ').trim()}`);
   } else {
-    console.log('⚠️ 등록 후 성공 메시지 미확인 — 카트사이트 [배송조회]에서 직접 확인 필요');
+    // 🆕 silent success 금지 — 명시적 신호 없으면 실패로 처리 (이전엔 정상 흐름 빠져나갔음)
+    throw new Error('카트사이트 제출 후 성공 메시지 미확인 — [배송조회]에서 수동 확인 필요 (markRegistered 보류)');
   }
 }
 
@@ -299,10 +301,15 @@ async function main(){
       try {
         await registerOrder(page, orders[i], i+1);
         await markRegistered(orders[i].id);
+        // 성공시 이전 에러 note 클리어
+        try { await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id); } catch {}
         ok++;
       } catch(e){
         console.error(`❌ 실패: ${e.message}`);
         await page.screenshot({ path:`screenshots/fail-${i+1}.png`, fullPage:true }).catch(()=>{});
+        // 🆕 앱 화면에서 원인 볼 수 있게 bot_note에 기록 (선반랙 봇과 동일)
+        const msg = `❌ ${new Date().toISOString().slice(0,16).replace('T',' ')}: [카트] ${e.message.slice(0,300)}`;
+        try { await sb.from('orders').update({ bot_note: msg }).eq('id', orders[i].id); } catch {}
         fail++;
       }
     }

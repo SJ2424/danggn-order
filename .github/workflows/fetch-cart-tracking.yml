@@ -12,6 +12,11 @@ on:
     - cron: '2 7 * * 1-5'   # 16:02 KST
     - cron: '2 8 * * 1-5'   # 17:02 KST
 
+# 동시 실행 방지
+concurrency:
+  group: fetch-cart-tracking
+  cancel-in-progress: false
+
 jobs:
   fetch:
     runs-on: ubuntu-latest

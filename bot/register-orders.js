@@ -43,15 +43,24 @@ async function fetchPendingOrders() {
   if (error) throw error;
   const all = data || [];
   // 직거래는 OMS 등록 X (손님과 직접 만나서 전달)
-  // 지원 상품 매핑된 것만 + 택배(또는 미지정)만
-  const supported = all.filter(o =>
-    o.type !== '직거래' &&
-    PRODUCT_URLS[`${o.product}|${o.color}`]
-  );
-  const skippedDirect = all.filter(o => o.type === '직거래').length;
-  const skippedProduct = all.length - supported.length - skippedDirect;
-  if (skippedDirect > 0)   console.log(`⏭️  직거래 ${skippedDirect}건 스킵 (OMS 등록 X)`);
-  if (skippedProduct > 0)  console.log(`⏭️  지원 안 하는 상품 ${skippedProduct}건 스킵`);
+  const nonDirect = all.filter(o => o.type !== '직거래');
+  // 지원 상품 매핑된 것 / 안 된 것 분리
+  const supported   = nonDirect.filter(o => PRODUCT_URLS[`${o.product}|${o.color}`]);
+  const unsupported = nonDirect.filter(o => !PRODUCT_URLS[`${o.product}|${o.color}`]);
+  // 카트 상품 (다른 봇이 처리)
+  const cartLike = new Set(['핸드카트','하체마사지기','족욕기','날개없는 선풍기','날개없는선풍기','철제선반']);
+  const skippedDirect = all.length - nonDirect.length;
+  if (skippedDirect > 0) console.log(`⏭️  직거래 ${skippedDirect}건 스킵 (OMS 등록 X)`);
+
+  // 🔍 미매핑 주문 — 카트 상품이면 silent 스킵, 아니면 bot_note에 원인 기록 (사일런트 사고 방지)
+  for (const o of unsupported) {
+    const norm = (o.product || '').replace(/\s+/g, '');
+    const isCart = [...cartLike].some(c => c.replace(/\s+/g,'') === norm);
+    if (isCart) continue; // 카트 봇이 처리 — 정상 스킵
+    const msg = `❌ ${new Date().toISOString().slice(0,16).replace('T',' ')}: 지원 안 하는 상품·색상 조합 — "${o.product}|${o.color}" (PRODUCT_URLS에 추가 필요)`;
+    try { await sb.from('orders').update({ bot_note: msg }).eq('id', o.id); } catch {}
+    console.log(`  ⚠️  미매핑 (bot_note 기록): ${o.product}|${o.color}`);
+  }
   return supported;
 }
 
@@ -306,10 +315,37 @@ async function registerOrder(page, order, idx) {
     return;
   }
 
-  await page.getByRole('button', { name: /판매 관리 등록|등록/ }).click();
-  await page.waitForTimeout(2000);
-  await page.screenshot({ path: `screenshots/${tag}-4-after-submit.png` });
-  console.log(`✅ 등록 완료`);
+  // 더 좁은 셀렉터 — "회원등록" 같은 헷갈리는 버튼 매칭 방지
+  const submitBtn = page.getByRole('button', { name: /^판매\s*관리\s*등록$/ }).first();
+  if (await submitBtn.count() === 0) {
+    // fallback — "등록" 단독 버튼 (제출용)
+    const fallback = page.locator('button:has-text("등록"):not(:has-text("회원")):not(:has-text("가입"))').last();
+    await fallback.scrollIntoViewIfNeeded();
+    await fallback.click();
+  } else {
+    await submitBtn.scrollIntoViewIfNeeded();
+    await submitBtn.click();
+  }
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `screenshots/${tag}-4-after-submit.png`, fullPage: true });
+
+  // 🛡️ 명시적 성공 검증 — 등록 폼이 그대로면 실패 (alert·validation error)
+  // 성공 패턴: URL이 form-URL이 아님 / 성공 토스트·메시지 텍스트 / 폼이 reset됨
+  const stillOnForm = page.url().includes('/order-form/');
+  const bodyText = await page.locator('body').innerText().catch(() => '');
+  const successMatch = /등록되었습니다|등록 완료|성공/i.test(bodyText);
+  const errorMatch   = /입력해 주세요|확인해 주세요|오류|실패|필수/i.test(bodyText);
+
+  if (errorMatch && !successMatch) {
+    // 페이지에 에러 메시지 떴음 — 실패로 처리
+    const errSnippet = bodyText.match(/.{0,40}(입력해 주세요|확인해 주세요|오류|실패|필수).{0,40}/)?.[0] || '폼 검증 실패';
+    throw new Error(`OMS 등록 검증 실패: ${errSnippet.replace(/\s+/g,' ').trim()}`);
+  }
+  if (stillOnForm && !successMatch) {
+    // 명시적 성공 신호 없고 폼에 그대로 있음 — 의심
+    throw new Error(`OMS 등록 결과 불확실 — 등록 폼 그대로 (스크린샷 확인 필요)`);
+  }
+  console.log(`✅ 등록 완료 (성공 검증 통과)`);
 }
 
 // ====== 메인 ======
@@ -374,12 +410,13 @@ async function main() {
 // 등록 직후 관리자 푸시 — 발주완료 → 결제 필요 알리기
 async function notifyAdmins(okCount, failCount) {
   const isManual = process.env.MANUAL_RUN === 'true';
-  // ⏰ KST 시간 가드 — 자동 cron만 (수동 실행은 항상 푸시)
-  // 이유: 08:00 봇 등록은 OK지만 푸시는 너무 이른 아침이라 차단
-  //       OMS 결제는 어차피 점심 시간에 함 → 그때 알림이 의미 있음
-  //       또한 GitHub 지연 발화로 새벽·한밤 푸시 가는 거 차단
-  // 수동 실행(workflow_dispatch)이면 관리자가 결과 보고 싶어서 누른 거니 우회
-  if (!isManual) {
+  const hasFailure = failCount > 0;
+  // ⏰ KST 시간 가드 — 자동 cron + 성공만 (수동 / 실패는 항상 푸시)
+  // 이유:
+  //   - 자동 cron + 성공 = 점심 시간(12~14)에만 알림 의미 있음 (지연 발화 새벽·한밤 차단)
+  //   - 수동 실행 = 관리자가 결과 보고 싶어서 누른 거 → 우회
+  //   - 실패 = 언제 발생하든 즉시 알아야 함 (08:02 봇 실패도 가시화) → 우회
+  if (!isManual && !hasFailure) {
     const kstHour = parseInt(new Date().toLocaleString('en-US', {
       timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
     }));
@@ -387,8 +424,10 @@ async function notifyAdmins(okCount, failCount) {
       console.log(`  ⏭️  현재 KST ${kstHour}시 — 푸시 시간대(12~14) 아님. 등록은 OK, 푸시만 skip.`);
       return;
     }
-  } else {
+  } else if (isManual) {
     console.log('  📣 수동 실행 — 시간 가드 우회, 푸시 전송');
+  } else if (hasFailure) {
+    console.log(`  ⚠️ 실패 ${failCount}건 — 시간 가드 우회, 즉시 알림 전송`);
   }
 
   const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY;
