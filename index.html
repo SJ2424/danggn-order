@@ -32,11 +32,12 @@
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI","Malgun Gothic",sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
-header{background:#fff;color:var(--txt);padding:14px 16px;font-weight:700;font-size:17px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(0,0,0,0.02)}
+header{background:linear-gradient(135deg,#fff7ed 0%,#fff 60%,#fef3e2 100%);color:var(--txt);padding:14px 16px;font-weight:700;font-size:17px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid #fed7aa;box-shadow:0 1px 0 rgba(234,88,12,0.04), 0 2px 8px rgba(28,25,23,0.03)}
 header small{font-weight:400;opacity:.7;font-size:12px;margin-left:6px;color:var(--mut)}
 header .who{font-size:12px;font-weight:400;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;color:var(--mut)}
 header .who span{opacity:.85;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-header > div:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1;color:var(--pri);letter-spacing:-0.01em}
+header > div:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1;color:transparent;background:linear-gradient(135deg,#ea580c,#c2410c 60%,#9a3412);-webkit-background-clip:text;background-clip:text;font-weight:800;letter-spacing:-0.015em;display:flex;align-items:center;gap:7px}
+header > div:first-child::before{content:'🥕';font-size:18px;-webkit-text-fill-color:initial;color:initial}
 header button{background:#f4f3ef;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600;transition:background 0.15s}
 header button:hover{background:#ebe9e3}
 .pending-badge{background:#fbbf24!important;color:#7c2d12!important;font-weight:700;font-size:11px;padding:4px 9px;border-radius:999px;cursor:pointer;border:0}
@@ -44,6 +45,23 @@ main{max-width:760px;margin:0 auto;padding:14px}
 @media (min-width:760px){main{max-width:1100px}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow-md)}
 .card h2{margin:0 0 10px;font-size:15px;font-weight:700;letter-spacing:-0.01em}
+
+/* ✏️ 새 주문 입력 카드 — 브랜드 액센트 */
+#inputCard{position:relative;overflow:hidden;background:linear-gradient(180deg,#fffbf5 0%,#fff 80px)}
+#inputCard::before{content:'';position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,#ea580c 0%,#fb923c 50%,#fbbf24 100%)}
+#inputCard h2{font-size:17px;color:var(--pri);font-weight:800;letter-spacing:-0.015em;display:flex;align-items:center;gap:7px;margin-bottom:14px}
+#inputCard h2::before{content:'✏️';font-size:19px}
+#inputCard label{font-weight:600;color:#525252}
+#inputCard input:not([type="hidden"]):focus,#inputCard select:focus,#inputCard textarea:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(234,88,12,0.12)}
+
+/* 채팅 자동분석 details — 더 시각적 (이전 회색 → 베이지 카드) */
+#inputCard > details{background:linear-gradient(135deg,#fff7ed,#fef3e2);border:1px solid #fed7aa;border-radius:10px;padding:10px 13px;margin-bottom:12px}
+#inputCard > details summary{color:#9a3412;font-weight:700}
+#inputCard > details textarea{background:#fff;border-color:#fed7aa}
+
+/* 판매금액 input — 강조 */
+#pAmount{font-size:17px;font-weight:700;color:var(--pri);background:linear-gradient(180deg,#fff,#fffbf5)}
+#pAmount::placeholder{color:#d4d4d4;font-weight:400;font-size:14px}
 label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px;font-weight:500}
 textarea,input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;font-family:inherit;background:#fff;transition:border-color 0.15s, box-shadow 0.15s;color:var(--txt)}
 textarea:focus,input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(234,88,12,0.1)}
@@ -61,9 +79,9 @@ button{border:0;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:
 .btn-pri-sm{background:var(--pri);color:#fff;padding:6px 11px;font-size:12px;font-weight:600;border-radius:8px;box-shadow:0 1px 2px rgba(234,88,12,0.15)}
 .preview{background:var(--pri-soft);border:1px solid #fed7aa;border-radius:10px;padding:11px 12px;margin-top:10px}
 .preview .ttl{font-size:12px;color:var(--pri);font-weight:700;margin-bottom:6px}
-.modes{display:flex;gap:6px;margin-bottom:14px;background:#f4f3ef;padding:4px;border-radius:12px}
-.mode-btn{flex:1;background:transparent;border:0;color:var(--mut);padding:10px;font-weight:600;border-radius:9px;transition:all 0.15s}
-.mode-btn.active{background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.modes{display:flex;gap:6px;margin-bottom:14px;background:#ebe9e3;padding:4px;border-radius:12px}
+.mode-btn{flex:1;background:transparent;border:0;color:var(--mut);padding:10px;font-weight:700;border-radius:9px;transition:all 0.15s;font-size:14px}
+.mode-btn.active{background:#fff;color:var(--pri);box-shadow:0 1px 3px rgba(234,88,12,0.15);font-weight:800}
 /* 2개 모드: ✏️입력 / 📋관리 */
 body[data-mode="input"] #ordersSection,
 body[data-mode="input"] #ledgerCard,
@@ -279,9 +297,10 @@ body[data-font="large"] .font-btn{background:var(--pri);color:#fff;border-color:
 .paid-by-line{font-size:12px;color:var(--mut);margin-top:6px;padding-top:6px;border-top:1px dashed #f0f0f0}
 .paid-by-inp{display:inline-block;width:auto;min-width:120px;padding:3px 7px;font-size:12px;margin-left:4px;border:1px solid var(--line);border-radius:5px}
 /* 거래방식 탭 */
-.type-tabs{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.type-tabs button{flex:1;background:#fff;color:var(--mut);border:0;padding:9px 0;font-size:13px;cursor:pointer;border-radius:0;font-weight:600}
-.type-tabs button.active{background:var(--pri);color:#fff}
+.type-tabs{display:flex;gap:6px;background:#f4f3ef;padding:4px;border-radius:10px}
+.type-tabs button{flex:1;background:transparent;color:var(--mut);border:0;padding:9px 0;font-size:13px;cursor:pointer;border-radius:8px;font-weight:600;transition:all 0.15s}
+.type-tabs button.active[data-type="택배"]{background:#eff6ff;color:#1e40af;box-shadow:0 1px 3px rgba(30,64,175,0.15)}
+.type-tabs button.active[data-type="직거래"]{background:#fef3c7;color:#92400e;box-shadow:0 1px 3px rgba(146,64,14,0.15)}
 /* 안내사항 footer */
 .help-note{background:#fff7f0;border:1px solid #ffd6b3;border-radius:8px;padding:11px 13px;font-size:12px;color:#7c2d12;margin-top:14px;line-height:1.55}
 .help-note b{color:#9a3412}
@@ -625,7 +644,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28h-카드시각화·글자크기</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28i-헤더입력색상</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
