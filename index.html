@@ -487,24 +487,24 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 <!-- 마진 자동수정 배너 (관리자 자기 주문 rep_price ≠ amount일 때) -->
 <div id="marginFixBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fff3cd;border:1px solid #f6c343;border-radius:8px;font-size:12.5px;line-height:1.5">
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>⚠️ <b>마진 계산 이상 <span id="mfbCount">0</span>건</b> — 본인이 직접 입력한 주문인데 받은 금액(amount) 대신 카탈로그의 ③ 기본 판매가가 적용되어 마진이 잘못 잡혔습니다.</span>
+    <span>⚠️ <b>마진 계산 오류 <span id="mfbCount">0</span>건</b> — 직접 입력하신 주문인데 받은 금액 대신 기본 판매가로 마진이 계산되어 있어요.</span>
     <button class="btn-pri-sm" id="btnMarginFix" style="margin-left:auto">🔧 자동 수정</button>
   </div>
 </div>
 
-<!-- 봇 실패 배너 — bot_note 있는 주문 + 발주봇 미작동 감지 -->
+<!-- 발주 실패 배너 — bot_note 있는 주문 = 자동 발주가 시도했다가 실패한 것 -->
 <div id="botFailBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fdebea;border:1px solid #c5221f;border-radius:8px;font-size:12.5px;line-height:1.5;color:#7f1d1d">
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>🚨 <b id="bfbMsg">봇 문제 감지</b></span>
-    <button class="btn-pri-sm" id="btnBotFailScroll" style="margin-left:auto;background:#c5221f">🔍 첫 실패 주문 보기</button>
+    <span>🚨 <b id="bfbMsg">발주 오류</b></span>
+    <button class="btn-pri-sm" id="btnBotFailScroll" style="margin-left:auto;background:#c5221f">🔍 문제 주문 보기</button>
   </div>
 </div>
 
-<!-- 접수 적체 배너 — 접수 상태 주문이 12:30 지나도 남아 있으면 (자동봇 미발화) -->
+<!-- 접수 적체 배너 — 점심 시간 지났는데 등록 안 된 주문이 남아 있을 때 -->
 <div id="botStaleBanner" class="admin-only" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fef3c7;border:1px solid #b45309;border-radius:8px;font-size:12.5px;line-height:1.5;color:#78350f">
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>⏰ <b id="bsbMsg">자동봇 미발화 감지</b></span>
-    <button class="btn-pri-sm" id="btnBotStaleRun" style="margin-left:auto;background:#b45309">🤖 지금 바로 실행</button>
+    <span>⏰ <b id="bsbMsg">자동 발주가 안 됐어요</b></span>
+    <button class="btn-pri-sm" id="btnBotStaleRun" style="margin-left:auto;background:#b45309">🤖 지금 바로 발주</button>
   </div>
 </div>
 
@@ -522,7 +522,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.27d-Vercel우선시도</b></span>
+    <span>버전: <b id="appVersion">v2026.05.27e-자연스러운한국어</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -663,7 +663,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <summary>🧹 발주대기 일괄 정리 (옛 주문 보이면 클릭)</summary>
     <p class="muted" style="margin:8px 0;font-size:11.5px;line-height:1.5">
       옛날 봇은 등록 후 '발주대기'에서 멈췄다가 사용자가 수동으로 '발주완료'로 바꿔야 했어요.
-      지금은 봇이 자동으로 발주완료로 마킹합니다.<br>
+      지금은 자동으로 발주완료까지 마킹돼요.<br>
       <b>아직 발주대기로 남아있는 옛 주문</b>이 있으면 한 번에 발주완료로 정리할 수 있어요.
       (이미 본인이 OMS에서 결제·처리한 주문이라면 안전)
     </p>
@@ -739,9 +739,9 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <p class="muted" style="font-size:11.5px;margin:0;line-height:1.5">
       <a href="https://github.com/SJ2424/danggn-order" target="_blank" rel="noopener">↗ GitHub 저장소</a> → 파일 수정 → commit → Vercel/Actions 자동 반영.
     </p>
-    <h3 style="margin:14px 0 4px;font-size:12.5px">⚡ 봇 즉시 실행 (옵션)</h3>
+    <h3 style="margin:14px 0 4px;font-size:12.5px">⚡ 즉시 발주 설정 (선택)</h3>
     <p class="muted" style="font-size:11.5px;margin:0 0 6px;line-height:1.5">
-      도구바 [🤖 선반랙 발주]/[🛒 카트 발주]/[🚚 송장 수집] 버튼을 1클릭으로 만들기. <b>안 해도 자동 봇은 정상 작동</b>. 정말 급할 때만 필요.
+      도구바의 [🤖 선반랙 발주] / [🛒 카트 발주] / [🚚 송장 수집] 을 1클릭으로 만들기. <b>안 해도 자동 발주는 정상 작동</b>. 정말 급할 때만 필요.
     </p>
     <div id="ghTokenStatus" class="muted" style="font-size:11.5px;margin:6px 0"></div>
     <button class="btn-sec btn-sm" id="btnGhRegister">설정</button>
@@ -807,18 +807,18 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </div>
 </div>
 
-<!-- 🤖 봇 즉시 실행 — 1회 설정 모달 (사용자가 confirm/prompt 안 보게) -->
+<!-- 즉시 발주 — 1회 설정 모달 -->
 <div id="botSetupModal" class="modal">
   <div class="modal-content" style="max-width:480px">
-    <h2 style="margin-top:0">🤖 봇 즉시 실행 — 1회 설정</h2>
+    <h2 style="margin-top:0">🤖 즉시 발주 — 1회 설정</h2>
     <p style="margin:0 0 12px;font-size:13px;color:var(--mut)">
-      이거 한 번만 하면, <b>다음부터 [발주] 버튼 누르면 자동 작동</b>합니다 (1분이면 끝!)
+      한 번만 해두면 <b>다음부터 [발주] 버튼만 누르면 작동</b>해요 (1분이면 끝!)
     </p>
 
     <div style="background:#fff8e1;border:1px solid #f6c343;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;line-height:1.6">
       <b>📌 지금 안 해도 돼요</b><br>
-      봇은 평일 자동 시간에 알아서 돌아요 (<b id="bsmNextRun">다음: -</b>).<br>
-      <b>즉시 실행</b>이 필요할 때만 아래 설정을 한 번만 해두면 돼요.
+      자동 발주가 평일 정해진 시간에 알아서 돌아요 (<b id="bsmNextRun">다음: -</b>).<br>
+      <b>즉시 발주</b>가 필요할 때만 아래 설정을 한 번만 해두면 됩니다.
     </div>
 
     <div style="background:#f0f8ff;border-left:3px solid #2563eb;padding:10px 12px;border-radius:4px;margin-bottom:10px;font-size:13px">
@@ -2020,7 +2020,7 @@ function showBotFailBanner(){
   // 가장 최근 실패 메시지 첫 줄
   const last = failed[0];
   const noteFirstLine = (last.bot_note || '').split('\n')[0].slice(0, 80);
-  $('#bfbMsg').innerHTML = `봇 실패 <b>${failed.length}건</b> — ${esc(noteFirstLine)}`;
+  $('#bfbMsg').innerHTML = `발주 실패 <b>${failed.length}건</b> — ${esc(noteFirstLine)}`;
   banner.style.display = 'block';
 }
 
@@ -2047,7 +2047,7 @@ function showBotStaleBanner(){
     banner.style.display = 'none';
     return;
   }
-  $('#bsbMsg').innerHTML = `자동봇 미발화 의심 — 접수 상태 <b>${stuck.length}건</b> 남아있음 (현재 KST ${parts.hour}:${parts.minute})`;
+  $('#bsbMsg').innerHTML = `자동 발주가 안 됐어요 — 등록 안 된 주문 <b>${stuck.length}건</b> 남음 (현재 ${parts.hour}:${parts.minute})`;
   banner.style.display = 'block';
 }
 async function fixMarginIssues(){
@@ -2762,7 +2762,7 @@ async function manualRunBot(botKey, btnEl){
         });
         if(res.ok){
           restoreBtn();
-          toast(`✅ ${label} 실행 시작 — 2~3분 후 완료 알림 옴`, 'success', 4500);
+          toast(`✅ ${label} 시작했어요 — 2~3분 후 결과 알림 옴`, 'success', 4500);
           return;
         }
         const j = await res.json().catch(() => ({}));
@@ -2773,7 +2773,7 @@ async function manualRunBot(botKey, btnEl){
           return;
         }
         restoreBtn();
-        toast(`봇 실행 실패: ${j.error || ('HTTP '+res.status)}`, 'error', 6000);
+        toast(`발주 실행 실패: ${j.error || ('HTTP '+res.status)}`, 'error', 6000);
         return;
       }
     } catch(e){
@@ -2803,7 +2803,7 @@ async function manualRunBot(botKey, btnEl){
       );
       restoreBtn();
       if(res.status === 204){
-        toast(`✅ ${label} 실행 시작 — 2~3분 후 완료 알림 옴`, 'success', 4500);
+        toast(`✅ ${label} 시작했어요 — 2~3분 후 결과 알림 옴`, 'success', 4500);
         return;
       }
       if(res.status === 401 || res.status === 403){
@@ -2811,7 +2811,7 @@ async function manualRunBot(botKey, btnEl){
         toast(`개인 토큰 만료 — Vercel 서버 통해서 재시도...`, 'info', 3000);
         // 폴백으로 계속 진행 (return X)
       } else {
-        toast(`봇 실행 실패 (HTTP ${res.status}) — Vercel 서버 통해서 재시도...`, 'info', 3000);
+        toast(`발주 실행 실패 (HTTP ${res.status}) — 서버 통해 재시도 중...`, 'info', 3000);
       }
     } catch(e){
       toast(`네트워크 오류 — Vercel 서버 통해서 재시도... (${e.message})`, 'info', 3000);
@@ -2838,7 +2838,7 @@ async function manualRunBot(botKey, btnEl){
     restoreBtn();
     const j = await res.json().catch(() => ({}));
     if(res.ok){
-      toast(`✅ ${label} 실행 시작 — 2~3분 후 완료 알림 옴`, 'success', 4500);
+      toast(`✅ ${label} 시작했어요 — 2~3분 후 결과 알림 옴`, 'success', 4500);
       return;
     }
     // Vercel 서버 토큰 없음 → 친절한 모달로 1회 설정 안내 (confirm/prompt X)
@@ -2846,7 +2846,7 @@ async function manualRunBot(botKey, btnEl){
       openBotSetupModal(botKey);
       return;
     }
-    toast(`봇 실행 실패: ${j.error || ('HTTP '+res.status)}`, 'error', 6000);
+    toast(`발주 실행 실패: ${j.error || ('HTTP '+res.status)}`, 'error', 6000);
   } catch(e){
     restoreBtn();
     // 마지막 안전망 — 친절한 모달
@@ -3407,7 +3407,7 @@ $('#bsmTokenInput') && $('#bsmTokenInput').addEventListener('input', (e) => {
 });
 $('#btnBsmCancel') && $('#btnBsmCancel').addEventListener('click', () => {
   closeBotSetupModal();
-  toast(`나중에 [🤖 발주] 버튼 다시 누르면 또 안내됩니다. 자동봇은 ${getNextSchedule('register')}에 알아서 실행돼요.`, 'info', 5500);
+  toast(`자동 발주는 ${getNextSchedule('register')}에 알아서 실행돼요. 즉시 발주가 필요하면 [🤖 발주] 다시 누르세요.`, 'info', 5500);
 });
 $('#btnBsmSave') && $('#btnBsmSave').addEventListener('click', async () => {
   const token = $('#bsmTokenInput').value.trim();
@@ -3416,8 +3416,8 @@ $('#btnBsmSave') && $('#btnBsmSave').addEventListener('click', async () => {
   if(typeof refreshGhTokenStatus === 'function') refreshGhTokenStatus();
   const bot = _pendingBotKey || 'register';
   closeBotSetupModal();
-  toast('✅ 저장됨 — 봇 실행 중...', 'success', 3000);
-  // 이제 토큰 있으니 바로 봇 실행 (재호출)
+  toast('✅ 저장됨 — 발주 시작 중...', 'success', 3000);
+  // 이제 토큰 있으니 바로 발주 실행 (재호출)
   setTimeout(() => manualRunBot(bot, null), 200);
 });
 // 배경 클릭으로도 닫힘
@@ -3429,10 +3429,10 @@ function refreshGhTokenStatus(){
   const el = $('#ghTokenStatus'); if(!el) return;
   const token = load('gh_token','');
   if(token){
-    el.innerHTML = `✅ 등록됨 (${token.slice(0,10)}...) — 봇 버튼 클릭하면 1클릭 실행`;
+    el.innerHTML = `✅ 등록됨 (${token.slice(0,10)}...) — 발주 버튼 클릭하면 즉시 실행`;
     el.style.color = '#137333';
   } else {
-    el.innerHTML = '⚠️ 미등록 — 봇 버튼 처음 클릭시 자동 안내 뜸';
+    el.innerHTML = '⚠️ 미등록 — 발주 버튼 처음 클릭하면 설정 안내가 뜹니다';
     el.style.color = '#b45309';
   }
 }
@@ -3458,12 +3458,12 @@ async function openGitHubTokenSetup(){
   }
   save('gh_token', cleaned);
   refreshGhTokenStatus();
-  toast('✅ 토큰 저장됨 — 이제 봇 버튼 1클릭으로 실행됩니다', 'success', 5000);
+  toast('✅ 저장됨 — 이제 [발주] 버튼 한 번이면 바로 실행돼요', 'success', 5000);
   return true;
 }
 $('#btnGhRegister') && $('#btnGhRegister').addEventListener('click', openGitHubTokenSetup);
 $('#btnGhClear') && $('#btnGhClear').addEventListener('click', () => {
-  if(confirm('GitHub 토큰을 삭제할까요? 다음 봇 클릭시 다시 등록 안내가 뜹니다.')){
+  if(confirm('GitHub 토큰을 삭제할까요? 다음 [발주] 클릭시 다시 설정 안내가 뜹니다.')){
     save('gh_token','');
     refreshGhTokenStatus();
     alert('🗑 토큰 삭제됨');

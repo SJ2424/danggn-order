@@ -47,8 +47,8 @@ async function main(){
     const count = g.count;
     const total = g.total;
     const payload = JSON.stringify({
-      title: `💸 미입금 ${count}건 (3일+)`,
-      body: `합계 ${total.toLocaleString('ko-KR')}원 — 입금 확인 필요`,
+      title: `💸 입금 대기 ${count}건 (3일 지남)`,
+      body: `합계 ${total.toLocaleString('ko-KR')}원 — 손님 입금 확인 필요`,
       url: '/',
       tag: 'overdue-unpaid'
     });

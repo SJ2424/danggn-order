@@ -448,10 +448,10 @@ async function notifyAdmins(okCount, failCount) {
 
   // 잠금화면 가독성 — 짧고 명확하게
   const title = (okCount === 0 && failCount > 0)
-    ? `⚠️ 봇 실패 ${failCount}건`
+    ? `⚠️ 발주 실패 ${failCount}건`
     : `✅ ${okCount}건 발주 완료`;
   const body  = (okCount === 0 && failCount > 0)
-    ? `앱에서 빨간 봇 메시지 확인 + 수정 필요`
+    ? `앱에서 빨간 메시지 확인 후 수정 필요`
     : `💳 12:55 전 결제·송금 필요`
       + (failCount > 0 ? `\n⚠️ ${failCount}건 실패 — 앱 확인` : '');
 
