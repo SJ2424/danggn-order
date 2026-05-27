@@ -479,7 +479,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
     • <b>같은 색상·같은 상품 여러 개만 묶고</b>, 다른 색이나 다른 상품은 따로 입력해 주세요 (배송이 따로 나갑니다).<br>
     • <b>영업일 오후 12:47 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).<br>
-    • 12:47 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (12:55 마감).<br>
+    • 12:47 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (13:00 마감, OMS 12:55).<br>
     • 💰 <b>입금은 보통 상품 수령 후</b>에 받습니다 — 미입금 표시는 정상이에요. 입금받으면 해당 주문 카드의 <b>[미입금] 알약을 [입금완료]로 토글</b>해 주세요.
   </div>
 </section>
@@ -489,6 +489,27 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span>⚠️ <b>마진 계산 오류 <span id="mfbCount">0</span>건</b> — 직접 입력하신 주문인데 받은 금액 대신 기본 판매가로 마진이 계산되어 있어요.</span>
     <button class="btn-pri-sm" id="btnMarginFix" style="margin-left:auto">🔧 자동 수정</button>
+  </div>
+</div>
+
+<!-- 🔔 푸시 알림 OFF 배너 — 권한/구독 상태 자동 감지 (사용자 무한정 못 받는 사고 차단) -->
+<div id="pushOffBanner" style="display:none;margin-bottom:10px;padding:12px 14px;background:#fff3cd;border:2px solid #d97706;border-radius:8px;font-size:13px;line-height:1.55;color:#7c2d12">
+  <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    <span style="font-size:22px;line-height:1">🔔</span>
+    <div style="flex:1;min-width:200px">
+      <div style="font-weight:700;margin-bottom:2px" id="pobTitle">마감 알림이 꺼져 있어요</div>
+      <div id="pobDesc" style="font-size:12px;color:#92400e">13:00 마감 25분 전 푸시를 받으려면 한 번만 켜세요.</div>
+    </div>
+    <button id="btnPushOn" class="btn-pri-sm" style="background:#d97706">🔔 지금 켜기</button>
+  </div>
+  <div id="pobIosGuide" style="display:none;margin-top:10px;padding:10px 12px;background:#fff;border-radius:6px;font-size:12px;line-height:1.7;color:#1c1f23">
+    <b>🍎 iPhone·iPad는 먼저 홈 화면에 설치 필요 (Apple 정책)</b><br>
+    1. 화면 아래 [⬆️ 공유] 아이콘 탭<br>
+    2. 목록 내려서 [📲 홈 화면에 추가] 탭<br>
+    3. 우상단 [추가] 탭<br>
+    4. 홈 화면의 🥕 당근주문 아이콘으로 다시 열기<br>
+    5. 이 배너의 [🔔 지금 켜기] 다시 탭<br>
+    <span style="color:var(--mut);font-size:11px">※ 사파리 탭으로 직접 열면 알림 작동 안 함</span>
   </div>
 </div>
 
@@ -522,7 +543,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.27e-자연스러운한국어</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28-푸시진단·13시마감</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -635,9 +656,10 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
   <details class="sub-section">
     <summary>🔔 이 기기 알림 켜기</summary>
-    <p class="muted" style="margin:8px 0;font-size:12px">12:35 마감 임박 + 발주 완료 + 손님 미입금 3일+ 알림 받기 (한 번만 설정).</p>
+    <p class="muted" style="margin:8px 0;font-size:12px">평일 12:35 + 12:50 (13:00 마감 임박) · 발주 완료 · 손님 입금 대기 3일+ 푸시 받기 (한 번만 설정).<br>
+      🍎 iPhone은 먼저 <b>홈 화면에 추가</b> 후 가능.</p>
     <button class="btn-sec btn-sm" id="btnEnablePush">🔔 이 기기 알림 켜기</button>
-    <button class="btn-sec btn-sm" id="btnTestAlarm" style="margin-left:6px">🔔 테스트 알람</button>
+    <button class="btn-sec btn-sm" id="btnTestAlarm" style="margin-left:6px">🔔 테스트 알림 보내기</button>
     <div id="pushMsg" class="muted" style="margin-top:6px;font-size:11.5px"></div>
   </details>
 
@@ -1154,6 +1176,10 @@ async function showApp(session){
     await loadReceipts();
     renderLedgerFilters();
   }
+  // 🔔 푸시 상태 자동 점검 — OFF면 상단 노란 배너 자동 표시
+  setTimeout(() => refreshPushBanner(), 300);
+  // 주기적 재점검 (만료 감지) — 5분마다
+  setInterval(() => refreshPushBanner(), 5 * 60 * 1000);
 }
 
 async function doLogin(){
@@ -1770,7 +1796,7 @@ function saveProducts(){
   catch(e){ alert('JSON 형식 오류'); }
 }
 
-const ALARM_START='12:30', CUTOFF='12:55', REPEAT_MIN=5;
+const ALARM_START='12:30', CUTOFF='13:00', REPEAT_MIN=5;
 let lastAlarm=0;
 const toMin=s=>{const a=s.split(':');return +a[0]*60+ +a[1];};
 function pendingCount(){ return ORDERS.filter(o=>{const s=o.status||'접수'; return s==='접수'||s==='발주대기';}).length; }
@@ -1813,8 +1839,10 @@ function ackDeadline(){
   $('#alarm').style.display='none';
   setMode('manage');
 }
+// 🔔 [테스트 알림] — 진짜 Web Push 한 발 보내서 잠금화면에서 작동 검증
+// 화면 내 토스트가 아니라 실제 푸시 발송 (서버 경유 → 폰 OS → 잠금화면)
 function testAlarm(){
-  showAlarm('🔔 [테스트] 알람 정상 작동 — 처리 대기 '+pendingCount()+'건');
+  sendTestPush(false);
 }
 
 // ====== 내 계정 카드 (관리자 본인 표시 이름 변경) ======
@@ -3113,24 +3141,115 @@ async function registerSW(){
   }
 }
 
+// iOS PWA 환경 감지 — Safari 직접이면 알림 불가
+function isIosSafariNonStandalone(){
+  const ua = navigator.userAgent || '';
+  const isIos = /iPhone|iPad|iPod/.test(ua);
+  if (!isIos) return false;
+  // standalone 모드(홈화면 추가됨) 체크 — iOS Safari는 navigator.standalone, 다른 PWA는 display-mode
+  const standalone = window.navigator.standalone === true
+    || window.matchMedia('(display-mode: standalone)').matches;
+  return !standalone;
+}
+
+// 푸시 상태 진단 (3가지 상태 반환)
+async function getPushStatus(){
+  // A: 권한 없음 + 구독 없음 (기본 / 처음 옴)
+  // B: 권한 거부됨 (다시 prompt 안 뜸 — 설정에서만 변경 가능)
+  // C: iOS Safari 브라우저 (홈화면 추가 X) → 알림 불가
+  // OK: 권한 grant + 구독 등록됨
+  if (isIosSafariNonStandalone()) return { state:'IOS_BROWSER' };
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)){
+    return { state:'UNSUPPORTED' };
+  }
+  const perm = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
+  if (perm === 'denied') return { state:'DENIED' };
+  // 구독 실제 등록됐는지
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return { state:'NOT_SUBSCRIBED', perm };
+    // Supabase에도 row 있는지 확인 (endpoint 만료 후 정리됐을 수 있음)
+    if (myUserId) {
+      const { data, error } = await sb.from('push_subscriptions')
+        .select('endpoint').eq('endpoint', sub.endpoint).maybeSingle();
+      if (!error && !data) return { state:'DB_MISSING', perm, sub };
+    }
+    return { state:'OK', perm, sub };
+  } catch(e){
+    return { state:'ERROR', error: e.message };
+  }
+}
+
+// 푸시 OFF 배너 표시·숨김
+async function refreshPushBanner(){
+  const banner = $('#pushOffBanner'); if(!banner) return;
+  if (!myUserId){ banner.style.display = 'none'; return; }
+  const s = await getPushStatus();
+  const iosGuide = $('#pobIosGuide');
+  iosGuide.style.display = 'none';
+  if (s.state === 'OK'){
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'block';
+  if (s.state === 'IOS_BROWSER'){
+    $('#pobTitle').textContent = '🍎 iPhone·iPad는 홈 화면에 설치 필요';
+    $('#pobDesc').textContent = '아래 안내대로 홈 화면에 추가하면 알림 받을 수 있어요.';
+    $('#btnPushOn').style.display = 'none';
+    iosGuide.style.display = 'block';
+  } else if (s.state === 'DENIED'){
+    $('#pobTitle').textContent = '🔕 알림이 차단되어 있어요';
+    $('#pobDesc').innerHTML = 'iPhone <b>설정 → 알림 → 당근주문 → 알림 허용</b> 켜고 다시 [지금 켜기] 탭';
+    $('#btnPushOn').style.display = '';
+    $('#btnPushOn').textContent = '🔁 다시 시도';
+  } else if (s.state === 'UNSUPPORTED'){
+    $('#pobTitle').textContent = '❌ 이 브라우저는 푸시 미지원';
+    $('#pobDesc').textContent = 'Chrome / Safari / Firefox 최신 버전으로 열어주세요.';
+    $('#btnPushOn').style.display = 'none';
+  } else {
+    // NOT_SUBSCRIBED / DB_MISSING / ERROR
+    $('#pobTitle').textContent = '🔔 마감 알림이 꺼져 있어요';
+    $('#pobDesc').textContent = '13:00 마감 25분 전 푸시를 받으려면 한 번만 켜세요. (안 해도 자동 발주는 정상 작동)';
+    $('#btnPushOn').style.display = '';
+    $('#btnPushOn').textContent = '🔔 지금 켜기';
+  }
+}
+
 async function enablePush(){
   const msg = $('#pushMsg');
-  msg.textContent = '';
-  if (VAPID_PUBLIC_KEY.startsWith('__')){
-    msg.textContent='⚠️ VAPID 공개키 미설정 (관리자가 셋업 필요)'; msg.style.color='#c5221f'; return;
+  if (msg){ msg.textContent = ''; msg.style.color='var(--mut)'; }
+  const setMsg = (t, c) => { if (msg){ msg.textContent = t; msg.style.color = c || 'var(--mut)'; } };
+
+  // iOS PWA 가드 — Safari 직접이면 절대 작동 안 함 (Apple 정책)
+  if (isIosSafariNonStandalone()){
+    toast('🍎 먼저 홈 화면에 설치 필요 — 화면 아래 [공유] → [홈 화면에 추가]', 'error', 7000);
+    setMsg('🍎 iPhone은 홈 화면 추가 후 가능 (Safari 탭에선 불가)', '#c5221f');
+    refreshPushBanner();
+    return;
   }
+
   if (!('serviceWorker' in navigator) || !('PushManager' in window)){
-    msg.textContent='❌ 이 브라우저는 푸시 미지원'; msg.style.color='#c5221f'; return;
+    toast('❌ 이 브라우저는 푸시 미지원', 'error', 5000);
+    setMsg('❌ 푸시 미지원 브라우저', '#c5221f');
+    return;
   }
-  msg.textContent='권한 요청 중...';
-  msg.style.color='var(--mut)';
+  setMsg('권한 요청 중...');
+  toast('🔔 권한 요청 — 팝업 뜨면 [허용] 눌러주세요', 'info', 3500);
   try {
     const reg = await registerSW();
     if (!reg) throw new Error('서비스워커 등록 실패');
     const perm = await Notification.requestPermission();
+    if (perm === 'denied'){
+      toast('🔕 권한 차단 — iPhone 설정 → 알림 → 당근주문 → 허용 켜고 다시 시도', 'error', 8000);
+      setMsg('🔕 권한 차단 — 설정에서 허용으로 변경 필요', '#c5221f');
+      refreshPushBanner();
+      return;
+    }
     if (perm !== 'granted'){
-      msg.textContent='❌ 알림 권한 거부됨 — 브라우저 설정에서 허용으로 변경 후 재시도';
-      msg.style.color='#c5221f'; return;
+      toast('알림 권한 미허용', 'info', 4000);
+      setMsg('권한 거부됨', '#c5221f');
+      return;
     }
     let sub = await reg.pushManager.getSubscription();
     if (!sub){
@@ -3147,12 +3266,41 @@ async function enablePush(){
       auth: j.keys.auth
     }, { onConflict: 'endpoint' });
     if (error) throw error;
-    msg.textContent='✅ 알림 등록 완료! 12:30과 12:45에 자동 알림이 옵니다.';
-    msg.style.color='#137333';
+    setMsg('✅ 등록 완료! 평일 12:35·12:50에 마감 알림이 옵니다.', '#137333');
+    toast('✅ 알림 등록 완료 — 이제 테스트 알림 한 번 보내볼게요...', 'success', 3500);
+    refreshPushBanner();
+    // 즉시 테스트 푸시 발송 — 잠금화면에서 실제 작동 검증
+    setTimeout(() => sendTestPush(true), 1200);
   } catch(e){
-    msg.textContent='❌ 실패: ' + e.message;
-    msg.style.color='#c5221f';
     console.error(e);
+    toast(`❌ 알림 등록 실패: ${e.message}`, 'error', 6000);
+    setMsg('❌ 실패: ' + e.message, '#c5221f');
+  }
+}
+
+// 🔔 진짜 Web Push 테스트 — 서버에서 본인 endpoint로 푸시 한 발
+async function sendTestPush(silent){
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session){
+      toast('로그인이 풀렸어요 — 새로고침 후 다시 로그인', 'error', 5000);
+      return;
+    }
+    const res = await fetch('/api/test-push', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok && j.ok){
+      toast(`✅ 테스트 알림 전송됨 (${j.sent}개 기기) — 잠금화면 확인!`, 'success', 6000);
+    } else if (res.status === 404){
+      toast(`알림 기기 등록 X — [🔔 지금 켜기] 먼저 누르세요`, 'error', 6000);
+    } else {
+      toast(`테스트 실패: ${j.error || ('HTTP '+res.status)}`, 'error', 7000);
+    }
+  } catch(e){
+    if (!silent) toast(`테스트 실패: ${e.message}`, 'error', 5000);
   }
 }
 
@@ -3224,6 +3372,7 @@ $('#mInput').addEventListener('click', ()=>setMode('input'));
 $('#mManage').addEventListener('click', ()=>setMode('manage'));
 $('#btnAck').addEventListener('click', ackDeadline);
 $('#btnTestAlarm').addEventListener('click', testAlarm);
+$('#btnPushOn') && $('#btnPushOn').addEventListener('click', enablePush);
 
 $('#btnPending').addEventListener('click', openApproveModal);
 $('#btnCloseModal').addEventListener('click', ()=>$('#approveModal').classList.remove('open'));

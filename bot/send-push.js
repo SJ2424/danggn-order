@@ -67,8 +67,8 @@ async function main(){
   if (recv > 0)          lines.push(`📥 신규 주문 ${recv}건 (자동 등록 중)`);
   if (shippedUnpaid > 0) lines.push(`💰 입금 대기 ${shippedUnpaid}건`);
 
-  // 제목 — 가장 큰 액션 기준
-  let title = '⏰ 12:55 결제 마감';
+  // 제목 — 가장 큰 액션 기준 (13:00 마감 = 그 후 다음날 발송)
+  let title = '⏰ 13:00 마감 전 결제 필요';
   if (ordered === 0 && recv === 0 && shippedUnpaid > 0) title = '💰 입금 확인 필요';
 
   const payload = JSON.stringify({

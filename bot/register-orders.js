@@ -447,7 +447,7 @@ async function notifyAdmins(okCount, failCount) {
     : `✅ ${okCount}건 발주 완료`;
   const body  = (okCount === 0 && failCount > 0)
     ? `앱에서 빨간 메시지 확인 후 수정 필요`
-    : `💳 12:55 전 결제·송금 필요`
+    : `💳 13:00 마감 전 결제·송금 필요`
       + (failCount > 0 ? `\n⚠️ ${failCount}건 실패 — 앱 확인` : '');
 
   const payload = JSON.stringify({
