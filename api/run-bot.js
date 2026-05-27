@@ -101,16 +101,23 @@ export default async function handler(req, res) {
 
   if (!ghRes.ok) {
     const text = await ghRes.text().catch(() => '');
+    // GitHub 응답에서 핵심 메시지 추출
+    let ghMessage = '';
+    try { ghMessage = JSON.parse(text)?.message || ''; } catch {}
+    const hint = ghRes.status === 401
+      ? 'GITHUB_TOKEN이 잘못됐거나 만료됨 — Vercel 환경변수에서 재등록 필요'
+      : ghRes.status === 403
+      ? '권한 부족: ① 토큰이 잘리거나 공백 포함됨 ② workflow scope 체크 안 됨 ③ 토큰 발급자가 SJ2424/danggn-order 권한 없음'
+      : ghRes.status === 404
+      ? '워크플로우 파일명 또는 GITHUB_REPO 확인 (현재: ' + GITHUB_REPO + ')'
+      : ghRes.status === 422
+      ? '워크플로우가 main 브랜치에 없거나 inputs 불일치'
+      : '';
     return res.status(502).json({
-      error: `GitHub API 호출 실패 (${ghRes.status})`,
+      error: `GitHub API 호출 실패 (${ghRes.status}): ${ghMessage || hint}`,
+      githubMessage: ghMessage,
       detail: text.slice(0, 400),
-      hint: ghRes.status === 401
-        ? 'GITHUB_TOKEN이 잘못됐거나 만료됨'
-        : ghRes.status === 404
-        ? '워크플로우 파일명 또는 GITHUB_REPO 확인'
-        : ghRes.status === 422
-        ? '워크플로우가 main 브랜치에 없거나 inputs 불일치'
-        : ''
+      hint
     });
   }
 
