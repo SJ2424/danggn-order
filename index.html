@@ -543,7 +543,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28b-VAPID동적로딩</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28c-VAPID키발급UI</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -661,6 +661,10 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <button class="btn-sec btn-sm" id="btnEnablePush">🔔 이 기기 알림 켜기</button>
     <button class="btn-sec btn-sm" id="btnTestAlarm" style="margin-left:6px">🔔 테스트 알림 보내기</button>
     <div id="pushMsg" class="muted" style="margin-top:6px;font-size:11.5px"></div>
+    <hr style="margin:12px 0;border:0;border-top:1px solid var(--line)">
+    <p class="muted" style="margin:0 0 6px;font-size:11.5px">⚙️ <b>VAPID 키 새로 발급</b> (메모 분실 / 키 교체용 — 평소엔 안 씀)</p>
+    <button class="btn-sec btn-sm" id="btnGenVapid">🔑 새 VAPID 키 발급</button>
+    <div id="vapidGenResult" style="display:none;margin-top:8px"></div>
   </details>
 
   <details class="sub-section">
@@ -3398,6 +3402,78 @@ $('#mManage').addEventListener('click', ()=>setMode('manage'));
 $('#btnAck').addEventListener('click', ackDeadline);
 $('#btnTestAlarm').addEventListener('click', testAlarm);
 $('#btnPushOn') && $('#btnPushOn').addEventListener('click', enablePush);
+
+// 🔑 새 VAPID 키 발급 — admin 클릭 한 번에 새 키 페어 받음
+$('#btnGenVapid') && $('#btnGenVapid').addEventListener('click', async () => {
+  if (!confirm('새 VAPID 키 페어를 발급합니다.\n\n발급 후 GitHub Secrets와 Vercel 환경변수에 등록 필요 (안내 따라가면 끝).\n\n진행할까요?')) return;
+  const btn = $('#btnGenVapid');
+  const result = $('#vapidGenResult');
+  btn.disabled = true; btn.textContent = '⏳ 발급 중...';
+  result.style.display = 'none';
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('로그인 필요', 'error', 4000); return; }
+    const res = await fetch('/api/gen-vapid', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    const j = await res.json();
+    if (!res.ok) { toast(`발급 실패: ${j.error || res.status}`, 'error', 6000); return; }
+    // 화면에 3개 값 + 복사 버튼 + 안내
+    const esc = s => String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+    result.innerHTML = `
+      <div style="background:#fff3cd;border:1px solid #d97706;border-radius:8px;padding:12px;font-size:12px">
+        <b style="color:#7c2d12">⚠️ 이 화면 닫지 마세요! Private Key는 다시 못 봅니다.</b>
+        <p style="margin:6px 0;color:#92400e">아래 3개 값을 메모장에 복사 → GitHub Secrets에 update + Vercel 환경변수에 add</p>
+        <div style="margin-top:10px">
+          <label style="font-weight:600;font-size:11px">VAPID_PUBLIC_KEY</label>
+          <div style="display:flex;gap:4px;margin-top:2px">
+            <input readonly value="${esc(j.publicKey)}" style="flex:1;padding:6px;font-size:10px;font-family:monospace;border:1px solid var(--line);border-radius:4px">
+            <button class="btn-sec btn-sm vapid-copy" data-val="${esc(j.publicKey)}">복사</button>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <label style="font-weight:600;font-size:11px">VAPID_PRIVATE_KEY</label>
+          <div style="display:flex;gap:4px;margin-top:2px">
+            <input readonly value="${esc(j.privateKey)}" style="flex:1;padding:6px;font-size:10px;font-family:monospace;border:1px solid var(--line);border-radius:4px">
+            <button class="btn-sec btn-sm vapid-copy" data-val="${esc(j.privateKey)}">복사</button>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <label style="font-weight:600;font-size:11px">VAPID_SUBJECT</label>
+          <div style="display:flex;gap:4px;margin-top:2px">
+            <input readonly value="${esc(j.subject)}" style="flex:1;padding:6px;font-size:10px;font-family:monospace;border:1px solid var(--line);border-radius:4px">
+            <button class="btn-sec btn-sm vapid-copy" data-val="${esc(j.subject)}">복사</button>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:10px;background:#fff;border-radius:6px;font-size:12px;line-height:1.7">
+          <b>📌 등록 순서:</b><br>
+          <b>1️⃣ GitHub Secrets (3개 update)</b>: <a href="https://github.com/SJ2424/danggn-order/settings/secrets/actions" target="_blank">바로가기</a><br>
+          &nbsp;&nbsp;각 시크릿 옆 [Update] → 새 값 붙여넣기<br>
+          <b>2️⃣ Vercel 환경변수 (3개 add)</b>: <a href="https://vercel.com/sj-s-projects8/danggn-order/settings/environment-variables" target="_blank">바로가기</a><br>
+          &nbsp;&nbsp;각 변수 [Add New] → Name/Value 입력 → Save (Production 체크)<br>
+          <b>3️⃣ Vercel 재배포</b>: Deployments → 최신 ⋯ → Redeploy<br>
+          <b>4️⃣ 끝!</b> 폰 강제 새로고침 → [🔔 알림 켜기] 누르면 작동
+        </div>
+      </div>
+    `;
+    result.style.display = 'block';
+    // 복사 버튼 핸들러
+    result.querySelectorAll('.vapid-copy').forEach(b => {
+      b.addEventListener('click', () => {
+        navigator.clipboard.writeText(b.dataset.val).then(() => {
+          b.textContent = '✓';
+          setTimeout(() => { b.textContent = '복사'; }, 1500);
+        });
+      });
+    });
+  } catch(e) {
+    toast(`발급 실패: ${e.message}`, 'error', 5000);
+  } finally {
+    btn.disabled = false; btn.textContent = '🔑 새 VAPID 키 발급';
+  }
+});
 
 $('#btnPending').addEventListener('click', openApproveModal);
 $('#btnCloseModal').addEventListener('click', ()=>$('#approveModal').classList.remove('open'));
