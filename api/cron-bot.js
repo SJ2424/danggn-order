@@ -76,7 +76,9 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json',
       'User-Agent': 'danggn-order-cron-backup'
     },
-    body: JSON.stringify({ ref: 'main', inputs: { dry_run: 'false' } })
+    // inputs 안 보냄 — send-push·check-overdue는 dry_run input이 없어서
+    // 보내면 GitHub가 422("Unexpected inputs") 반환. 모든 워크플로 dry_run 기본값=false(실제 실행)라 생략이 맞음
+    body: JSON.stringify({ ref: 'main' })
   });
 
   if (!ghRes.ok) {
