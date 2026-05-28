@@ -41,6 +41,9 @@ async function updateTracking(id, value, currentOrder) {
   }
   const { error } = await sb.from('orders').update(updates).eq('id', id);
   if (error) throw error;
+  // 💳 송장 = 결제+출고 증거 → OMS 결제완료 자동 처리 (수동 체크 깜빡해도 보정)
+  //    oms_paid 컬럼이 아직 없으면(SQL 미실행) error만 무시 (송장 업데이트는 위에서 성공)
+  await sb.from('orders').update({ oms_paid: true }).eq('id', id);
 }
 
 function normTel(t) { return (t||'').replace(/\D/g, ''); }
