@@ -158,9 +158,9 @@ export default async function handler(req, res) {
           lastErr = null;
           break;
         }
-        // 429 rate limit → 점진적 backoff (4초 → 6초)
-        if (r.status === 429 && attempt < 3) {
-          await sleep(attempt === 1 ? 4000 : 6000);
+        // 429 rate limit → backoff (2.5초). 12개라 시간 빡빡해서 retry 1회만
+        if (r.status === 429 && attempt < 2) {
+          await sleep(2500);
           continue;
         }
         let detail = text.slice(0, 200);
@@ -173,7 +173,7 @@ export default async function handler(req, res) {
       }
     }
     if (lastErr) results.push({ title: j.title, ok: false, ...lastErr });
-    await sleep(1500);  // 다음 job 전 1.5초 대기 (rate limit 안전 마진 확대)
+    await sleep(1100);  // 다음 job 전 1.1초 대기 (12개 × 1.1 ≈ 13초 — Vercel 60초 안)
   }
 
   const okCount = results.filter(r => r.ok).length;
