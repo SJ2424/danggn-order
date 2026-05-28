@@ -41,6 +41,9 @@ async function markRegistered(id){
   // 에러 체크 필수 — 실패시 status='접수' 그대로라 다음 크론에 중복 등록 위험
   const { error } = await sb.from('orders').update({ status:'발주완료' }).eq('id', id);
   if(error) throw error;
+  // 💳 카트는 주문=선결제 (출고완료=결제완료) → 발주완료 시 결제완료도 자동
+  //    oms_paid 컬럼 없으면(SQL 미실행) error만 무시
+  await sb.from('orders').update({ oms_paid: true }).eq('id', id);
 }
 
 // GAS 웹앱은 다중 iframe (안내문 iframe + 실제 앱 sandbox iframe)
