@@ -323,7 +323,7 @@ body[data-font="large"] .font-btn{background:var(--pri);color:#fff;border-color:
 .ts-action-num{font-size:24px;font-weight:800;line-height:1.1;letter-spacing:-0.02em;color:var(--txt)}
 .ts-action-label{font-size:11px;color:var(--mut);margin-top:2px;font-weight:500}
 .ts-section-label{font-size:10.5px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin:14px 0 8px}
-/* 💳 OMS 결제 대기 섹션 (12:55 마감 — 가장 시급) */
+/* 💳 결제 체크 섹션 (13:00 마감 — 가장 시급) */
 .omspay-box{display:flex;align-items:center;gap:10px;margin-top:6px;padding:13px 16px;border-radius:10px;flex-wrap:wrap}
 .omspay-box.pending{background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fca5a5}
 .omspay-box.done{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac}
@@ -664,7 +664,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <div class="ts-title">📊 오늘 한눈에 <span class="muted" id="tsDate" style="font-weight:400;font-size:12px"></span></div>
     <!-- 🚨 액션 필요 BIG 카운터 (매일 가장 먼저 봐야 할 숫자) -->
     <div class="ts-actions" id="tsActions"></div>
-    <!-- 💳 OMS 결제 대기 (12:55 마감 — 내가 수동 결제할 것) -->
+    <!-- 💳 결제 체크 (13:00 마감 — 내가 수동 결제할 것) -->
     <div id="omsPayBlock"></div>
     <!-- 💰 미입금 합계 (받을 돈 한눈에) -->
     <div id="unpaidSummaryBlock"></div>
@@ -680,16 +680,13 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28zd-카트선결제</b></span>
-    <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
+    <span>버전: <b id="appVersion">v2026.05.28ze-미니멀정리</b></span>
+    <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
     <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문 즉시 발주">🤖 선반랙 발주</button>
     <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
     <button class="btn-pri-sm" id="btnRunTracking" title="송장 자동 수집">🚚 송장 수집</button>
-    <button id="btnPoAll" style="display:none"></button>
-    <button id="btnBulkDone" style="display:none"></button>
-    <button id="btnCsv" style="display:none"></button>
   </div>
   <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·상품·주소·메모·송장 검색 (부분일치)"></div>
   <div class="chips admin-only" id="filters"></div>
@@ -948,9 +945,6 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </details>
 </details>
 
-<!-- 채팅 파싱 키워드는 숨김 (필요시 콘솔로 PRODUCTS 수정 가능) -->
-<textarea id="prodJson" style="display:none"></textarea>
-<button id="btnSaveProd" style="display:none"></button>
 </main>
 </div>
 
@@ -1833,22 +1827,6 @@ function closeEditModal(){
   editingId = null;
   $('#editModal').classList.remove('open');
 }
-async function bulkOrderComplete(){
-  if(userRole!=='admin') return;
-  // 오늘 발주대기만 — 과거 주문이 잘못 변경되지 않게
-  const today = kstToday();
-  const targets = ORDERS.filter(o=>o.status==='발주대기' && o.date===today);
-  if(targets.length===0){
-    const allCnt = ORDERS.filter(o=>o.status==='발주대기').length;
-    if(allCnt===0){ alert('발주대기 상태인 주문이 없습니다.'); return; }
-    if(!confirm('오늘자 발주대기는 0건이지만, 전체 발주대기 '+allCnt+'건이 있습니다. 모두 발주완료로 변경할까요? (과거 미처리분 포함)')) return;
-    await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기');
-    return;
-  }
-  if(!confirm('오늘('+today+') 발주대기 '+targets.length+'건을 모두 발주완료로 변경합니다. 계속할까요?')) return;
-  await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기').eq('date', today);
-}
-
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function countFor(k){
   if(k==='all') return ORDERS.length;
@@ -2031,48 +2009,6 @@ function setMode(m){
 }
 const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는선풍기','날개없는 선풍기','철제선반'];
 function isCartProduct(p){ return CART_PRODUCTS.includes((p||'').replace(/\s+/g,'')); }
-function poText(o){
-  if(isCartProduct(o.product)){
-    // 카트사이트 양식에 맞춰 출력 (수동 입력용)
-    return '[카트사이트 수동 발주]\n'
-      +'제품: '+o.product+'\n'
-      +'수량: '+o.qty+'\n'
-      +'옵션: '+(o.color||'-')+'\n'
-      +'배송정보: '+o.name+' / '+o.tel+' / '+o.addr+'\n'
-      +'주문자/입금자: 김수재 (관리자)\n'
-      +'비고: 구매자 '+o.name+' / '+won(o.amount)+'원'
-      +(o.tracking?'\n송장: '+o.tracking:'');
-  }
-  return '[발주] '+o.product+' '+o.color+' '+o.qty+'개 ('+o.type+')\n'
-    +'받는분: '+o.name+' / '+o.tel+'\n주소: '+o.addr+'\n금액: '+won(o.amount)+'원'
-    +(o.tracking?'\n송장: '+o.tracking:'');
-}
-function copyPo(id){
-  const o=ORDERS.find(x=>x.id===id); if(!o) return;
-  navigator.clipboard.writeText(poText(o)).then(()=>alert('발주서가 복사되었습니다.'));
-}
-function copyPoAll(){
-  const list=ORDERS.filter(o=>{ const s=o.status||'접수'; return s==='접수'||s==='발주대기'; });
-  if(!list.length){ alert('발주 대기 주문이 없습니다.'); return; }
-  navigator.clipboard.writeText(list.map(poText).join('\n\n')).then(()=>alert(list.length+'건 발주서를 복사했습니다.'));
-}
-function copyAll(){
-  const head=['날짜','휴대폰','구매자','성함','연락처','주소','상품','색상','수량','거래','금액','입금','상태','송장'];
-  const rows=ORDERS.map(o=>[o.date,o.phone,o.nick,o.name,o.tel,o.addr,o.product,o.color,o.qty,o.type,o.amount,o.paid?'입금완료':'미입금',o.status||'접수',o.tracking||''].join('\t'));
-  navigator.clipboard.writeText([head.join('\t'),...rows].join('\n')).then(()=>alert('복사 완료 — 스프레드시트에 붙여넣기 하세요.'));
-}
-function exportCsv(){
-  const head=['날짜','휴대폰','구매자','성함','연락처','주소','상품','색상','수량','거래','금액','입금','상태','송장'];
-  const escc=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
-  const rows=ORDERS.map(o=>[o.date,o.phone,o.nick,o.name,o.tel,o.addr,o.product,o.color,o.qty,o.type,o.amount,o.paid?'입금완료':'미입금',o.status||'접수',o.tracking||''].map(escc).join(','));
-  const blob=new Blob(['﻿'+[head.join(','),...rows].join('\n')],{type:'text/csv'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='당근주문_'+kstToday()+'.csv'; a.click();
-}
-function saveProducts(){
-  try{ PRODUCTS=JSON.parse($('#prodJson').value); save('products',PRODUCTS); alert('상품 키워드 저장됨'); }
-  catch(e){ alert('JSON 형식 오류'); }
-}
 
 const ALARM_START='12:00', CUTOFF='13:00', REPEAT_MIN=5;
 let lastAlarm=0;
@@ -2794,7 +2730,7 @@ function renderTodaySummary(){
   const kstWeekday = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', weekday:'short' }).format(now);
   $('#tsDate').textContent = `(${todayStr} ${kstWeekday})`;
 
-  // 💳 OMS 결제 대기 — 발주완료(봇 등록)인데 내가 OMS에서 결제 안 한 것 (12:55 마감)
+  // 💳 결제 체크 — 발주완료(봇 등록)인데 아직 결제 안 한 것 (13:00 마감)
   // 직거래는 OMS 결제 대상 아님 → 제외
   const omsEl = $('#omsPayBlock');
   if (omsEl){
@@ -3800,10 +3736,6 @@ $('#addrModal') && $('#addrModal').addEventListener('click', e => {
 });
 $('#pAddrDetail') && $('#pAddrDetail').addEventListener('input', syncAddr);
 $('#pAddrBase')   && $('#pAddrBase').addEventListener('input', syncAddr);
-$('#btnBulkDone').addEventListener('click', bulkOrderComplete);
-$('#btnCsv').addEventListener('click', exportCsv);
-$('#btnPoAll').addEventListener('click', copyPoAll);
-$('#btnSaveProd').addEventListener('click', saveProducts);
 $('#mInput').addEventListener('click', ()=>setMode('input'));
 $('#mManage').addEventListener('click', ()=>setMode('manage'));
 $('#btnAck').addEventListener('click', ackDeadline);
@@ -4351,7 +4283,6 @@ $('#btnEnablePush') && $('#btnEnablePush').addEventListener('click', enablePush)
 $('#csvFile') && $('#csvFile').addEventListener('change', previewCsv);
 $('#btnCsvImport') && $('#btnCsvImport').addEventListener('click', importCsv);
 
-$('#prodJson').value=JSON.stringify(PRODUCTS,null,1);
 applyFont();
 
 // 백그라운드 SW 등록 (페이지 열릴 때마다 — 푸시 받을 준비)
