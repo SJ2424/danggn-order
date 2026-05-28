@@ -44,7 +44,8 @@ async function main(){
   const all = orders || [];
   const recv      = all.filter(o => (o.status||'접수')==='접수').length;            // 봇이 곧 OMS 등록
   // OMS 결제 대기 = 봇이 등록(발주완료)했는데 내가 OMS에서 아직 결제 안 함 (oms_paid 없으면 결제 대기로 간주)
-  const omsUnpaidList = all.filter(o => o.status==='발주완료' && !o.oms_paid);
+  // 직거래는 OMS 결제 대상 아님 → 제외
+  const omsUnpaidList = all.filter(o => o.status==='발주완료' && !o.oms_paid && o.type !== '직거래');
   const ordered   = omsUnpaidList.length;
   const omsCost   = omsUnpaidList.reduce((s,o)=>s+(+o.cost_price||0)*(+o.qty||1),0);
   const shippedUnpaid = all.filter(o => o.status==='발송완료' && !o.paid).length;   // 발송됐는데 손님 미입금

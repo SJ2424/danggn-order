@@ -8,12 +8,9 @@ on:
         type: boolean
         default: false
   schedule:
-    # 평일 4회 — 선반랙 봇과 동일 스케줄 (08:02 / 12:02 / 12:32 / 12:47 KST)
-    # offset 분 사용 — GitHub Actions 정시 트래픽 지연 회피
+    # 평일 2회 — 선반랙 봇과 동일 (08:02 / 11:50 KST). 11:50 이후는 수동
     - cron: '2 23 * * 0-4'   # 08:02 KST
-    - cron: '2 3 * * 1-5'    # 12:02 KST
-    - cron: '32 3 * * 1-5'   # 12:32 KST
-    - cron: '47 3 * * 1-5'   # 12:47 KST — 마감(12:55) 8분 전
+    - cron: '50 2 * * 1-5'   # 11:50 KST — 오전 최종
 
 # 동시 실행 방지 — 중복 등록 위험 차단
 concurrency:

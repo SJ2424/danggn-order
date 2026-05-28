@@ -14,17 +14,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 백업할 봇 시간표 (KST) — GitHub Actions와 동일 시각
+// 운영: 08:02 아침 / 11:50 오전 최종 발주 → 12:02 결제알림 → 12:45 마감임박 → 16:02 송장
 const JOBS = [
-  // 발주 (선반랙 + 카트) — 4시간대 × 2사이트 = 6개  ※08:02은 거의 안 밀려서 백업 제외
-  { title: '🤖 선반랙 발주 12:02 (백업)', hour: 12, minute: 2,  body: { bot: 'register' } },
-  { title: '🛒 카트 발주 12:02 (백업)',  hour: 12, minute: 2,  body: { bot: 'cart' } },
-  { title: '🤖 선반랙 발주 12:32 (백업)', hour: 12, minute: 32, body: { bot: 'register' } },
-  { title: '🛒 카트 발주 12:32 (백업)',  hour: 12, minute: 32, body: { bot: 'cart' } },
-  { title: '🤖 선반랙 발주 12:47 (백업·핵심)', hour: 12, minute: 47, body: { bot: 'register' } },
-  { title: '🛒 카트 발주 12:47 (백업·핵심)',  hour: 12, minute: 47, body: { bot: 'cart' } },
-  // 마감 푸시 12:50 (마감 직전 마지막 콜 — 가장 중요)
-  { title: '⏰ 마감 푸시 12:50 (백업)', hour: 12, minute: 50, body: { bot: 'push' } },
-  // 송장 16:02 (선반랙 + 카트) — 17:02은 거의 안 밀려서 백업 제외
+  // 11:50 오전 최종 발주 (가장 중요 — 12시 결제 대비) — 선반랙 + 카트
+  { title: '🤖 선반랙 발주 11:50 (백업·핵심)', hour: 11, minute: 50, body: { bot: 'register' } },
+  { title: '🛒 카트 발주 11:50 (백업·핵심)',  hour: 11, minute: 50, body: { bot: 'cart' } },
+  // 08:02 아침 발주 — 선반랙 + 카트
+  { title: '🤖 선반랙 발주 08:02 (백업)', hour: 8, minute: 2, body: { bot: 'register' } },
+  { title: '🛒 카트 발주 08:02 (백업)',  hour: 8, minute: 2, body: { bot: 'cart' } },
+  // 결제 알림 12:02 + 마감 임박 12:45
+  { title: '⏰ 결제 알림 12:02 (백업)', hour: 12, minute: 2,  body: { bot: 'push' } },
+  { title: '⏰ 마감 임박 12:45 (백업)', hour: 12, minute: 45, body: { bot: 'push' } },
+  // 송장 16:02 (선반랙 + 카트)
   { title: '🚚 송장 16:02 선반랙 (백업)', hour: 16, minute: 2, body: { bot: 'tracking' } },
   { title: '🚚 송장 16:02 카트 (백업)',  hour: 16, minute: 2, body: { bot: 'cartTracking' } }
 ];

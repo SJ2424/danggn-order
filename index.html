@@ -604,8 +604,9 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <b>📌 안내</b><br>
     • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
     • <b>같은 색상·같은 상품 여러 개만 묶고</b>, 다른 색이나 다른 상품은 따로 입력해 주세요 (배송이 따로 나갑니다).<br>
-    • <b>영업일 오후 12:47 이후 입력</b>은 다음 영업일에 발주됩니다 (입력은 24시간 가능).<br>
-    • 12:47 이후 급한 주문은 관리자가 <b>수동 발주</b>로 처리 가능 (13:00 마감, OMS 12:55).<br>
+    • <b>자동 발주는 평일 08:02 + 11:50</b> 2번 (입력은 24시간 가능).<br>
+    • <b>11:50 이후</b> 들어온 택배 주문은 [🤖 발주] <b>수동 버튼</b>으로 즉시 처리 → 13:00 전 OMS 결제해야 당일 발송.<br>
+    • 직거래는 봇/마감과 무관 (직접 전달).<br>
     • 💰 <b>입금은 보통 상품 수령 후</b>에 받습니다 — 미입금 표시는 정상이에요. 입금받으면 해당 주문 카드의 <b>[미입금] 알약을 [입금완료]로 토글</b>해 주세요.
   </div>
 </section>
@@ -679,7 +680,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28u-송장자동결제처리</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28v-스케줄재조정</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -2757,7 +2758,7 @@ async function settleUser(uid){
 }
 // 💳 OMS 결제 완료 일괄 체크 — 발주완료 + 미결제 건 모두 oms_paid=true
 async function markOmsPaid(){
-  const targets = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid);
+  const targets = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid && o.type !== '직거래');
   if (targets.length === 0){ toast('결제 대기 건이 없어요', 'info', 3000); return; }
   const cost = targets.reduce((s,o) => s + (+o.cost_price||0)*(+o.qty||1), 0);
   if (!confirm(`${targets.length}건 (OMS 결제 원가 합계 ${wonInt(cost)}원)\n\nOMS에서 실제 결제 완료하셨나요?\n[확인] 누르면 '결제 완료'로 표시됩니다.`)) return;
@@ -2789,12 +2790,13 @@ function renderTodaySummary(){
   $('#tsDate').textContent = `(${todayStr} ${kstWeekday})`;
 
   // 💳 OMS 결제 대기 — 발주완료(봇 등록)인데 내가 OMS에서 결제 안 한 것 (12:55 마감)
+  // 직거래는 OMS 결제 대상 아님 → 제외
   const omsEl = $('#omsPayBlock');
   if (omsEl){
-    const omsUnpaid = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid);
+    const omsUnpaid = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid && o.type !== '직거래');
     if (omsUnpaid.length === 0){
       // 발주완료 건이 아예 없으면 숨김. 있는데 다 결제했으면 ✅ 표시
-      const hasOrdered = ORDERS.some(o => o.status === '발주완료');
+      const hasOrdered = ORDERS.some(o => o.status === '발주완료' && o.type !== '직거래');
       if (!hasOrdered){
         omsEl.innerHTML = '';
       } else {
@@ -3318,12 +3320,11 @@ function getNextSchedule(botKey){
   const dowMap = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
   const dow = dowMap[parts.weekday];
   const minutes = kstHour*60 + kstMin;
-  // 봇별 스케줄 (평일만, KST) — offset 분 사용 (GitHub Actions 정시 지연 회피)
-  // 선반랙·카트 동일: 08:02, 12:02, 12:32, 12:47
+  // 봇별 스케줄 (평일만, KST) — 08:02 아침 + 11:50 오전 최종 (이후 수동)
   // 송장: 16:02, 17:02
   const scheduleByBot = {
-    register: [8*60+2, 12*60+2, 12*60+32, 12*60+47],
-    cart:     [8*60+2, 12*60+2, 12*60+32, 12*60+47],
+    register: [8*60+2, 11*60+50],
+    cart:     [8*60+2, 11*60+50],
     tracking: [16*60+2, 17*60+2],
     cartTracking: [16*60+2, 17*60+2]
   };
