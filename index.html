@@ -31,7 +31,12 @@
   --shadow-lg:0 4px 6px rgba(28,25,23,0.05), 0 10px 24px rgba(28,25,23,0.06);
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI","Malgun Gothic",sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI","Malgun Gothic",sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overscroll-behavior-y:contain}
+/* 📲 Pull-to-refresh 인디케이터 (위로 당겨 새로고침) */
+#ptr{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:center;height:0;overflow:hidden;background:var(--bg);color:var(--mut);font-size:13px;font-weight:600;z-index:40;pointer-events:none;letter-spacing:-0.01em;transition:height 0.25s ease}
+#ptr.pulling{transition:none}
+#ptr .ptr-spin{display:inline-block;margin-right:5px;animation:ptrspin 0.8s linear infinite}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
 header{background:linear-gradient(135deg,#fff7ed 0%,#fff 60%,#fef3e2 100%);color:var(--txt);padding:14px 16px;font-weight:700;font-size:17px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid #fed7aa;box-shadow:0 1px 0 rgba(234,88,12,0.04), 0 2px 8px rgba(28,25,23,0.03)}
 header small{font-weight:400;opacity:.7;font-size:12px;margin-left:6px;color:var(--mut)}
 header .who{font-size:12px;font-weight:400;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;color:var(--mut)}
@@ -659,7 +664,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28r-자동갱신</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28s-당겨새로고침</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -1477,10 +1482,58 @@ document.addEventListener('visibilitychange', () => {
 });
 // 2) 창 포커스 (다른 앱 갔다 돌아옴)
 window.addEventListener('focus', () => autoRefreshOrders('focus'));
-// 3) 화면 보고 있을 때 25초마다 조용히 갱신 (realtime 보조)
-setInterval(() => {
-  if(document.visibilityState === 'visible') autoRefreshOrders('poll');
-}, 25000);
+
+// 📲 Pull-to-refresh — 화면 최상단에서 아래로 당기면 새로고침 (iOS 앱처럼)
+(function setupPullToRefresh(){
+  const ptr = document.createElement('div');
+  ptr.id = 'ptr';
+  ptr.innerHTML = '<span class="ptr-txt">↓ 당겨서 새로고침</span>';
+  document.body.prepend(ptr);
+  const txt = () => ptr.querySelector('.ptr-txt');
+  let startY = 0, pulling = false, dist = 0, refreshing = false;
+  const TH = 65, MAX = 90;  // 임계값 65px, 최대 90px
+  const scrollTop = () => window.scrollY || document.documentElement.scrollTop || 0;
+
+  window.addEventListener('touchstart', (e) => {
+    if(refreshing) return;
+    if(scrollTop() <= 0 && e.touches.length === 1){
+      startY = e.touches[0].clientY;
+      pulling = true;
+      dist = 0;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if(!pulling || refreshing) return;
+    dist = e.touches[0].clientY - startY;
+    if(dist <= 0 || scrollTop() > 0){ ptr.style.height = '0'; ptr.classList.remove('pulling'); return; }
+    const h = Math.min(dist * 0.5, MAX);
+    ptr.classList.add('pulling');
+    ptr.style.height = h + 'px';
+    txt().textContent = h >= TH ? '↑ 놓으면 새로고침' : '↓ 당겨서 새로고침';
+  }, { passive: true });
+
+  window.addEventListener('touchend', async () => {
+    if(!pulling || refreshing) return;
+    pulling = false;
+    ptr.classList.remove('pulling');
+    const h = Math.min(dist * 0.5, MAX);
+    if(h >= TH && myUserId){
+      refreshing = true;
+      ptr.style.height = '46px';
+      txt().innerHTML = '<span class="ptr-spin">🔄</span>새로고침 중...';
+      try { await loadOrders(); } catch {}
+      txt().textContent = '✅ 최신 상태';
+      setTimeout(() => {
+        ptr.style.height = '0';
+        setTimeout(() => { txt().textContent = '↓ 당겨서 새로고침'; refreshing = false; }, 300);
+      }, 500);
+    } else {
+      ptr.style.height = '0';
+    }
+    dist = 0;
+  });
+})();
 // 주소 키워드 정규화 — 비교용 (공백·특수문자 제거)
 function normAddr(s){ return (s||'').replace(/\s+/g,'').replace(/[(),\-]/g,'').toLowerCase(); }
 // 도로명·동·번지 추출 (학현로 93-1 같은 핵심 부분)
