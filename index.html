@@ -318,6 +318,19 @@ body[data-font="large"] .font-btn{background:var(--pri);color:#fff;border-color:
 .ts-action-num{font-size:24px;font-weight:800;line-height:1.1;letter-spacing:-0.02em;color:var(--txt)}
 .ts-action-label{font-size:11px;color:var(--mut);margin-top:2px;font-weight:500}
 .ts-section-label{font-size:10.5px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin:14px 0 8px}
+/* 💰 미입금 합계 섹션 */
+.unpaid-big{display:flex;align-items:baseline;gap:12px;margin-top:6px;padding:13px 16px;background:linear-gradient(135deg,#fff7ed,#fef3e2);border:1px solid #fed7aa;border-radius:10px}
+.unpaid-amount{font-size:24px;font-weight:800;color:#ea580c;letter-spacing:-0.02em;line-height:1.1}
+.unpaid-count{font-size:13px;color:#92400e;font-weight:600;margin-left:auto}
+.unpaid-warn{margin-top:8px;padding:9px 12px;background:#fef2f2;border-left:3px solid #c5221f;border-radius:6px;font-size:12.5px;color:#7f1d1d}
+.unpaid-warn b{color:#991b1b;font-weight:700}
+.unpaid-list{margin-top:6px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+.unpaid-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0}
+.unpaid-row:not(:last-child){border-bottom:1px solid #f3f1ec}
+.unpaid-name{font-weight:600;color:var(--txt)}
+.unpaid-name .ph{color:var(--mut);font-weight:400;font-size:11px;margin-left:4px}
+.unpaid-amt{color:var(--pri);font-weight:700;white-space:nowrap}
+.unpaid-amt .cnt{color:var(--mut);font-weight:500;font-size:11px;margin-left:3px}
 .ts-grid{display:flex;flex-direction:column;gap:8px}
 @media (min-width:900px){
   .ts-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
@@ -632,6 +645,8 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <div class="ts-title">📊 오늘 한눈에 <span class="muted" id="tsDate" style="font-weight:400;font-size:12px"></span></div>
     <!-- 🚨 액션 필요 BIG 카운터 (매일 가장 먼저 봐야 할 숫자) -->
     <div class="ts-actions" id="tsActions"></div>
+    <!-- 💰 미입금 합계 (받을 돈 한눈에) -->
+    <div id="unpaidSummaryBlock"></div>
     <!-- 보조 정보 (입력자, 상품, 매출 등) -->
     <div class="ts-section-label">오늘 입력</div>
     <div class="ts-grid" id="tsGrid"></div>
@@ -644,7 +659,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28p-cleanup분리</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28q-미입금합계</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -2653,6 +2668,55 @@ function renderTodaySummary(){
   const todayStr = kstToday();  // YYYY-MM-DD KST
   const kstWeekday = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', weekday:'short' }).format(now);
   $('#tsDate').textContent = `(${todayStr} ${kstWeekday})`;
+
+  // 💰 미입금 합계 (받을 돈 한눈에) — 매일 자주 확인하는 핵심 정보
+  const unpaidEl = $('#unpaidSummaryBlock');
+  if (unpaidEl){
+    const unpaid = ORDERS.filter(o => !o.paid);
+    if (unpaid.length === 0){
+      unpaidEl.innerHTML = '';
+    } else {
+      let total = 0, totalOver = 0, countOver = 0;
+      const byCustomer = {};
+      const nowMs = Date.now(), dayMs = 24*3600*1000;
+      unpaid.forEach(o => {
+        const amt = +o.amount || 0;
+        total += amt;
+        const isOver = o.status==='발송완료' && o.shipped_at && (nowMs - new Date(o.shipped_at).getTime()) > 3*dayMs;
+        if (isOver){ totalOver += amt; countOver++; }
+        const key = (o.name || '(이름없음)') + '|' + (o.tel||'');
+        if (!byCustomer[key]) byCustomer[key] = { name: o.name||'(이름없음)', tel: o.tel||'', count: 0, total: 0 };
+        byCustomer[key].count++;
+        byCustomer[key].total += amt;
+      });
+      const customers = Object.values(byCustomer).sort((a,b) => b.total - a.total);
+      const top = customers.slice(0, 8);
+      const remainCnt = customers.length - top.length;
+      const remainTot = customers.slice(8).reduce((s,c) => s + c.total, 0);
+      unpaidEl.innerHTML = `
+        <div class="ts-section-label" style="margin-top:14px">💰 받을 돈 (미입금)</div>
+        <div class="unpaid-big">
+          <div class="unpaid-amount">${wonInt(total)}<span style="font-size:14px;font-weight:600;color:#92400e;margin-left:3px">원</span></div>
+          <div class="unpaid-count">${unpaid.length}건 / 손님 ${customers.length}명</div>
+        </div>
+        ${countOver > 0 ? `
+          <div class="unpaid-warn">🚨 3일 지난 미입금 <b>${countOver}건 · ${wonInt(totalOver)}원</b> — 추적 필요</div>
+        ` : ''}
+        <details style="margin-top:8px">
+          <summary class="muted" style="cursor:pointer;font-size:11.5px;font-weight:600;padding:4px 0">👥 손님별 (큰 순) ▾</summary>
+          <div class="unpaid-list">
+            ${top.map(c => `
+              <div class="unpaid-row">
+                <span class="unpaid-name">${esc(c.name)}${c.tel ? `<span class="ph">${esc(c.tel)}</span>` : ''}</span>
+                <span class="unpaid-amt">${wonInt(c.total)}원<span class="cnt">(${c.count}건)</span></span>
+              </div>
+            `).join('')}
+            ${remainCnt > 0 ? `<div class="unpaid-row" style="opacity:0.7"><span class="unpaid-name">+ 외 ${remainCnt}명</span><span class="unpaid-amt">${wonInt(remainTot)}원</span></div>` : ''}
+          </div>
+        </details>
+      `;
+    }
+  }
 
   // 🚨 액션 필요 BIG 카운터 — 매일 13시 결정에 필요한 3개 숫자 (오늘 + 누적)
   const actionsEl = $('#tsActions');
