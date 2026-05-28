@@ -22,9 +22,10 @@ const JOBS = [
   // 08:02 아침 발주 — 선반랙 + 카트
   { title: '🤖 선반랙 발주 08:02 (백업)', hour: 8, minute: 2, body: { bot: 'register' } },
   { title: '🛒 카트 발주 08:02 (백업)',  hour: 8, minute: 2, body: { bot: 'cart' } },
-  // 결제 알림 12:02 + 마감 임박 12:45
+  // 결제·입금 알림 3회 (12:02 / 12:32 / 12:50 — 안 된 게 있으면 계속 상기)
   { title: '⏰ 결제 알림 12:02 (백업)', hour: 12, minute: 2,  body: { bot: 'push' } },
-  { title: '⏰ 마감 임박 12:45 (백업)', hour: 12, minute: 45, body: { bot: 'push' } },
+  { title: '⏰ 결제 알림 12:32 (백업)', hour: 12, minute: 32, body: { bot: 'push' } },
+  { title: '⏰ 마감 임박 12:50 (백업)', hour: 12, minute: 50, body: { bot: 'push' } },
   // 송장 16:02 (선반랙 + 카트)
   { title: '🚚 송장 16:02 선반랙 (백업)', hour: 16, minute: 2, body: { bot: 'tracking' } },
   { title: '🚚 송장 16:02 카트 (백업)',  hour: 16, minute: 2, body: { bot: 'cartTracking' } }
