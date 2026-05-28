@@ -66,6 +66,7 @@ export default async function handler(req, res) {
   let body = {};
   try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); } catch {}
   const apiKey = (body.apiKey || '').trim();
+  const mode = body.mode || 'create';  // 'cleanup' | 'create'
   if (!apiKey) {
     return res.status(400).json({ error: 'cron-job.org API key 필요', hint: 'body에 { "apiKey": "..." }' });
   }
@@ -73,14 +74,17 @@ export default async function handler(req, res) {
   const cronBotUrl = `https://${req.headers.host || 'danggn-order.vercel.app'}/api/cron-bot`;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  // ① 멱등성 — 기존 "백업" title 들어간 job 모두 삭제 후 새로 생성
-  // (cron-job.org 무료 plan rate limit 1 req/sec — 순차 + 600ms 간격 필수)
-  let existingDeleted = 0;
-  try {
-    const listRes = await fetch('https://api.cron-job.org/jobs', {
-      headers: { 'Authorization': 'Bearer ' + apiKey }
-    });
-    if (listRes.ok) {
+  // ① cleanup 모드 — 기존 "백업" title job 모두 삭제 후 종료 (시간 분리)
+  if (mode === 'cleanup') {
+    let existingDeleted = 0;
+    try {
+      const listRes = await fetch('https://api.cron-job.org/jobs', {
+        headers: { 'Authorization': 'Bearer ' + apiKey }
+      });
+      if (!listRes.ok) {
+        const t = await listRes.text().catch(() => '');
+        return res.status(502).json({ error: `cron-job.org 인증 실패 (${listRes.status})`, detail: t.slice(0, 200) });
+      }
       const listJson = await listRes.json();
       const existing = (listJson.jobs || []).filter(j => j.title && /백업/.test(j.title));
       for (const j of existing) {
@@ -91,10 +95,16 @@ export default async function handler(req, res) {
           });
           existingDeleted++;
         } catch {}
-        await sleep(600);
+        await sleep(700);
       }
+    } catch(e) {
+      return res.status(502).json({ error: 'cleanup 실패: ' + e.message });
     }
-  } catch {}
+    return res.status(200).json({ ok: true, mode: 'cleanup', cleanedUp: existingDeleted });
+  }
+
+  // create 모드 — cleanup은 별도 호출에서 이미 처리됨
+  const existingDeleted = 0;
 
   // ② 9개 job 순차 생성 (rate limit 회피)
   // cron-job.org 무료 plan = 1 req/sec → 1.2초 간격 + 429시 2.5초 대기 후 재시도 1회

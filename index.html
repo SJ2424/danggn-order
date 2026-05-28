@@ -644,7 +644,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28o-API키저장·자동재시도</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28p-cleanup분리</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -3719,19 +3719,57 @@ async function runSetupCronJobs(allowAutoRetry){
   }
   // 입력한 API 키는 이 기기에 저장 (다음에 안 입력해도 됨)
   save('cron_org_api_key', apiKey);
+
+  // 1단계: cleanup (Vercel timeout 회피 — 별도 호출)
+  const btn0 = $('#btnSetupCronJobs');
+  btn0.disabled = true; btn0.textContent = '⏳ 1/2 기존 정리 중...';
+  out.innerHTML = '<span style="color:var(--mut)">기존 백업 job 정리 중 (5~10초)...</span>';
+  let cleanedUp = 0;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인 필요</span>'; btn0.disabled=false; btn0.textContent='🤖 9개 백업 cronjob 자동 생성'; return; }
+    const cleanupRes = await fetch('/api/setup-cron-jobs', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, mode: 'cleanup' })
+    });
+    const cleanupJ = await cleanupRes.json().catch(() => ({}));
+    if (!cleanupRes.ok) {
+      out.innerHTML = `<div style="padding:10px;background:#fef2f2;border:1px solid #c5221f;border-radius:6px;color:#7f1d1d">cleanup 실패: ${escc(cleanupJ.error||'')}</div>`;
+      btn0.disabled = false; btn0.textContent = '🔁 다시 시도';
+      return;
+    }
+    cleanedUp = cleanupJ.cleanedUp || 0;
+  } catch(e) {
+    out.innerHTML = `<span style="color:#c5221f">cleanup 실패: ${escc(e.message)}</span>`;
+    btn0.disabled = false; btn0.textContent = '🔁 다시 시도';
+    return;
+  }
+  // 잠시 대기 후 create (rate limit 마진)
+  await new Promise(r => setTimeout(r, 1500));
+  // 2단계: create
   const btn = $('#btnSetupCronJobs');
-  const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = '⏳ 생성 중 (15~30초)...';
-  out.innerHTML = '<span style="color:var(--mut)">cron-job.org에 9개 job 생성 중... rate limit 회피 위해 천천히 진행 (절대 페이지 닫지 마세요)</span>';
+  const orig = '🤖 9개 백업 cronjob 자동 생성';
+  btn.disabled = true; btn.textContent = '⏳ 2/2 9개 생성 중 (20~30초)...';
+  out.innerHTML = `<span style="color:var(--mut)">${cleanedUp ? `기존 ${cleanedUp}개 정리됨. ` : ''}이제 9개 새로 생성 중 (rate limit 회피해서 천천히)... 페이지 닫지 마세요.</span>`;
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인이 풀렸어요 — 새로고침 후 다시 로그인</span>'; btn.disabled=false; btn.textContent=orig; return; }
     const res = await fetch('/api/setup-cron-jobs', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey })
+      body: JSON.stringify({ apiKey, mode: 'create' })
     });
-    const j = await res.json();
+    // Vercel timeout 등으로 응답이 JSON 아닌 HTML일 수 있음 — 안전 파싱
+    const text = await res.text();
+    let j;
+    try { j = JSON.parse(text); } catch {
+      out.innerHTML = `<div style="padding:10px;background:#fef2f2;border:1px solid #c5221f;border-radius:6px;color:#7f1d1d">서버 응답 오류 (Vercel timeout 가능성). <b>[🔁 다시 시도]</b> 클릭하면 정상 작동될 가능성 높음.</div>`;
+      btn.disabled = false; btn.textContent = '🔁 다시 시도';
+      return;
+    }
+    // cleanedUp 보존 (cleanup 호출에서 받은 값)
+    if (cleanedUp > 0) j.cleanedUp = cleanedUp;
     if (j.ok) {
       out.innerHTML = `
         <div style="padding:10px;background:#d4ede0;border:1px solid #16a34a;border-radius:6px;color:#0f6e34">
