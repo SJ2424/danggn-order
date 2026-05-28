@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/setup-cron-jobs.js": { "maxDuration": 60 }
+  },
   "headers": [
     {
       "source": "/",

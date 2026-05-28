@@ -96,56 +96,69 @@ export default async function handler(req, res) {
     }
   } catch {}
 
-  // ② 9개 job 순차 생성 (700ms 간격으로 rate limit 회피)
+  // ② 9개 job 순차 생성 (rate limit 회피)
+  // cron-job.org 무료 plan = 1 req/sec → 1.2초 간격 + 429시 2.5초 대기 후 재시도 1회
+  const createJob = async (j) => {
+    return fetch('https://api.cron-job.org/jobs', {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job: {
+          title: j.title,
+          url: cronBotUrl,
+          enabled: true,
+          saveResponses: false,
+          schedule: {
+            timezone: 'Asia/Seoul',
+            hours: [j.hour], minutes: [j.minute],
+            mdays: [-1], months: [-1],
+            wdays: [1, 2, 3, 4, 5]
+          },
+          requestMethod: 1,
+          extendedData: {
+            headers: {
+              'X-Cron-Secret': CRON_SECRET,
+              'Content-Type': 'application/json',
+              'User-Agent': 'cron-job-org-backup'
+            },
+            body: JSON.stringify(j.body)
+          }
+        }
+      })
+    });
+  };
+
   const results = [];
   for (const j of JOBS) {
-    try {
-      const r = await fetch('https://api.cron-job.org/jobs', {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'Bearer ' + apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          job: {
-            title: j.title,
-            url: cronBotUrl,
-            enabled: true,
-            saveResponses: false,
-            schedule: {
-              timezone: 'Asia/Seoul',
-              hours: [j.hour],
-              minutes: [j.minute],
-              mdays: [-1],
-              months: [-1],
-              wdays: [1, 2, 3, 4, 5]  // 평일만 (월~금)
-            },
-            requestMethod: 1,  // POST
-            extendedData: {
-              headers: {
-                'X-Cron-Secret': CRON_SECRET,
-                'Content-Type': 'application/json',
-                'User-Agent': 'cron-job-org-backup'
-              },
-              body: JSON.stringify(j.body)
-            }
-          }
-        })
-      });
-      const text = await r.text().catch(() => '');
-      if (!r.ok) {
+    let attempt = 0, lastErr = null;
+    while (attempt < 2) {
+      attempt++;
+      try {
+        const r = await createJob(j);
+        const text = await r.text().catch(() => '');
+        if (r.ok) {
+          let jobId = null;
+          try { jobId = JSON.parse(text)?.jobId; } catch {}
+          results.push({ title: j.title, ok: true, jobId });
+          lastErr = null;
+          break;
+        }
+        // 429 rate limit → 2.5초 대기 후 1회 재시도
+        if (r.status === 429 && attempt < 2) {
+          await sleep(2500);
+          continue;
+        }
         let detail = text.slice(0, 200);
         try { detail = JSON.parse(text).message || detail; } catch {}
-        results.push({ title: j.title, ok: false, status: r.status, error: detail });
-      } else {
-        let jobId = null;
-        try { jobId = JSON.parse(text)?.jobId; } catch {}
-        results.push({ title: j.title, ok: true, jobId });
+        lastErr = { status: r.status, error: detail };
+        break;
+      } catch (e) {
+        lastErr = { error: e.message };
+        break;
       }
-    } catch (e) {
-      results.push({ title: j.title, ok: false, error: e.message });
     }
-    await sleep(700);  // rate limit 회피
+    if (lastErr) results.push({ title: j.title, ok: false, ...lastErr });
+    await sleep(1200);  // 다음 job 전 1.2초 대기 (1 req/sec 안전 마진)
   }
 
   const okCount = results.filter(r => r.ok).length;
