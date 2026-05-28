@@ -38,12 +38,16 @@ async function main(){
   }
 
   // 상태별 분리 카운트 (현 상태 사이클: 접수 → 발주완료 → 발송완료)
-  const { data: orders, error: oErr } = await sb.from('orders').select('id, status, paid');
+  // select('*') — oms_paid 컬럼이 아직 없어도(SQL 미실행) 에러 안 남
+  const { data: orders, error: oErr } = await sb.from('orders').select('*');
   if (oErr) throw oErr;
   const all = orders || [];
-  const recv      = all.filter(o => (o.status||'접수')==='접수').length;         // 봇이 곧 OMS 등록
-  const ordered   = all.filter(o => o.status==='발주완료' && !o.paid).length;    // OMS 결제 필요!
-  const shippedUnpaid = all.filter(o => o.status==='발송완료' && !o.paid).length;// 발송됐는데 손님 미입금
+  const recv      = all.filter(o => (o.status||'접수')==='접수').length;            // 봇이 곧 OMS 등록
+  // OMS 결제 대기 = 봇이 등록(발주완료)했는데 내가 OMS에서 아직 결제 안 함 (oms_paid 없으면 결제 대기로 간주)
+  const omsUnpaidList = all.filter(o => o.status==='발주완료' && !o.oms_paid);
+  const ordered   = omsUnpaidList.length;
+  const omsCost   = omsUnpaidList.reduce((s,o)=>s+(+o.cost_price||0)*(+o.qty||1),0);
+  const shippedUnpaid = all.filter(o => o.status==='발송완료' && !o.paid).length;   // 발송됐는데 손님 미입금
 
   // 알림 보낼 필요 없는 경우
   if (recv === 0 && ordered === 0 && shippedUnpaid === 0){
@@ -60,17 +64,17 @@ async function main(){
   if (sErr) throw sErr;
   if (!subs || subs.length === 0){ console.log('등록된 구독 없음 (관리자가 [알림 켜기] 버튼을 한 번도 안 누른 상태)'); return; }
 
-  console.log(`📋 접수 ${recv} · 발주완료(결제필요) ${ordered} · 발송완료-미입금 ${shippedUnpaid} · 구독 ${subs.length}건`);
+  console.log(`📋 접수 ${recv} · OMS결제대기 ${ordered}(${omsCost}원) · 손님미입금 ${shippedUnpaid} · 구독 ${subs.length}건`);
 
   // 본문 — 짧고 한눈에 (잠금화면 2-3줄 가독성)
   const lines = [];
-  if (ordered > 0)       lines.push(`💳 결제 필요 ${ordered}건`);
+  if (ordered > 0)       lines.push(`💳 OMS 결제 ${ordered}건 · ${omsCost.toLocaleString('ko-KR')}원`);
   if (recv > 0)          lines.push(`📥 신규 주문 ${recv}건 (자동 등록 중)`);
-  if (shippedUnpaid > 0) lines.push(`💰 입금 대기 ${shippedUnpaid}건`);
+  if (shippedUnpaid > 0) lines.push(`💰 손님 입금 대기 ${shippedUnpaid}건`);
 
   // 제목 — 가장 큰 액션 기준 (13:00 마감 = 그 후 다음날 발송)
-  let title = '⏰ 13:00 마감 전 결제 필요';
-  if (ordered === 0 && recv === 0 && shippedUnpaid > 0) title = '💰 입금 확인 필요';
+  let title = '⏰ 13:00 마감 전 OMS 결제!';
+  if (ordered === 0 && recv === 0 && shippedUnpaid > 0) title = '💰 손님 입금 확인';
 
   const payload = JSON.stringify({
     title,

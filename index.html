@@ -323,6 +323,19 @@ body[data-font="large"] .font-btn{background:var(--pri);color:#fff;border-color:
 .ts-action-num{font-size:24px;font-weight:800;line-height:1.1;letter-spacing:-0.02em;color:var(--txt)}
 .ts-action-label{font-size:11px;color:var(--mut);margin-top:2px;font-weight:500}
 .ts-section-label{font-size:10.5px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin:14px 0 8px}
+/* 💳 OMS 결제 대기 섹션 (12:55 마감 — 가장 시급) */
+.omspay-box{display:flex;align-items:center;gap:10px;margin-top:6px;padding:13px 16px;border-radius:10px;flex-wrap:wrap}
+.omspay-box.pending{background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fca5a5}
+.omspay-box.done{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac}
+.omspay-info{flex:1;min-width:140px}
+.omspay-amount{font-size:22px;font-weight:800;letter-spacing:-0.02em;line-height:1.15}
+.omspay-box.pending .omspay-amount{color:#b91c1c}
+.omspay-box.done .omspay-amount{color:#0f6e34}
+.omspay-label{font-size:12px;font-weight:600;margin-top:1px}
+.omspay-box.pending .omspay-label{color:#991b1b}
+.omspay-box.done .omspay-label{color:#0f6e34}
+.omspay-btn{background:#dc2626;color:#fff;border:0;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(220,38,38,0.25)}
+.omspay-btn:active{transform:scale(0.97)}
 /* 💰 미입금 합계 섹션 */
 .unpaid-big{display:flex;align-items:baseline;gap:12px;margin-top:6px;padding:13px 16px;background:linear-gradient(135deg,#fff7ed,#fef3e2);border:1px solid #fed7aa;border-radius:10px}
 .unpaid-amount{font-size:24px;font-weight:800;color:#ea580c;letter-spacing:-0.02em;line-height:1.1}
@@ -650,6 +663,8 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <div class="ts-title">📊 오늘 한눈에 <span class="muted" id="tsDate" style="font-weight:400;font-size:12px"></span></div>
     <!-- 🚨 액션 필요 BIG 카운터 (매일 가장 먼저 봐야 할 숫자) -->
     <div class="ts-actions" id="tsActions"></div>
+    <!-- 💳 OMS 결제 대기 (12:55 마감 — 내가 수동 결제할 것) -->
+    <div id="omsPayBlock"></div>
     <!-- 💰 미입금 합계 (받을 돈 한눈에) -->
     <div id="unpaidSummaryBlock"></div>
     <!-- 보조 정보 (입력자, 상품, 매출 등) -->
@@ -664,7 +679,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28s-당겨새로고침</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28t-OMS결제확인</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -2740,6 +2755,31 @@ async function settleUser(uid){
   if(!confirm((u?displayOf(u):'이 사용자')+'의 미정산 주문 전체를 정산 완료로 표시할까요?\n(입력자가 본인 계좌로 입금한 뒤 누르세요)')) return;
   await sb.from('orders').update({ settled:true }).eq('created_by', uid).eq('settled', false);
 }
+// 💳 OMS 결제 완료 일괄 체크 — 발주완료 + 미결제 건 모두 oms_paid=true
+async function markOmsPaid(){
+  const targets = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid);
+  if (targets.length === 0){ toast('결제 대기 건이 없어요', 'info', 3000); return; }
+  const cost = targets.reduce((s,o) => s + (+o.cost_price||0)*(+o.qty||1), 0);
+  if (!confirm(`${targets.length}건 (OMS 결제 원가 합계 ${wonInt(cost)}원)\n\nOMS에서 실제 결제 완료하셨나요?\n[확인] 누르면 '결제 완료'로 표시됩니다.`)) return;
+  const btn = $('#btnOmsPaid');
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ 처리중...'; }
+  let ok = 0, fail = 0;
+  for (const o of targets){
+    const { error } = await sb.from('orders').update({ oms_paid: true }).eq('id', o.id);
+    if (error){
+      fail++;
+      // 컬럼이 없으면 (SQL 미실행) 명확히 안내
+      if (/column.*oms_paid|oms_paid.*does not exist/i.test(error.message)){
+        toast('⚠️ DB에 oms_paid 컬럼이 없어요 — 설정 안내의 SQL 한 줄 먼저 실행 필요', 'error', 8000);
+        if (btn){ btn.disabled = false; btn.textContent = '💳 결제 완료 체크'; }
+        return;
+      }
+    } else ok++;
+  }
+  await loadOrders();
+  toast(`✅ ${ok}건 OMS 결제 완료로 표시${fail?` (${fail}건 실패)`:''}`, 'success', 4000);
+}
+
 function renderTodaySummary(){
   if(userRole!=='admin') return;
   // KST 기준 (폰 시계가 다른 timezone이어도 한국 영업일 기준 유지)
@@ -2747,6 +2787,41 @@ function renderTodaySummary(){
   const todayStr = kstToday();  // YYYY-MM-DD KST
   const kstWeekday = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', weekday:'short' }).format(now);
   $('#tsDate').textContent = `(${todayStr} ${kstWeekday})`;
+
+  // 💳 OMS 결제 대기 — 발주완료(봇 등록)인데 내가 OMS에서 결제 안 한 것 (12:55 마감)
+  const omsEl = $('#omsPayBlock');
+  if (omsEl){
+    const omsUnpaid = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid);
+    if (omsUnpaid.length === 0){
+      // 발주완료 건이 아예 없으면 숨김. 있는데 다 결제했으면 ✅ 표시
+      const hasOrdered = ORDERS.some(o => o.status === '발주완료');
+      if (!hasOrdered){
+        omsEl.innerHTML = '';
+      } else {
+        omsEl.innerHTML = `
+          <div class="ts-section-label" style="margin-top:14px">💳 OMS 결제 (내가 수동 발주)</div>
+          <div class="omspay-box done">
+            <div class="omspay-info">
+              <div class="omspay-amount">✅ 결제 완료</div>
+              <div class="omspay-label">발주완료 건 OMS 결제 끝</div>
+            </div>
+          </div>`;
+      }
+    } else {
+      const omsCost = omsUnpaid.reduce((s,o) => s + (+o.cost_price||0)*(+o.qty||1), 0);
+      omsEl.innerHTML = `
+        <div class="ts-section-label" style="margin-top:14px">💳 OMS 결제 (내가 수동 발주 — 12:55 마감)</div>
+        <div class="omspay-box pending">
+          <div class="omspay-info">
+            <div class="omspay-amount">${wonInt(omsCost)}<span style="font-size:14px;font-weight:600;margin-left:3px">원</span></div>
+            <div class="omspay-label">🚨 결제 대기 ${omsUnpaid.length}건 — OMS에서 결제할 원가 총액</div>
+          </div>
+          <button class="omspay-btn" id="btnOmsPaid">💳 결제 완료 체크</button>
+        </div>`;
+      const b = $('#btnOmsPaid');
+      if (b) b.addEventListener('click', markOmsPaid);
+    }
+  }
 
   // 💰 미입금 합계 (받을 돈 한눈에) — 매일 자주 확인하는 핵심 정보
   const unpaidEl = $('#unpaidSummaryBlock');
