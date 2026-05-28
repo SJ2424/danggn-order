@@ -131,7 +131,7 @@ export default async function handler(req, res) {
   const results = [];
   for (const j of JOBS) {
     let attempt = 0, lastErr = null;
-    while (attempt < 2) {
+    while (attempt < 3) {  // 최대 3회 시도 (1차 + retry 2회)
       attempt++;
       try {
         const r = await createJob(j);
@@ -143,9 +143,9 @@ export default async function handler(req, res) {
           lastErr = null;
           break;
         }
-        // 429 rate limit → 2.5초 대기 후 1회 재시도
-        if (r.status === 429 && attempt < 2) {
-          await sleep(2500);
+        // 429 rate limit → 점진적 backoff (4초 → 6초)
+        if (r.status === 429 && attempt < 3) {
+          await sleep(attempt === 1 ? 4000 : 6000);
           continue;
         }
         let detail = text.slice(0, 200);
@@ -158,7 +158,7 @@ export default async function handler(req, res) {
       }
     }
     if (lastErr) results.push({ title: j.title, ok: false, ...lastErr });
-    await sleep(1200);  // 다음 job 전 1.2초 대기 (1 req/sec 안전 마진)
+    await sleep(1500);  // 다음 job 전 1.5초 대기 (rate limit 안전 마진 확대)
   }
 
   const okCount = results.filter(r => r.ok).length;
