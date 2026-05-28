@@ -71,9 +71,34 @@ export default async function handler(req, res) {
   }
 
   const cronBotUrl = `https://${req.headers.host || 'danggn-order.vercel.app'}/api/cron-bot`;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  // 9개 job 생성 (병렬)
-  const results = await Promise.all(JOBS.map(async (j) => {
+  // ① 멱등성 — 기존 "백업" title 들어간 job 모두 삭제 후 새로 생성
+  // (cron-job.org 무료 plan rate limit 1 req/sec — 순차 + 600ms 간격 필수)
+  let existingDeleted = 0;
+  try {
+    const listRes = await fetch('https://api.cron-job.org/jobs', {
+      headers: { 'Authorization': 'Bearer ' + apiKey }
+    });
+    if (listRes.ok) {
+      const listJson = await listRes.json();
+      const existing = (listJson.jobs || []).filter(j => j.title && /백업/.test(j.title));
+      for (const j of existing) {
+        try {
+          await fetch('https://api.cron-job.org/jobs/' + j.jobId, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + apiKey }
+          });
+          existingDeleted++;
+        } catch {}
+        await sleep(600);
+      }
+    }
+  } catch {}
+
+  // ② 9개 job 순차 생성 (700ms 간격으로 rate limit 회피)
+  const results = [];
+  for (const j of JOBS) {
     try {
       const r = await fetch('https://api.cron-job.org/jobs', {
         method: 'PUT',
@@ -111,15 +136,17 @@ export default async function handler(req, res) {
       if (!r.ok) {
         let detail = text.slice(0, 200);
         try { detail = JSON.parse(text).message || detail; } catch {}
-        return { title: j.title, ok: false, status: r.status, error: detail };
+        results.push({ title: j.title, ok: false, status: r.status, error: detail });
+      } else {
+        let jobId = null;
+        try { jobId = JSON.parse(text)?.jobId; } catch {}
+        results.push({ title: j.title, ok: true, jobId });
       }
-      let jobId = null;
-      try { jobId = JSON.parse(text)?.jobId; } catch {}
-      return { title: j.title, ok: true, jobId };
     } catch (e) {
-      return { title: j.title, ok: false, error: e.message };
+      results.push({ title: j.title, ok: false, error: e.message });
     }
-  }));
+    await sleep(700);  // rate limit 회피
+  }
 
   const okCount = results.filter(r => r.ok).length;
   const failCount = results.length - okCount;
@@ -129,10 +156,11 @@ export default async function handler(req, res) {
     total: results.length,
     succeeded: okCount,
     failed: failCount,
+    cleanedUp: existingDeleted,
     results,
     cronBotUrl,
     message: failCount === 0
-      ? `✅ ${okCount}개 백업 cronjob 생성 완료 — 이제 GitHub 지연돼도 정시에 발주됩니다`
+      ? `✅ ${okCount}개 백업 cronjob 생성 완료${existingDeleted ? ` (기존 ${existingDeleted}개 정리)` : ''} — 이제 GitHub 지연돼도 정시에 발주됩니다`
       : `⚠️ ${okCount}개 성공 / ${failCount}개 실패 — 결과 상세 확인`
   });
 }

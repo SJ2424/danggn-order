@@ -644,7 +644,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28l-cron단계분리</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28m-cron순차·정리</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -769,14 +769,13 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <div id="vapidGenResult" style="display:none;margin-top:8px"></div>
   </details>
 
-  <details class="sub-section">
-    <summary>🛡 외부 cron 백업 (GitHub 지연 100% 차단)</summary>
+  <details class="sub-section" id="cronBackupSection">
+    <summary>🛡 외부 cron 백업 <span id="cronBackupStatus" class="muted" style="font-size:11px;font-weight:400"></span></summary>
     <p class="muted" style="margin:8px 0;font-size:11.5px;line-height:1.55">
       GitHub Actions cron이 지연되어도 cron-job.org이 우리 서버를 직접 호출해서 봇 트리거.
-      <b>월 1회 설정</b>이면 평생 자동 백업. 무료.
+      <b>한 번 설정</b>이면 평생 자동 백업. 무료.
     </p>
 
-    <!-- 단계별 가이드 (항상 보임) -->
     <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:11px;margin:8px 0;font-size:12px;line-height:1.7">
       <b style="color:#1e40af">1️⃣ Vercel에 CRON_SECRET 등록</b><br>
       <button class="btn-sec btn-sm" id="btnGenCronSecret" style="margin:4px 0">🔑 시크릿 발급 (1회만)</button><br>
@@ -827,27 +826,33 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <div id="bdMsg" style="margin-top:8px;font-size:12px"></div>
   </details>
 
-  <details class="sub-section">
-    <summary>🔄 과거 주문 단가 재계산</summary>
-    <p class="muted" style="margin:8px 0;font-size:11.5px">현재 카탈로그 값으로 과거 주문 원가·판매가 다시 계산 (입금·송장·상태 안 건드림).</p>
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center;font-size:12px">
-      <label>기간:</label>
-      <input type="date" id="recalcSince" value="2026-05-01" style="padding:5px">
-    </div>
-    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn-sec btn-sm" id="btnRecalcPreview">📊 미리보기</button>
-      <button class="btn-pri-sm" id="btnRecalcApply">⚠️ 적용</button>
-    </div>
-    <div id="recalcMsg" style="margin-top:8px;font-size:12px;line-height:1.6"></div>
-  </details>
+  <!-- ⚙️ 한 번만 쓰는 도구들 — 평소엔 깊이 접혀있음 -->
+  <details class="sub-section" style="margin-top:14px">
+    <summary>⚙️ 일회성 작업 (처음 셋업 / 특별한 정정용)</summary>
+    <p class="muted" style="margin:6px 0 10px;font-size:11px;line-height:1.5">한 번만 쓰고 끝나는 도구들. 평소엔 안 봐도 OK.</p>
 
-  <details class="sub-section">
-    <summary>📥 CSV 가져오기 (과거 데이터 일괄 등록)</summary>
-    <p class="muted" style="margin:8px 0;font-size:11.5px">한 번만 쓸 일 — 구글시트→CSV→업로드. 컬럼 자동 인식 (날짜·구매자·주소·상품·수량·금액·입금 등).</p>
-    <input type="file" id="csvFile" accept=".csv,text/csv">
-    <div id="csvPreview" style="margin-top:6px;font-size:11.5px"></div>
-    <button class="btn-sec btn-sm" id="btnCsvImport" disabled style="margin-top:6px">가져오기 실행</button>
-    <div id="csvMsg" style="margin-top:6px;font-size:11.5px"></div>
+    <details class="sub-section" style="margin-top:8px">
+      <summary>🔄 과거 주문 단가 재계산</summary>
+      <p class="muted" style="margin:8px 0;font-size:11.5px">현재 카탈로그 값으로 과거 주문 원가·판매가 다시 계산 (입금·송장·상태 안 건드림).</p>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center;font-size:12px">
+        <label>기간:</label>
+        <input type="date" id="recalcSince" value="2026-05-01" style="padding:5px">
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn-sec btn-sm" id="btnRecalcPreview">📊 미리보기</button>
+        <button class="btn-pri-sm" id="btnRecalcApply">⚠️ 적용</button>
+      </div>
+      <div id="recalcMsg" style="margin-top:8px;font-size:12px;line-height:1.6"></div>
+    </details>
+
+    <details class="sub-section" style="margin-top:8px">
+      <summary>📥 CSV 가져오기 (과거 데이터 일괄 등록)</summary>
+      <p class="muted" style="margin:8px 0;font-size:11.5px">한 번만 쓸 일 — 구글시트→CSV→업로드. 컬럼 자동 인식.</p>
+      <input type="file" id="csvFile" accept=".csv,text/csv">
+      <div id="csvPreview" style="margin-top:6px;font-size:11.5px"></div>
+      <button class="btn-sec btn-sm" id="btnCsvImport" disabled style="margin-top:6px">가져오기 실행</button>
+      <div id="csvMsg" style="margin-top:6px;font-size:11.5px"></div>
+    </details>
   </details>
 
   <details class="sub-section">
@@ -3708,14 +3713,17 @@ $('#btnSetupCronJobs') && $('#btnSetupCronJobs').addEventListener('click', async
     if (j.ok) {
       out.innerHTML = `
         <div style="padding:10px;background:#d4ede0;border:1px solid #16a34a;border-radius:6px;color:#0f6e34">
-          <b>🎉 완료! ${j.succeeded}개 백업 cronjob 생성됨.</b><br>
+          <b>🎉 완료! ${j.succeeded}개 백업 cronjob 생성됨.</b>${j.cleanedUp ? ` <span style="font-size:11px">(기존 ${j.cleanedUp}개 정리)</span>` : ''}<br>
           이제 GitHub Actions가 지연돼도 cron-job.org이 정시에 봇 트리거합니다.<br>
           <a href="https://console.cron-job.org/jobs" target="_blank" style="color:#0f6e34;font-weight:600">→ 생성된 job 목록 보기</a>
         </div>
       `;
       btn.style.display = 'none';
-      // 입력칸 비우기 (API 키 노출 줄이기)
       $('#cronOrgApiKey').value = '';
+      // 섹션 헤더에 "✅ 설정 완료" 짧은 상태 표시 (지저분함 줄임)
+      const statusEl = $('#cronBackupStatus');
+      if (statusEl) statusEl.innerHTML = ' — <span style="color:#0f6e34;font-weight:600">✅ 활성화됨</span>';
+      save('cron_backup_done', '1');
     } else {
       const failedList = (j.results||[]).filter(r => !r.ok).map(r => `<li>${escc(r.title)}: ${escc(r.error || ('HTTP '+r.status))}</li>`).join('');
       out.innerHTML = `
@@ -3845,6 +3853,9 @@ function refreshBdCount(){
   el.innerHTML = cnt > 0
     ? `현재 <b style="color:#b45309">발주대기 ${cnt}건</b> 있음`
     : '<span style="color:#137333">✅ 발주대기 0건 — 정리할 거 없음</span>';
+  // 발주대기 0건이면 sub-section 자체 숨김 (지저분함 방지)
+  const sub = el.closest('details.sub-section');
+  if (sub) sub.style.display = cnt > 0 ? '' : 'none';
 }
 setTimeout(refreshBdCount, 500);
 $('#btnBdCleanup') && $('#btnBdCleanup').addEventListener('click', async () => {
@@ -3980,6 +3991,13 @@ $('#btnGhClear') && $('#btnGhClear').addEventListener('click', () => {
 });
 // 페이지 로드시 상태 표시
 setTimeout(refreshGhTokenStatus, 500);
+// 외부 cron 백업 상태 복원 (한 번 설정했으면 헤더에 ✅ 활성화됨 표시)
+setTimeout(() => {
+  if (load('cron_backup_done', '') === '1') {
+    const statusEl = $('#cronBackupStatus');
+    if (statusEl) statusEl.innerHTML = ' — <span style="color:#0f6e34;font-weight:600">✅ 활성화됨</span>';
+  }
+}, 500);
 // 내 계정 — 표시 이름 변경
 $('#btnSaveMyName') && $('#btnSaveMyName').addEventListener('click', saveMyName);
 $('#newMyName') && $('#newMyName').addEventListener('keydown', e=>{
