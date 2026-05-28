@@ -14,15 +14,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 백업할 봇 시간표 (KST) — GitHub Actions와 동일 시각
-// 운영: 08:02 아침 / 11:50 오전 최종 발주 → 12:02 결제알림 → 12:45 마감임박 → 16:02 송장
+// 운영: 08:00/11:50 발주 → 12:08/33/48 결제확인 → 12:10/35/50 알림 → 14·16시 송장
 const JOBS = [
-  // 11:50 오전 최종 발주 (가장 중요 — 12시 결제 대비) — 선반랙 + 카트
-  { title: '🤖 선반랙 발주 11:50 (백업·핵심)', hour: 11, minute: 50, body: { bot: 'register' } },
-  { title: '🛒 카트 발주 11:50 (백업·핵심)',  hour: 11, minute: 50, body: { bot: 'cart' } },
-  // 08:00 아침 발주 (실제 08:01) — 선반랙 + 카트
+  // 발주 — 08:00(실제 08:01) + 11:50 오전 최종 (선반랙 + 카트)
   { title: '🤖 선반랙 발주 08:00 (백업)', hour: 8, minute: 1, body: { bot: 'register' } },
   { title: '🛒 카트 발주 08:00 (백업)',  hour: 8, minute: 1, body: { bot: 'cart' } },
-  // 결제·입금 알림 3회 (12:10 / 12:35 / 12:50 — 안 된 게 있으면 계속 상기)
+  { title: '🤖 선반랙 발주 11:50 (백업·핵심)', hour: 11, minute: 50, body: { bot: 'register' } },
+  { title: '🛒 카트 발주 11:50 (백업·핵심)',  hour: 11, minute: 50, body: { bot: 'cart' } },
+  // 결제 확인 (선반랙 OMS 결제상태 읽기) 12:08 / 12:33 / 12:48 — 13시 마감 전 자동 확인
+  { title: '💳 결제확인 12:08 (백업)', hour: 12, minute: 8,  body: { bot: 'tracking' } },
+  { title: '💳 결제확인 12:33 (백업)', hour: 12, minute: 33, body: { bot: 'tracking' } },
+  { title: '💳 결제확인 12:48 (백업·마감직전)', hour: 12, minute: 48, body: { bot: 'tracking' } },
+  // 결제·입금 알림 12:10 / 12:35 / 12:50 (안 된 게 있으면 계속 상기)
   { title: '⏰ 결제 알림 12:10 (백업)', hour: 12, minute: 10, body: { bot: 'push' } },
   { title: '⏰ 결제 알림 12:35 (백업)', hour: 12, minute: 35, body: { bot: 'push' } },
   { title: '⏰ 마감 임박 12:50 (백업)', hour: 12, minute: 50, body: { bot: 'push' } },
