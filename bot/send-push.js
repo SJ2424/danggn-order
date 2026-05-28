@@ -68,9 +68,10 @@ async function main(){
   console.log(`📋 접수 ${recv} · OMS결제대기 ${ordered}(${omsCost}원) · 손님미입금 ${shippedUnpaid} · 구독 ${subs.length}건`);
 
   // 본문 — 짧고 한눈에 (잠금화면 2-3줄 가독성)
+  // 12:02/12:45 발화 시점 = 11:50 자동 발주 후 → 접수 주문은 수동 발주 대상
   const lines = [];
   if (ordered > 0)       lines.push(`💳 OMS 결제 ${ordered}건 · ${omsCost.toLocaleString('ko-KR')}원`);
-  if (recv > 0)          lines.push(`📥 신규 주문 ${recv}건 (자동 등록 중)`);
+  if (recv > 0)          lines.push(`🤖 수동 발주 필요 ${recv}건 (11:50 이후 입력)`);
   if (shippedUnpaid > 0) lines.push(`💰 손님 입금 대기 ${shippedUnpaid}건`);
 
   // 제목 — 가장 큰 액션 기준 (13:00 마감 = 그 후 다음날 발송)

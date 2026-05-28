@@ -680,7 +680,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28v-스케줄재조정</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28w-수동발주알람</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -2074,7 +2074,7 @@ function saveProducts(){
   catch(e){ alert('JSON 형식 오류'); }
 }
 
-const ALARM_START='12:30', CUTOFF='13:00', REPEAT_MIN=5;
+const ALARM_START='12:00', CUTOFF='13:00', REPEAT_MIN=5;
 let lastAlarm=0;
 const toMin=s=>{const a=s.split(':');return +a[0]*60+ +a[1];};
 function pendingCount(){ return ORDERS.filter(o=>{const s=o.status||'접수'; return s==='접수'||s==='발주대기';}).length; }
@@ -2342,8 +2342,9 @@ function showBotStaleBanner(){
   const dowMap = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
   const dow = dowMap[parts.weekday];
   const kstMin = (+parts.hour) * 60 + (+parts.minute);
-  // 평일이 아니거나 12:35 전이면 정상 (아직 봇 안 돌아도 됨)
-  if(dow === 0 || dow === 6 || kstMin < 12*60 + 35){
+  // 평일이 아니거나 11:55 전이면 숨김 (11:50 자동 발주가 아직/막 끝남)
+  // 11:55 이후 접수 주문 = 11:50 자동 발주 후 들어온 것 → 수동 처리 대상
+  if(dow === 0 || dow === 6 || kstMin < 11*60 + 55){
     banner.style.display = 'none';
     return;
   }
@@ -2353,7 +2354,11 @@ function showBotStaleBanner(){
     banner.style.display = 'none';
     return;
   }
-  $('#bsbMsg').innerHTML = `자동 발주가 안 됐어요 — 등록 안 된 주문 <b>${stuck.length}건</b> 남음 (현재 ${parts.hour}:${parts.minute})`;
+  // 13:00 마감 전/후로 메시지 다르게
+  const beforeCutoff = kstMin < 13*60;
+  $('#bsbMsg').innerHTML = beforeCutoff
+    ? `🤖 수동 발주 대기 <b>${stuck.length}건</b> — 11:50 이후 입력분, 13:00 전 처리하면 당일 발송`
+    : `⏰ 미처리 주문 <b>${stuck.length}건</b> — 13:00 마감 지남 (수동 발주시 내일 발송)`;
   banner.style.display = 'block';
 }
 async function fixMarginIssues(){
