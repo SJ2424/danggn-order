@@ -18,13 +18,19 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 });
 
 async function fetchPending() {
-  // 송장 아직 없는 주문 — 발주완료(신규) + 발송완료(과거 임포트분도 OMS에 있으면 가져오기 시도)
-  // 명시적으로 tracking IS NULL OR tracking = '' (PostgREST문법 안전성)
+  // 처리 대상 — 발주완료/발송완료 중:
+  //   ① 송장 없는 것 (송장 수집 대상)
+  //   ② 발주완료인데 아직 결제 확인 안 된 것 (oms_paid=false — 결제 확인 대상)
+  // 직거래는 OMS 대상 아님 → 제외
   const { data, error } = await sb.from('orders').select('*')
-    .in('status', ['발주완료', '발송완료'])
-    .or('tracking.is.null,tracking.eq.""');
+    .in('status', ['발주완료', '발송완료']);
   if (error) throw error;
-  return data || [];
+  return (data || []).filter(o =>
+    o.type !== '직거래' && (
+      !o.tracking ||                                 // 송장 없음
+      (o.status === '발주완료' && !o.oms_paid)        // 미결제 (결제 확인 필요)
+    )
+  );
 }
 
 // 한 주문 캐시 — shipped_at 보존 결정용
@@ -136,6 +142,12 @@ async function scrapeAllTracking(page) {
       } catch {}
       await page.screenshot({ path: `screenshots/${tag}-detail.png`, fullPage: true });
 
+      // 💳 결제상태 읽기 — 이 입금건이 결제됐는지 (입금완료(자동) / 입금완료(수동) / 미입금)
+      //    입금건 단위라, 이 상세의 모든 개별 수취인에게 동일 적용
+      const detailText = await page.locator('body').innerText().catch(() => '');
+      const isPaid = /입금완료\s*\(\s*(자동|수동)\s*\)/.test(detailText);
+      console.log(`  [${i+1}] 결제상태: ${isPaid ? '✅ 입금완료' : '⏳ 미입금'}`);
+
       // 그 섹션 바로 뒤 표 잡기 (xpath: 형제 중 첫 table)
       const detailRows = await page.locator(
         'xpath=//*[contains(text(),"개별 주문 및 배송 상세 내역")]/following::table[1]//tbody/tr'
@@ -179,8 +191,8 @@ async function scrapeAllTracking(page) {
           if (name && telMatch) {
             const tel = telMatch[0];
             const trkStr = courier && tracking ? `${courier} ${tracking}` : (tracking || '');
-            results.push({ name, tel, tracking: trkStr });
-            console.log(`     · ${name} / ${tel} → ${trkStr || '(송장 없음)'}`);
+            results.push({ name, tel, tracking: trkStr, paid: isPaid });
+            console.log(`     · ${name} / ${tel} → ${trkStr || '(송장 없음)'} · ${isPaid ? '결제완료' : '미결제'}`);
           } else {
             console.log(`     · [${j+1}] 추출실패 — 셀: ${cellText.slice(0,150)}`);
           }
@@ -219,7 +231,7 @@ async function main() {
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
 
-  let matched = 0, missed = 0;
+  let matched = 0, missed = 0, paidConfirmed = 0;
   try {
     await login(page);
     const scraped = await scrapeAllTracking(page);
@@ -250,13 +262,27 @@ async function main() {
         if (partial.length === 1) m = partial[0];
       }
 
-      if (m && m.tracking) {
-        await updateTracking(o.id, m.tracking, o);
-        matched++;
-        console.log(`✅ 매칭+업데이트: ${o.name} → ${m.tracking}`);
+      if (m) {
+        // ① 송장 있으면 → tracking + 발송완료 (+ updateTracking이 oms_paid도 자동 처리)
+        if (m.tracking) {
+          await updateTracking(o.id, m.tracking, o);
+          matched++;
+          console.log(`✅ 송장 매칭: ${o.name} → ${m.tracking}`);
+        }
+        // ② 송장은 아직 없지만 결제완료 확인됨 → oms_paid만 자동 처리 (13시 전 결제 확인!)
+        else if (m.paid && o.status === '발주완료' && !o.oms_paid) {
+          if (!isDry) {
+            await sb.from('orders').update({ oms_paid: true }).eq('id', o.id);
+          }
+          paidConfirmed++;
+          console.log(`💳 결제 확인: ${o.name} → 결제완료 처리${isDry ? ' (DRY)' : ''}`);
+        } else {
+          missed++;
+          console.log(`⏭️  매칭됐으나 송장·결제 모두 미확인: ${o.name}`);
+        }
       } else {
         missed++;
-        console.log(`⏭️  매칭 실패 (아직 송장 미발급?): ${o.name}`);
+        console.log(`⏭️  매칭 실패 (아직 OMS에 없음?): ${o.name}`);
       }
     }
   } catch(e) {
@@ -266,7 +292,7 @@ async function main() {
     process.exit(1);
   }
   await browser.close();
-  console.log(`\n📊 결과: 업데이트 ${matched}건 / 미매칭 ${missed}건`);
+  console.log(`\n📊 결과: 송장 ${matched}건 / 결제확인 ${paidConfirmed}건 / 미매칭 ${missed}건`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
