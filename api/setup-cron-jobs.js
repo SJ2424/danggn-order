@@ -1,0 +1,138 @@
+// 🤖 cron-job.org 자동 셋업 — admin 클릭 한 번에 9개 백업 job 생성
+// 사용자 입력: cron-job.org API key (한 번만)
+//
+// POST /api/setup-cron-jobs
+// Headers: Authorization: Bearer <supabase JWT>
+// Body: { apiKey: "..." }  ← cron-job.org에서 발급한 키
+//
+// 동작:
+//   1. admin 권한 확인
+//   2. 우리 CRON_SECRET 환경변수 가져옴
+//   3. 9개 job을 cron-job.org REST API로 자동 생성
+//   4. 결과 요약 반환
+
+import { createClient } from '@supabase/supabase-js';
+
+// 백업할 봇 시간표 (KST) — GitHub Actions와 동일 시각
+const JOBS = [
+  // 발주 (선반랙 + 카트) — 4시간대 × 2사이트 = 6개  ※08:02은 거의 안 밀려서 백업 제외
+  { title: '🤖 선반랙 발주 12:02 (백업)', hour: 12, minute: 2,  body: { bot: 'register' } },
+  { title: '🛒 카트 발주 12:02 (백업)',  hour: 12, minute: 2,  body: { bot: 'cart' } },
+  { title: '🤖 선반랙 발주 12:32 (백업)', hour: 12, minute: 32, body: { bot: 'register' } },
+  { title: '🛒 카트 발주 12:32 (백업)',  hour: 12, minute: 32, body: { bot: 'cart' } },
+  { title: '🤖 선반랙 발주 12:47 (백업·핵심)', hour: 12, minute: 47, body: { bot: 'register' } },
+  { title: '🛒 카트 발주 12:47 (백업·핵심)',  hour: 12, minute: 47, body: { bot: 'cart' } },
+  // 마감 푸시 12:50 (마감 직전 마지막 콜 — 가장 중요)
+  { title: '⏰ 마감 푸시 12:50 (백업)', hour: 12, minute: 50, body: { bot: 'push' } },
+  // 송장 16:02 (선반랙 + 카트) — 17:02은 거의 안 밀려서 백업 제외
+  { title: '🚚 송장 16:02 선반랙 (백업)', hour: 16, minute: 2, body: { bot: 'tracking' } },
+  { title: '🚚 송장 16:02 카트 (백업)',  hour: 16, minute: 2, body: { bot: 'cartTracking' } }
+];
+
+export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'POST만 허용' });
+  }
+
+  const { SUPABASE_URL, SUPABASE_SERVICE_KEY, CRON_SECRET } = process.env;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    return res.status(500).json({ error: 'Supabase 환경변수 미설정' });
+  }
+  if (!CRON_SECRET) {
+    return res.status(500).json({
+      error: 'CRON_SECRET 환경변수가 Vercel에 등록 안 됨',
+      hint: '먼저 Vercel Settings → Environment Variables에 CRON_SECRET 추가 후 재배포 필요'
+    });
+  }
+
+  // admin JWT 검증
+  const jwt = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!jwt) return res.status(401).json({ error: '로그인 토큰 없음' });
+
+  const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  const { data: { user }, error: authErr } = await sb.auth.getUser(jwt);
+  if (authErr || !user) {
+    return res.status(401).json({ error: '로그인 정보 유효하지 않음' });
+  }
+  const { data: prof } = await sb.from('profiles').select('role').eq('id', user.id).single();
+  if (!prof || prof.role !== 'admin') {
+    return res.status(403).json({ error: '관리자 권한 필요' });
+  }
+
+  // body
+  let body = {};
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); } catch {}
+  const apiKey = (body.apiKey || '').trim();
+  if (!apiKey) {
+    return res.status(400).json({ error: 'cron-job.org API key 필요', hint: 'body에 { "apiKey": "..." }' });
+  }
+
+  const cronBotUrl = `https://${req.headers.host || 'danggn-order.vercel.app'}/api/cron-bot`;
+
+  // 9개 job 생성 (병렬)
+  const results = await Promise.all(JOBS.map(async (j) => {
+    try {
+      const r = await fetch('https://api.cron-job.org/jobs', {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          job: {
+            title: j.title,
+            url: cronBotUrl,
+            enabled: true,
+            saveResponses: false,
+            schedule: {
+              timezone: 'Asia/Seoul',
+              hours: [j.hour],
+              minutes: [j.minute],
+              mdays: [-1],
+              months: [-1],
+              wdays: [1, 2, 3, 4, 5]  // 평일만 (월~금)
+            },
+            requestMethod: 1,  // POST
+            extendedData: {
+              headers: {
+                'X-Cron-Secret': CRON_SECRET,
+                'Content-Type': 'application/json',
+                'User-Agent': 'cron-job-org-backup'
+              },
+              body: JSON.stringify(j.body)
+            }
+          }
+        })
+      });
+      const text = await r.text().catch(() => '');
+      if (!r.ok) {
+        let detail = text.slice(0, 200);
+        try { detail = JSON.parse(text).message || detail; } catch {}
+        return { title: j.title, ok: false, status: r.status, error: detail };
+      }
+      let jobId = null;
+      try { jobId = JSON.parse(text)?.jobId; } catch {}
+      return { title: j.title, ok: true, jobId };
+    } catch (e) {
+      return { title: j.title, ok: false, error: e.message };
+    }
+  }));
+
+  const okCount = results.filter(r => r.ok).length;
+  const failCount = results.length - okCount;
+
+  return res.status(failCount === 0 ? 200 : 207).json({
+    ok: failCount === 0,
+    total: results.length,
+    succeeded: okCount,
+    failed: failCount,
+    results,
+    cronBotUrl,
+    message: failCount === 0
+      ? `✅ ${okCount}개 백업 cronjob 생성 완료 — 이제 GitHub 지연돼도 정시에 발주됩니다`
+      : `⚠️ ${okCount}개 성공 / ${failCount}개 실패 — 결과 상세 확인`
+  });
+}

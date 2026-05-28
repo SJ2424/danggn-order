@@ -644,7 +644,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28j-외부cron백업</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28k-cron자동생성</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -3632,79 +3632,51 @@ $('#btnGenVapid') && $('#btnGenVapid').addEventListener('click', async () => {
   }
 });
 
-// 🛡 CRON_SECRET 발급 + cron-job.org 가이드
+// 🛡 CRON_SECRET 발급 — 단계별 가이드 + 마지막에 [🤖 자동 설정] 클릭 한 번
+let _pendingCronSecret = '';
 $('#btnGenCronSecret') && $('#btnGenCronSecret').addEventListener('click', () => {
-  // 클라이언트에서 32바이트 랜덤 base64 생성 (crypto API)
   const arr = new Uint8Array(32);
   crypto.getRandomValues(arr);
   const secret = btoa(String.fromCharCode(...arr)).replace(/[+/=]/g, '').slice(0, 40);
-  const baseUrl = location.origin + '/api/cron-bot';
+  _pendingCronSecret = secret;
   const result = $('#cronSecretResult');
   const esc = s => String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
   result.innerHTML = `
-    <div style="background:#fff3cd;border:1px solid #d97706;border-radius:8px;padding:12px;font-size:12px">
-      <b style="color:#7c2d12">⚠️ 이 화면 닫지 마세요! 한 번만 보입니다.</b>
-      <div style="margin-top:10px">
-        <label style="font-weight:600;font-size:11px">CRON_SECRET (Vercel + cron-job.org 양쪽에 등록)</label>
-        <div style="display:flex;gap:4px;margin-top:2px">
+    <div style="background:#fff3cd;border:1px solid #d97706;border-radius:8px;padding:12px;font-size:12.5px;line-height:1.6">
+      <b style="color:#7c2d12">⚠️ 이 화면 닫지 마세요. 단계별로 진행하면 끝 (PC에서 진행)</b>
+
+      <div style="margin:12px 0 8px;padding:10px;background:#fff;border-radius:6px">
+        <b style="color:#1e40af">1️⃣ Vercel에 CRON_SECRET 등록 (2분)</b>
+        <p style="margin:6px 0;font-size:11.5px">
+          <a href="https://vercel.com/sj-s-projects8/danggn-order/settings/environment-variables" target="_blank">📂 Vercel 환경변수 페이지 열기</a><br>
+          → [Add New] → Key: <code>CRON_SECRET</code> / Value: 아래 값 / Production ✅ / Save
+        </p>
+        <div style="display:flex;gap:4px;margin-top:4px">
           <input readonly value="${esc(secret)}" style="flex:1;padding:6px;font-size:10.5px;font-family:monospace;border:1px solid var(--line);border-radius:4px">
           <button class="btn-sec btn-sm csec-copy" data-val="${esc(secret)}">복사</button>
         </div>
-      </div>
-      <div style="margin-top:8px">
-        <label style="font-weight:600;font-size:11px">API URL (cron-job.org에서 호출할 주소)</label>
-        <div style="display:flex;gap:4px;margin-top:2px">
-          <input readonly value="${esc(baseUrl)}" style="flex:1;padding:6px;font-size:10.5px;font-family:monospace;border:1px solid var(--line);border-radius:4px">
-          <button class="btn-sec btn-sm csec-copy" data-val="${esc(baseUrl)}">복사</button>
-        </div>
+        <p style="margin:8px 0 0;font-size:11px;color:var(--mut)">→ 등록 후 <a href="https://vercel.com/sj-s-projects8/danggn-order/deployments" target="_blank">Deployments</a>에서 최신 ⋯ Redeploy (1분)</p>
       </div>
 
-      <div style="margin-top:12px;padding:11px;background:#fff;border-radius:6px;font-size:11.5px;line-height:1.75">
-        <b style="color:#1e40af">📌 설정 순서 (PC에서 진행)</b>
-        <ol style="margin:6px 0 0;padding-left:18px">
-          <li><b>Vercel 환경변수 등록</b>:
-            <a href="https://vercel.com/sj-s-projects8/danggn-order/settings/environment-variables" target="_blank">바로가기</a><br>
-            [Add New] → Key: <code>CRON_SECRET</code> / Value: 위 시크릿 / Production ✅ / Save
-          </li>
-          <li><b>Vercel 재배포</b>:
-            <a href="https://vercel.com/sj-s-projects8/danggn-order/deployments" target="_blank">바로가기</a><br>
-            최신 ⋯ → Redeploy → 1분 대기
-          </li>
-          <li><b>cron-job.org 가입</b>:
-            <a href="https://cron-job.org/en/signup/" target="_blank">바로가기</a> (이메일만)
-          </li>
-          <li><b>Cronjob 6개 추가</b>: <a href="https://console.cron-job.org/jobs/create" target="_blank">바로가기</a>
-            <div style="margin:4px 0 0;padding:8px;background:#f9fafb;border-radius:4px;font-size:11px">
-              각 job 공통:<br>
-              ▪ URL: <code>${esc(baseUrl)}</code><br>
-              ▪ Request method: <b>POST</b><br>
-              ▪ Headers 추가: <code>X-Cron-Secret: (위 시크릿)</code><br>
-              ▪ Request body (JSON): <code>{"bot":"register"}</code> 등<br>
-              ▪ Schedule (KST 변환 — cron-job.org가 자동으로 timezone 처리)
-            </div>
-          </li>
-        </ol>
-        <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">⏰ 6개 Cron 시간표 (펼치기)</summary>
-          <table style="width:100%;font-size:10.5px;margin-top:6px;border-collapse:collapse">
-            <thead><tr style="background:#f4f3ef"><th style="padding:4px;text-align:left">시간(KST)</th><th style="padding:4px;text-align:left">body</th><th style="padding:4px">설명</th></tr></thead>
-            <tbody>
-              <tr><td style="padding:4px">평일 12:02</td><td><code>{"bot":"register"}</code></td><td>선반랙</td></tr>
-              <tr><td style="padding:4px">평일 12:02</td><td><code>{"bot":"cart"}</code></td><td>카트</td></tr>
-              <tr><td style="padding:4px">평일 12:32</td><td><code>{"bot":"register"}</code></td><td>선반랙</td></tr>
-              <tr><td style="padding:4px">평일 12:32</td><td><code>{"bot":"cart"}</code></td><td>카트</td></tr>
-              <tr><td style="padding:4px">평일 12:47</td><td><code>{"bot":"register"}</code></td><td>선반랙 막판</td></tr>
-              <tr><td style="padding:4px">평일 12:47</td><td><code>{"bot":"cart"}</code></td><td>카트 막판</td></tr>
-              <tr><td style="padding:4px">평일 12:50</td><td><code>{"bot":"push"}</code></td><td>마감 푸시</td></tr>
-              <tr><td style="padding:4px">평일 16:02</td><td><code>{"bot":"tracking"}</code></td><td>송장 (선반랙)</td></tr>
-              <tr><td style="padding:4px">평일 16:02</td><td><code>{"bot":"cartTracking"}</code></td><td>송장 (카트)</td></tr>
-            </tbody>
-          </table>
-          <p style="margin:6px 0 0;font-size:10.5px;color:var(--mut)">※ GitHub Actions와 동시 발화돼도 concurrency로 중복 방지됨. 한쪽이 죽으면 다른 한쪽이 백업.</p>
-        </details>
+      <div style="margin:8px 0;padding:10px;background:#fff;border-radius:6px">
+        <b style="color:#1e40af">2️⃣ cron-job.org 가입 + API 키 발급 (3분)</b>
+        <p style="margin:6px 0;font-size:11.5px">
+          <a href="https://cron-job.org/en/signup/" target="_blank">📂 cron-job.org 가입</a> (이메일만)<br>
+          → 가입 후 <a href="https://console.cron-job.org/settings" target="_blank">⚙️ Settings → API</a> → <b>[Create API key]</b> → 키 복사
+        </p>
+      </div>
+
+      <div style="margin:8px 0;padding:10px;background:#f0fdf4;border:1px solid #16a34a;border-radius:6px">
+        <b style="color:#0f6e34">3️⃣ 여기에 cron-job.org API 키 붙여넣고 [🤖 자동 설정] 클릭</b>
+        <input id="cronOrgApiKey" type="text" placeholder="cron-job.org API 키 (긴 문자열)" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+               style="width:100%;margin-top:6px;padding:9px;font-size:12.5px;font-family:monospace;border:1px solid #c8e6c9;border-radius:6px;background:#fff">
+        <button id="btnSetupCronJobs" class="btn-pri" style="width:100%;margin-top:8px;padding:11px;font-size:13px">🤖 9개 백업 cronjob 자동 생성</button>
+        <div id="setupCronJobsResult" style="margin-top:8px;font-size:12px"></div>
       </div>
     </div>
   `;
   result.style.display = 'block';
+  // 복사 버튼
   result.querySelectorAll('.csec-copy').forEach(b => {
     b.addEventListener('click', () => {
       navigator.clipboard.writeText(b.dataset.val).then(() => {
@@ -3712,6 +3684,51 @@ $('#btnGenCronSecret') && $('#btnGenCronSecret').addEventListener('click', () =>
         setTimeout(() => { b.textContent = '복사'; }, 1500);
       });
     });
+  });
+  // 자동 설정 핸들러
+  $('#btnSetupCronJobs').addEventListener('click', async () => {
+    const apiKey = $('#cronOrgApiKey').value.trim();
+    const out = $('#setupCronJobsResult');
+    if (!apiKey) {
+      out.innerHTML = '<span style="color:#c5221f">⚠️ cron-job.org API 키 입력 필요</span>';
+      return;
+    }
+    const btn = $('#btnSetupCronJobs');
+    btn.disabled = true; btn.textContent = '⏳ 생성 중 (10~20초)...';
+    out.innerHTML = '<span style="color:var(--mut)">cron-job.org에 9개 job 생성 중...</span>';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인 필요</span>'; btn.disabled=false; btn.textContent='🤖 9개 백업 cronjob 자동 생성'; return; }
+      const res = await fetch('/api/setup-cron-jobs', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey })
+      });
+      const j = await res.json();
+      if (j.ok) {
+        out.innerHTML = `
+          <div style="padding:10px;background:#d4ede0;border:1px solid #16a34a;border-radius:6px;color:#0f6e34">
+            <b>🎉 완료! ${j.succeeded}개 백업 cronjob 생성됨.</b><br>
+            이제 GitHub Actions가 지연돼도 cron-job.org이 정시에 봇 트리거합니다.<br>
+            <a href="https://console.cron-job.org/jobs" target="_blank" style="color:#0f6e34">→ 생성된 job 목록 보기</a>
+          </div>
+        `;
+        btn.style.display = 'none';
+      } else {
+        const failedList = (j.results||[]).filter(r => !r.ok).map(r => `<li>${esc(r.title)}: ${esc(r.error || ('HTTP '+r.status))}</li>`).join('');
+        out.innerHTML = `
+          <div style="padding:10px;background:#fef2f2;border:1px solid #c5221f;border-radius:6px;color:#7f1d1d">
+            <b>⚠️ ${j.succeeded||0}개 성공 / ${j.failed||'?'}개 실패</b><br>
+            ${j.error || j.message || ''}
+            <ul style="margin:6px 0 0;padding-left:18px;font-size:11px">${failedList}</ul>
+          </div>
+        `;
+        btn.disabled = false; btn.textContent = '🔁 다시 시도';
+      }
+    } catch(e) {
+      out.innerHTML = `<span style="color:#c5221f">실패: ${e.message}</span>`;
+      btn.disabled = false; btn.textContent = '🔁 다시 시도';
+    }
   });
 });
 
