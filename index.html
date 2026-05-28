@@ -680,7 +680,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28z-아침08시</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28za-송장14시</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -1901,7 +1901,7 @@ function cardHtml(o){
     if(days >= 3){
       trackHtml = '🚚 <span style="color:#c5221f;font-weight:600">⏰ 송장 대기 '+days+'일째</span> <span class="muted" style="font-size:11px">— 주문처에서 확인 후 [✏️ 수정]에 직접 입력</span>';
     } else {
-      trackHtml = '🚚 <span style="color:var(--mut)">발송 후 자동 (16~17시)</span>';
+      trackHtml = '🚚 <span style="color:var(--mut)">발송 후 자동 (14·16시)</span>';
     }
   } else if(status === '발주대기'){
     // 발주대기 = 옛날 상태. 이미 진행했으면 발주완료로 바꿔야
@@ -3327,12 +3327,12 @@ function getNextSchedule(botKey){
   const minutes = kstHour*60 + kstMin;
   // 봇별 스케줄 (평일만, KST) — 08:00 아침 + 11:50 오전 최종 (이후 수동)
   // 실제 발화는 08:01 (정시 직후 트래픽 회피) — 표시는 08:00으로 깔끔하게
-  // 송장: 16:00, 17:00
+  // 송장: 14:00, 16:00 (송장 = 결제완료 자동 확정)
   const scheduleByBot = {
     register: [8*60, 11*60+50],
     cart:     [8*60, 11*60+50],
-    tracking: [16*60, 17*60],
-    cartTracking: [16*60, 17*60]
+    tracking: [14*60, 16*60],
+    cartTracking: [14*60, 16*60]
   };
   const slots = scheduleByBot[botKey] || scheduleByBot.register;
   const fmtTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;

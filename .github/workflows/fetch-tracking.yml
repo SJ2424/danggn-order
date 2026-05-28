@@ -8,9 +8,9 @@ on:
         type: boolean
         default: false
   schedule:
-    # 평일 16:00, 17:00 KST 2회 (송장 수집 — 시간 여유 있어 정시 OK, cron-job.org 백업도 있음)
+    # 평일 14:00, 16:00 KST 2회 (송장이 14시면 이미 나옴 → 14시 수집 = 결제완료 자동 확정)
+    - cron: '0 5 * * 1-5'   # 14:00 KST
     - cron: '0 7 * * 1-5'   # 16:00 KST
-    - cron: '0 8 * * 1-5'   # 17:00 KST
 
 # 동시 실행 방지 — 16:02 봇이 길어져 17:02와 겹치면 OMS 동시 로그인 / DB 중복 update 위험
 concurrency:
