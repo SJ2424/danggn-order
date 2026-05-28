@@ -8,9 +8,9 @@ on:
         type: boolean
         default: false
   schedule:
-    # 평일 14:00, 16:00 KST 2회 (선반랙 송장봇과 동시)
-    - cron: '0 5 * * 1-5'   # 14:00 KST
+    # 평일 16:00, 17:00 KST 2회 (카트 송장은 안내문상 "오후 3시 이후" → 선반랙보다 늦음)
     - cron: '0 7 * * 1-5'   # 16:00 KST
+    - cron: '0 8 * * 1-5'   # 17:00 KST
 
 # 동시 실행 방지
 concurrency:

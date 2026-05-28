@@ -26,9 +26,9 @@ const JOBS = [
   { title: '⏰ 결제 알림 12:10 (백업)', hour: 12, minute: 10, body: { bot: 'push' } },
   { title: '⏰ 결제 알림 12:35 (백업)', hour: 12, minute: 35, body: { bot: 'push' } },
   { title: '⏰ 마감 임박 12:50 (백업)', hour: 12, minute: 50, body: { bot: 'push' } },
-  // 송장 14:00 (선반랙 + 카트) — 14시면 송장 나옴 → 결제완료 자동 확정
+  // 송장 — 선반랙 14:00 (송장 14시+) / 카트 16:00 (송장 15시+) → 둘 다 결제완료 자동 확정
   { title: '🚚 송장 14:00 선반랙 (백업)', hour: 14, minute: 0, body: { bot: 'tracking' } },
-  { title: '🚚 송장 14:00 카트 (백업)',  hour: 14, minute: 0, body: { bot: 'cartTracking' } }
+  { title: '🚚 송장 16:00 카트 (백업)',  hour: 16, minute: 0, body: { bot: 'cartTracking' } }
 ];
 
 export default async function handler(req, res) {
