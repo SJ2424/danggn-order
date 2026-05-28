@@ -680,7 +680,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28zg-로그인한글</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28zh-거래처조회</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -689,6 +689,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     <button class="btn-pri-sm" id="btnRunTracking" title="송장 자동 수집">🚚 송장 수집</button>
   </div>
   <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·상품·주소·메모·송장 검색 (부분일치)"></div>
+  <div class="chips admin-only" id="ownerChips" style="display:none"></div>
   <div class="chips admin-only" id="filters"></div>
   <p class="muted admin-only" style="font-size:11.5px;margin:6px 0">↕ 최신 날짜순 (상태 알약 클릭해도 카드 위치 안 바뀜)</p>
   <div class="order-list" id="list"></div>
@@ -824,7 +825,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
       <input id="cronOrgApiKey" type="text" placeholder="cron-job.org API 키 (긴 문자열 — 이 기기에 저장됨)" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
              style="width:100%;margin-top:6px;padding:10px;font-size:12.5px;font-family:monospace;border:1px solid #c8e6c9;border-radius:6px;background:#fff">
       <div style="display:flex;gap:6px;margin-top:8px">
-        <button id="btnSetupCronJobs" class="btn-pri" style="flex:1;padding:11px;font-size:13.5px">🤖 9개 백업 cronjob 자동 생성</button>
+        <button id="btnSetupCronJobs" class="btn-pri" style="flex:1;padding:11px;font-size:13.5px">🤖 12개 백업 cronjob 자동 생성</button>
         <button id="btnClearCronApiKey" class="btn-sec btn-sm" title="저장된 API 키 삭제" style="font-size:11px">🗑</button>
       </div>
       <div id="setupCronJobsResult" style="margin-top:8px;font-size:12px"></div>
@@ -1153,7 +1154,7 @@ function displayOf(profileOrUser){
   }
   return e.split('@')[0] || e;
 }
-let curFilter='inprogress', curSearch='';
+let curFilter='inprogress', curSearch='', curOwner='mine';
 const FILTERS=[
   {k:'inprogress',l:'진행중'},
   {k:'unpaid',l:'미입금'},
@@ -1349,6 +1350,9 @@ async function showApp(session){
   myEmail = session.user.email || '';
   renderMyAccount();
   fillProductDropdown();  // 입력자도 상품 dropdown 사용 가능 (defaults)
+  // 관리자: 주문 렌더 전에 ADMIN_IDS·INPUT_USERS 먼저 로드
+  //   (첫 화면부터 마진 정확 + 거래처 칩 이름 정확 + 내 주문 안 사라짐)
+  if(userRole === 'admin'){ await loadAdminIds(); await loadInputUsers(); }
   await loadOrders();
   subscribeOrders();
   setMode('input');
@@ -1357,8 +1361,6 @@ async function showApp(session){
     await refreshPendingCount();
     subscribePending();
     await loadCatalog();
-    await loadInputUsers();
-    await loadAdminIds();
     await loadUserPrices();
     await loadReceipts();
     renderLedgerFilters();
@@ -1845,10 +1847,11 @@ function closeEditModal(){
 }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function countFor(k){
-  if(k==='all') return ORDERS.length;
-  if(k==='inprogress') return ORDERS.filter(o => !isCompleted(o)).length;
-  if(k==='completed')  return ORDERS.filter(o => isCompleted(o)).length;
-  if(k==='unpaid') return ORDERS.filter(o=>!o.paid).length;
+  const base = ORDERS.filter(ownerMatch);
+  if(k==='all') return base.length;
+  if(k==='inprogress') return base.filter(o => !isCompleted(o)).length;
+  if(k==='completed')  return base.filter(o => isCompleted(o)).length;
+  if(k==='unpaid') return base.filter(o=>!o.paid).length;
   return 0;
 }
 function filterMatch(o){
@@ -1871,6 +1874,42 @@ function renderFilters(){
   $('#filters').innerHTML = FILTERS.map(f=>
     '<button class="chip-flt'+(curFilter===f.k?' active':'')+'" data-flt="'+f.k+'">'+f.l+' '+countFor(f.k)+'</button>'
   ).join('');
+}
+// 👤 거래처(주문자) 필터 — 관리자만. 기본은 '내 주문', 거래처는 이름 칩으로 따로 조회
+//    (거래처 주문이 내 목록에 섞여 안 보이게 + 이름별로 깔끔하게 조회)
+// 내 주문 판정 — created_by 없는 과거데이터 + 본인(myUserId) + 모든 관리자
+//   (ADMIN_IDS 로드 전이라도 myUserId로 본인 주문은 항상 인식 → 첫 화면에서 안 사라짐)
+function isMine(o){ return !o.created_by || o.created_by === myUserId || ADMIN_IDS.has(o.created_by); }
+function ownerMatch(o){
+  if(userRole !== 'admin') return true;            // 입력자는 이미 본인 것만 로드됨
+  if(curOwner === 'all') return true;
+  if(curOwner === 'mine') return isMine(o);
+  return o.created_by === curOwner;                // 특정 거래처
+}
+function renderOwnerChips(){
+  const el = $('#ownerChips'); if(!el) return;
+  if(userRole !== 'admin'){ el.style.display='none'; el.innerHTML=''; return; }
+  // 거래처별 주문 수 (내 주문 = 제외)
+  const counts = {};
+  ORDERS.forEach(o => {
+    if(isMine(o)) return;
+    counts[o.created_by] = (counts[o.created_by]||0) + 1;
+  });
+  const resellers = Object.keys(counts);
+  // 거래처가 한 명도 없으면 칩 줄 자체 숨김 (혼자 쓸 땐 평소처럼 깔끔)
+  if(resellers.length === 0){ el.style.display='none'; el.innerHTML=''; curOwner='mine'; return; }
+  // 선택했던 거래처가 더 이상 주문이 없으면 '내 주문'으로 복귀 (빈 화면 방지)
+  if(curOwner !== 'mine' && curOwner !== 'all' && !counts[curOwner]) curOwner = 'mine';
+  el.style.display='';
+  const mineCnt = ORDERS.filter(isMine).length;
+  const mk = (label, k) => '<button class="chip-flt'+(curOwner===k?' active':'')+'" data-owner="'+esc(k)+'">'+esc(label)+'</button>';
+  let html = mk('🙋 내 주문 '+mineCnt, 'mine');
+  resellers
+    .map(uid => { const u = INPUT_USERS.find(x=>x.id===uid); return { uid, name:(u?displayOf(u):uid.slice(0,6)), cnt:counts[uid] }; })
+    .sort((a,b) => b.cnt - a.cnt)
+    .forEach(r => { html += mk('👤 '+r.name+' '+r.cnt, r.uid); });
+  html += mk('전체', 'all');
+  el.innerHTML = html;
 }
 function cardHtml(o){
   const id=o.id;
@@ -1960,7 +1999,7 @@ function cardHtml(o){
   +'</div>';
 }
 function renderList(){
-  renderAliases(); renderFilters();
+  renderAliases(); renderOwnerChips(); renderFilters();
   showMarginBanner();  // 마진 문제 배너 갱신
   showBotFailBanner(); // 🚨 봇 실패 배너
   showBotStaleBanner(); // ⏰ 자동봇 미발화 배너
@@ -1968,13 +2007,14 @@ function renderList(){
   // 날짜 DESC → 입력시각 DESC 만으로 정렬 (상태 우선순위 제거)
   // 사용자가 상태 알약을 클릭해도 카드가 다른 위치로 점프하지 않음
   // (필터링은 상태별 칩으로 — 진행중/미입금/완료/전체)
-  const items = ORDERS.filter(filterMatch).sort((a,b) => {
+  const ownerBase = ORDERS.filter(ownerMatch);
+  const items = ownerBase.filter(filterMatch).sort((a,b) => {
     const dA = a.date || '', dB = b.date || '';
     if (dA !== dB) return dB.localeCompare(dA);
     return new Date(b.created_at||0) - new Date(a.created_at||0);
   });
-  const emptyMsg = ORDERS.length
-    ? '<div class="empty">현재 필터에 해당하는 주문이 없습니다<br><span class="muted" style="font-size:12px">전체 '+ORDERS.length+'건 — 위 칩에서 <b>전체</b> 클릭하면 모두 보임</span></div>'
+  const emptyMsg = ownerBase.length
+    ? '<div class="empty">현재 필터에 해당하는 주문이 없습니다<br><span class="muted" style="font-size:12px">전체 '+ownerBase.length+'건 — 위 칩에서 <b>전체</b> 클릭하면 모두 보임</span></div>'
     : '<div class="empty">표시할 주문이 없습니다</div>';
 
   // 📋 4개 버킷으로 분류 — 액션 필요 → 등록 대기 → 진행 중 → 완료
@@ -2004,14 +2044,14 @@ function renderList(){
     + sec('🚚 진행 중 · 입금 대기', '#1e40af', buckets.progress, false)
     + sec('✅ 완료', '#0f6e34', buckets.done, true);
   $('#list').innerHTML = items.length ? groupedHtml : emptyMsg;
-  $('#cnt').textContent = ORDERS.length
-    ? '('+items.length+(items.length===ORDERS.length?'':'/'+ORDERS.length)+'건)'
+  $('#cnt').textContent = ownerBase.length
+    ? '('+items.length+(items.length===ownerBase.length?'':'/'+ownerBase.length)+'건)'
     : '';
-  const recv=ORDERS.filter(o=>(o.status||'접수')==='접수').length;
-  const pend=ORDERS.filter(o=>o.status==='발주대기').length;
-  const unpaid=ORDERS.filter(o=>!o.paid).length;
-  const overdue=ORDERS.filter(o=>!o.paid && o.status==='발송완료' && o.shipped_at && (Date.now()-new Date(o.shipped_at).getTime())>72*3600*1000).length;
-  $('#summary').textContent = ORDERS.length
+  const recv=ownerBase.filter(o=>(o.status||'접수')==='접수').length;
+  const pend=ownerBase.filter(o=>o.status==='발주대기').length;
+  const unpaid=ownerBase.filter(o=>!o.paid).length;
+  const overdue=ownerBase.filter(o=>!o.paid && o.status==='발송완료' && o.shipped_at && (Date.now()-new Date(o.shipped_at).getTime())>72*3600*1000).length;
+  $('#summary').textContent = ownerBase.length
     ? ('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'+(overdue?' (🚨 '+overdue+'건 72H+)':''))
     : '';
   renderLedger();
@@ -3898,7 +3938,7 @@ $('#btnClearCronApiKey') && $('#btnClearCronApiKey').addEventListener('click', (
   toast('🗑 저장된 API 키 삭제됨', 'info', 3000);
 });
 
-// 🛡 3️⃣ cron-job.org 9개 job 자동 생성 (API key 받아서) — 일부 실패시 1회 자동 재호출
+// 🛡 3️⃣ cron-job.org 12개 job 자동 생성 (API key 받아서) — 일부 실패시 1회 자동 재호출
 $('#btnSetupCronJobs') && $('#btnSetupCronJobs').addEventListener('click', () => runSetupCronJobs(true));
 
 async function runSetupCronJobs(allowAutoRetry){
@@ -3919,7 +3959,7 @@ async function runSetupCronJobs(allowAutoRetry){
   let cleanedUp = 0;
   try {
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인 필요</span>'; btn0.disabled=false; btn0.textContent='🤖 9개 백업 cronjob 자동 생성'; return; }
+    if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인 필요</span>'; btn0.disabled=false; btn0.textContent='🤖 12개 백업 cronjob 자동 생성'; return; }
     const cleanupRes = await fetch('/api/setup-cron-jobs', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
@@ -3941,9 +3981,9 @@ async function runSetupCronJobs(allowAutoRetry){
   await new Promise(r => setTimeout(r, 1500));
   // 2단계: create
   const btn = $('#btnSetupCronJobs');
-  const orig = '🤖 9개 백업 cronjob 자동 생성';
-  btn.disabled = true; btn.textContent = '⏳ 2/2 9개 생성 중 (20~30초)...';
-  out.innerHTML = `<span style="color:var(--mut)">${cleanedUp ? `기존 ${cleanedUp}개 정리됨. ` : ''}이제 9개 새로 생성 중 (rate limit 회피해서 천천히)... 페이지 닫지 마세요.</span>`;
+  const orig = '🤖 12개 백업 cronjob 자동 생성';
+  btn.disabled = true; btn.textContent = '⏳ 2/2 12개 생성 중 (20~30초)...';
+  out.innerHTML = `<span style="color:var(--mut)">${cleanedUp ? `기존 ${cleanedUp}개 정리됨. ` : ''}이제 12개 새로 생성 중 (rate limit 회피해서 천천히)... 페이지 닫지 마세요.</span>`;
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인이 풀렸어요 — 새로고침 후 다시 로그인</span>'; btn.disabled=false; btn.textContent=orig; return; }
@@ -4095,6 +4135,10 @@ $('#btnFont').addEventListener('click', cycleFont);
 $('#filters').addEventListener('click', e=>{
   const b=e.target.closest('button[data-flt]'); if(!b) return;
   curFilter=b.dataset.flt; renderList();
+});
+$('#ownerChips') && $('#ownerChips').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-owner]'); if(!b) return;
+  curOwner=b.dataset.owner; renderList();
 });
 $('#search').addEventListener('input', e=>{ curSearch=e.target.value.trim(); renderList(); });
 

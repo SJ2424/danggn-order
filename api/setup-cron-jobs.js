@@ -78,29 +78,44 @@ export default async function handler(req, res) {
 
   const cronBotUrl = `https://${req.headers.host || 'danggn-order.vercel.app'}/api/cron-bot`;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // 429(요청 한도) 만나면 backoff 후 재시도 — cron-job.org 무료플랜 rate limit 대응
+  const cronFetch = async (url, opts, tries = 3) => {
+    let last;
+    for (let i = 0; i < tries; i++) {
+      last = await fetch(url, opts);
+      if (last.status !== 429) return last;
+      await sleep(3000 * (i + 1));  // 3s → 6s → 9s
+    }
+    return last;
+  };
+  // 상태코드 → 사용자 친화 메시지 (429를 '인증 실패'로 오표기하던 버그 수정)
+  const apiErrMsg = (status) =>
+    status === 429 ? 'cron-job.org 요청 한도 초과(429) — 1~2분 기다렸다가 다시 시도하세요 (연속 클릭하면 더 막힙니다)'
+    : (status === 401 || status === 403) ? `cron-job.org 인증 실패(${status}) — API 키가 틀렸거나 만료됨`
+    : `cron-job.org 응답 오류(${status})`;
 
   // ① cleanup 모드 — 기존 "백업" title job 모두 삭제 후 종료 (시간 분리)
   if (mode === 'cleanup') {
     let existingDeleted = 0;
     try {
-      const listRes = await fetch('https://api.cron-job.org/jobs', {
+      const listRes = await cronFetch('https://api.cron-job.org/jobs', {
         headers: { 'Authorization': 'Bearer ' + apiKey }
       });
       if (!listRes.ok) {
         const t = await listRes.text().catch(() => '');
-        return res.status(502).json({ error: `cron-job.org 인증 실패 (${listRes.status})`, detail: t.slice(0, 200) });
+        return res.status(502).json({ error: apiErrMsg(listRes.status), status: listRes.status, detail: t.slice(0, 200) });
       }
       const listJson = await listRes.json();
       const existing = (listJson.jobs || []).filter(j => j.title && /백업/.test(j.title));
       for (const j of existing) {
         try {
-          await fetch('https://api.cron-job.org/jobs/' + j.jobId, {
+          await cronFetch('https://api.cron-job.org/jobs/' + j.jobId, {
             method: 'DELETE',
             headers: { 'Authorization': 'Bearer ' + apiKey }
           });
           existingDeleted++;
         } catch {}
-        await sleep(700);
+        await sleep(900);
       }
     } catch(e) {
       return res.status(502).json({ error: 'cleanup 실패: ' + e.message });
@@ -111,8 +126,8 @@ export default async function handler(req, res) {
   // create 모드 — cleanup은 별도 호출에서 이미 처리됨
   const existingDeleted = 0;
 
-  // ② 9개 job 순차 생성 (rate limit 회피)
-  // cron-job.org 무료 plan = 1 req/sec → 1.2초 간격 + 429시 2.5초 대기 후 재시도 1회
+  // ② 12개 job 순차 생성 (rate limit 회피)
+  // cron-job.org 무료 plan = 1 req/sec → 1.1초 간격 + 429시 2.5초 대기 후 재시도 1회
   const createJob = async (j) => {
     return fetch('https://api.cron-job.org/jobs', {
       method: 'PUT',
@@ -165,7 +180,9 @@ export default async function handler(req, res) {
         }
         let detail = text.slice(0, 200);
         try { detail = JSON.parse(text).message || detail; } catch {}
-        lastErr = { status: r.status, error: detail };
+        // 429/401/403은 친화 메시지로 (원시 detail보다 알아보기 쉬움)
+        const friendly = (r.status === 429 || r.status === 401 || r.status === 403) ? apiErrMsg(r.status) : detail;
+        lastErr = { status: r.status, error: friendly };
         break;
       } catch (e) {
         lastErr = { error: e.message };
