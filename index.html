@@ -605,7 +605,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
     • 구매자 채팅을 통째로 붙여넣으면 자동 분석돼요.<br>
     • <b>같은 색상·같은 상품 여러 개만 묶고</b>, 다른 색이나 다른 상품은 따로 입력해 주세요 (배송이 따로 나갑니다).<br>
     • <b>자동 발주는 평일 08:02 + 11:50</b> 2번 (입력은 24시간 가능).<br>
-    • <b>11:50 이후</b> 들어온 택배 주문은 [🤖 발주] <b>수동 버튼</b>으로 즉시 처리 → 13:00 전 OMS 결제해야 당일 발송.<br>
+    • <b>11:50 이후</b> 들어온 택배 주문은 [🤖 발주] <b>수동 버튼</b>으로 즉시 처리 → 13:00 전 결제해야 당일 발송.<br>
     • 직거래는 봇/마감과 무관 (직접 전달).<br>
     • 💰 <b>입금은 보통 상품 수령 후</b>에 받습니다 — 미입금 표시는 정상이에요. 입금받으면 해당 주문 카드의 <b>[미입금] 알약을 [입금완료]로 토글</b>해 주세요.
   </div>
@@ -680,13 +680,13 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28x-알람3회</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28y-용어정리·시간정돈</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
-    <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문을 OMS에 즉시 등록">🤖 선반랙 발주</button>
+    <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문 즉시 발주">🤖 선반랙 발주</button>
     <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
-    <button class="btn-pri-sm" id="btnRunTracking" title="OMS·카트 송장 자동 수집">🚚 송장 수집</button>
+    <button class="btn-pri-sm" id="btnRunTracking" title="송장 자동 수집">🚚 송장 수집</button>
     <button id="btnPoAll" style="display:none"></button>
     <button id="btnBulkDone" style="display:none"></button>
     <button id="btnCsv" style="display:none"></button>
@@ -858,7 +858,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
       옛날 봇은 등록 후 '발주대기'에서 멈췄다가 사용자가 수동으로 '발주완료'로 바꿔야 했어요.
       지금은 자동으로 발주완료까지 마킹돼요.<br>
       <b>아직 발주대기로 남아있는 옛 주문</b>이 있으면 한 번에 발주완료로 정리할 수 있어요.
-      (이미 본인이 OMS에서 결제·처리한 주문이라면 안전)
+      (이미 본인이 주문처에서 결제·처리한 주문이라면 안전)
     </p>
     <div id="bdCount" class="muted" style="font-size:12px;margin:8px 0"></div>
     <button class="btn-pri-sm" id="btnBdCleanup">🧹 발주대기 → 발주완료 일괄 정리</button>
@@ -1770,7 +1770,7 @@ function openEditModal(id){
   if(note){
     note.innerHTML = editable
       ? '접수 상태 — 모든 항목 수정 가능. 메모·송장도 언제나 가능.'
-      : '⚠️ 이미 발주됨 — 이름·주소·상품 등 OMS 반영 항목은 잠금. <b>금액·수량·메모·송장은 수정 가능</b> (할인·환불 반영).';
+      : '⚠️ 이미 발주됨 — 이름·주소·상품 등 발주 반영 항목은 잠금. <b>금액·수량·메모·송장은 수정 가능</b> (할인·환불 반영).';
   }
   $('#editModal').classList.add('open');
 }
@@ -1899,7 +1899,7 @@ function cardHtml(o){
     const baseTime = new Date(o.date ? o.date + 'T00:00:00+09:00' : o.created_at).getTime();
     const days = Math.floor((Date.now() - baseTime) / (24*3600*1000));
     if(days >= 3){
-      trackHtml = '🚚 <span style="color:#c5221f;font-weight:600">⏰ 송장 대기 '+days+'일째</span> <span class="muted" style="font-size:11px">— 카트사이트/OMS에서 확인 후 [✏️ 수정]에 직접 입력</span>';
+      trackHtml = '🚚 <span style="color:#c5221f;font-weight:600">⏰ 송장 대기 '+days+'일째</span> <span class="muted" style="font-size:11px">— 주문처에서 확인 후 [✏️ 수정]에 직접 입력</span>';
     } else {
       trackHtml = '🚚 <span style="color:var(--mut)">발송 후 자동 (16~17시)</span>';
     }
@@ -2766,7 +2766,7 @@ async function markOmsPaid(){
   const targets = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid && o.type !== '직거래');
   if (targets.length === 0){ toast('결제 대기 건이 없어요', 'info', 3000); return; }
   const cost = targets.reduce((s,o) => s + (+o.cost_price||0)*(+o.qty||1), 0);
-  if (!confirm(`${targets.length}건 (OMS 결제 원가 합계 ${wonInt(cost)}원)\n\nOMS에서 실제 결제 완료하셨나요?\n[확인] 누르면 '결제 완료'로 표시됩니다.`)) return;
+  if (!confirm(`${targets.length}건 (결제 원가 합계 ${wonInt(cost)}원)\n\n실제 결제 완료하셨나요?\n[확인] 누르면 '결제 완료'로 표시됩니다.`)) return;
   const btn = $('#btnOmsPaid');
   if (btn){ btn.disabled = true; btn.textContent = '⏳ 처리중...'; }
   let ok = 0, fail = 0;
@@ -2783,7 +2783,7 @@ async function markOmsPaid(){
     } else ok++;
   }
   await loadOrders();
-  toast(`✅ ${ok}건 OMS 결제 완료로 표시${fail?` (${fail}건 실패)`:''}`, 'success', 4000);
+  toast(`✅ ${ok}건 결제 완료로 표시${fail?` (${fail}건 실패)`:''}`, 'success', 4000);
 }
 
 function renderTodaySummary(){
@@ -2806,22 +2806,22 @@ function renderTodaySummary(){
         omsEl.innerHTML = '';
       } else {
         omsEl.innerHTML = `
-          <div class="ts-section-label" style="margin-top:14px">💳 OMS 결제 (내가 수동 발주)</div>
+          <div class="ts-section-label" style="margin-top:14px">💳 마감 전 결제 체크</div>
           <div class="omspay-box done">
             <div class="omspay-info">
               <div class="omspay-amount">✅ 결제 완료</div>
-              <div class="omspay-label">발주완료 건 OMS 결제 끝</div>
+              <div class="omspay-label">오늘 발주 건 결제 다 함</div>
             </div>
           </div>`;
       }
     } else {
       const omsCost = omsUnpaid.reduce((s,o) => s + (+o.cost_price||0)*(+o.qty||1), 0);
       omsEl.innerHTML = `
-        <div class="ts-section-label" style="margin-top:14px">💳 OMS 결제 (내가 수동 발주 — 12:55 마감)</div>
+        <div class="ts-section-label" style="margin-top:14px">💳 마감 전 결제 체크 (13:00 마감)</div>
         <div class="omspay-box pending">
           <div class="omspay-info">
             <div class="omspay-amount">${wonInt(omsCost)}<span style="font-size:14px;font-weight:600;margin-left:3px">원</span></div>
-            <div class="omspay-label">🚨 결제 대기 ${omsUnpaid.length}건 — OMS에서 결제할 원가 총액</div>
+            <div class="omspay-label">🚨 결제 대기 ${omsUnpaid.length}건 — 결제할 원가 총액</div>
           </div>
           <button class="omspay-btn" id="btnOmsPaid">💳 결제 완료 체크</button>
         </div>`;
@@ -3325,13 +3325,13 @@ function getNextSchedule(botKey){
   const dowMap = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
   const dow = dowMap[parts.weekday];
   const minutes = kstHour*60 + kstMin;
-  // 봇별 스케줄 (평일만, KST) — 08:02 아침 + 11:50 오전 최종 (이후 수동)
-  // 송장: 16:02, 17:02
+  // 봇별 스케줄 (평일만, KST) — 07:59 아침 + 11:50 오전 최종 (이후 수동)
+  // 송장: 16:00, 17:00
   const scheduleByBot = {
-    register: [8*60+2, 11*60+50],
-    cart:     [8*60+2, 11*60+50],
-    tracking: [16*60+2, 17*60+2],
-    cartTracking: [16*60+2, 17*60+2]
+    register: [7*60+59, 11*60+50],
+    cart:     [7*60+59, 11*60+50],
+    tracking: [16*60, 17*60],
+    cartTracking: [16*60, 17*60]
   };
   const slots = scheduleByBot[botKey] || scheduleByBot.register;
   const fmtTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
@@ -4158,7 +4158,7 @@ setTimeout(refreshBdCount, 500);
 $('#btnBdCleanup') && $('#btnBdCleanup').addEventListener('click', async () => {
   const cnt = ORDERS.filter(o => o.status === '발주대기').length;
   if(cnt === 0){ toast('정리할 발주대기 없음', 'info'); return; }
-  if(!confirm(`발주대기 ${cnt}건을 모두 '발주완료'로 변경합니다.\n(이미 OMS·카트사이트 등록·결제 완료된 옛 주문 가정)\n진행할까요?`)) return;
+  if(!confirm(`발주대기 ${cnt}건을 모두 '발주완료'로 변경합니다.\n(이미 주문처 등록·결제 완료된 옛 주문 가정)\n진행할까요?`)) return;
   $('#bdMsg').textContent = '처리 중...';
   const { error } = await sb.from('orders').update({ status:'발주완료' }).eq('status','발주대기');
   if(error){
