@@ -9,7 +9,7 @@ const isDry = DRY_RUN === 'true' || DRY_RUN === true;
 
 const CART_URL = 'https://script.google.com/macros/s/AKfycbyK1MU-BWQeiNwv1Sx5BP4pesUytBmYmCTDDXdna24hRB6YY5sB6M1l_2xfQmDMKdmw7w/exec';
 const CART_LOGIN_ID = 'comltd';
-const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는 선풍기','철제선반'];
+const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는 선풍기'];
 function isCartProduct(p){
   if(!p) return false;
   const norm = p.replace(/\s+/g,'');
@@ -170,7 +170,11 @@ async function registerOrder(page, order, idx){
     } catch(e){
       try {
         const options = await frame.locator('select').first().locator('option').allTextContents();
-        const match = options.find(o => o.includes(order.product));
+        // 1) 부분일치 → 2) 공백 무시 부분일치 (카탈로그·사이트 띄어쓰기 달라도 매칭)
+        const norm = s => (s||'').replace(/\s+/g,'');
+        const want = norm(order.product);
+        const match = options.find(o => o.includes(order.product))
+          || options.find(o => norm(o).includes(want) || want.includes(norm(o)));
         if (match){
           await frame.locator('select').first().selectOption({ label: match });
           console.log(`  제품 선택 (부분일치): ${match}`);

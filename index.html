@@ -680,7 +680,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28ze-미니멀정리</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28zf-카트제품추가</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1092,6 +1092,22 @@ let PRODUCTS = load('products', [
   if(cart){
     ['핸드카트','핸드카','카트'].forEach(k => { if(!cart.keywords.includes(k)){ cart.keywords.push(k); changed=true; } });
   } else { PRODUCTS.push({name:'핸드카트', keywords:['핸드카트','핸드카','카트']}); changed=true; }
+  if(changed) save('products', PRODUCTS);
+})();
+// 카트 전자제품 3종 — 별칭 등록 ('선풍기'→'날개없는 선풍기' 등 정규화 + 카트봇 인식)
+(function ensureCartProducts(){
+  const defs = [
+    { name:'날개없는 선풍기', keywords:['날개없는선풍기','날개없는 선풍기','선풍기','날개없는'] },
+    { name:'하체마사지기',   keywords:['하체마사지기','하체마사지','마사지기','다리마사지'] },
+    { name:'족욕기',         keywords:['족욕기','족욕'] }
+  ];
+  let changed = false;
+  for(const d of defs){
+    let p = PRODUCTS.find(x => x.name === d.name);
+    if(!p){ p = { name:d.name, keywords:[] }; PRODUCTS.push(p); changed = true; }
+    if(!Array.isArray(p.keywords)) p.keywords = [];
+    d.keywords.forEach(k => { if(!p.keywords.includes(k)){ p.keywords.push(k); changed = true; } });
+  }
   if(changed) save('products', PRODUCTS);
 })();
 // 상품명 정규화 — 키워드(별칭) 매칭으로 정식 이름 반환 ('카트'→'핸드카트')
@@ -2007,7 +2023,7 @@ function setMode(m){
   $('#mManage').classList.toggle('active', m==='manage');
   if(m==='manage') renderLedger();
 }
-const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는선풍기','날개없는 선풍기','철제선반'];
+const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는선풍기'];
 function isCartProduct(p){ return CART_PRODUCTS.includes((p||'').replace(/\s+/g,'')); }
 
 const ALARM_START='12:00', CUTOFF='13:00', REPEAT_MIN=5;
@@ -2094,9 +2110,28 @@ let ledgerPeriod = 'month';
 let ledgerListLimit = 20;
 const wonInt = n => Number(n||0).toLocaleString('ko-KR');
 
+// 카트 전자제품 기본 원가 (만원 단위) — 없으면 자동 등록, 값은 카탈로그에서 수정 가능
+const CART_SEED = [
+  { name:'날개없는 선풍기', default_cost:90000 },
+  { name:'하체마사지기',   default_cost:130000 },
+  { name:'족욕기',         default_cost:40000 }
+];
+async function seedCartCatalog(){
+  if(userRole !== 'admin') return;
+  const missing = CART_SEED.filter(s => !CATALOG.some(c => c.name === s.name));
+  if(!missing.length) return;
+  const rows = missing.map(s => ({
+    name:s.name, color:null,
+    default_cost:s.default_cost, default_cost_pickup:null, default_rep_price:0
+  }));
+  const { data, error } = await sb.from('products').insert(rows).select();
+  if(error){ console.warn('카트 상품 자동등록 실패:', error.message); return; }
+  if(data && data.length) CATALOG.push(...data);
+}
 async function loadCatalog(){
   const { data } = await sb.from('products').select('*').order('name').order('color');
   CATALOG = data || [];
+  await seedCartCatalog();  // 카트 전자제품 3종 없으면 자동 등록
   renderCatalog();
   // 주문 입력 폼의 상품 dropdown도 갱신 (관리자 + 입력자 모두)
   fillProductDropdown();
