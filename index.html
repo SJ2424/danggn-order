@@ -659,7 +659,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.28q-미입금합계</b></span>
+    <span>버전: <b id="appVersion">v2026.05.28r-자동갱신</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="앱이 이상하면 캐시 비우고 새로 받기" style="font-size:11px;padding:3px 8px">🔄 강제 새로고침</button>
   </div>
   <div class="toolbar admin-only">
@@ -1455,6 +1455,32 @@ function subscribeOrders(){
     .on('postgres_changes',{event:'*',schema:'public',table:'orders'}, () => loadOrders())
     .subscribe();
 }
+
+// 🔄 자동 갱신 — Supabase realtime이 안 켜져 있어도 화면이 최신 상태 유지
+// (앱 다시 볼 때 + 창 포커스 + 주기적 — 껐다 켤 필요 없게)
+let _lastAutoRefresh = 0;
+async function autoRefreshOrders(reason){
+  if(!myUserId) return;
+  // 사용자가 입력 중이면 방해 안 함 (입금자명·메모·새 주문 입력 등)
+  const ae = document.activeElement;
+  if(ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+  // 모달(편집·승인·주소검색 등) 열려있으면 skip
+  if(document.querySelector('.modal.open')) return;
+  const now = Date.now();
+  if(now - _lastAutoRefresh < 4000) return;  // 4초 throttle (중복 호출 방지)
+  _lastAutoRefresh = now;
+  await loadOrders();
+}
+// 1) 앱을 다시 보거나 (백그라운드 → 포그라운드) 탭 전환시 — 사용자가 껐다 켜는 그 순간
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') autoRefreshOrders('visible');
+});
+// 2) 창 포커스 (다른 앱 갔다 돌아옴)
+window.addEventListener('focus', () => autoRefreshOrders('focus'));
+// 3) 화면 보고 있을 때 25초마다 조용히 갱신 (realtime 보조)
+setInterval(() => {
+  if(document.visibilityState === 'visible') autoRefreshOrders('poll');
+}, 25000);
 // 주소 키워드 정규화 — 비교용 (공백·특수문자 제거)
 function normAddr(s){ return (s||'').replace(/\s+/g,'').replace(/[(),\-]/g,'').toLowerCase(); }
 // 도로명·동·번지 추출 (학현로 93-1 같은 핵심 부분)
