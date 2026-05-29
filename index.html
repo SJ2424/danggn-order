@@ -2787,10 +2787,20 @@ function renderSettle(){
 async function settleUser(uid){
   const u = INPUT_USERS.find(x=>x.id===uid);
   if(!confirm((u?displayOf(u):'이 사용자')+'의 미정산 주문 전체를 정산 완료로 표시할까요?\n(입력자가 본인 계좌로 입금한 뒤 누르세요)')) return;
-  await sb.from('orders').update({ settled:true }).eq('created_by', uid).eq('settled', false);
+  const { error } = await sb.from('orders').update({ settled:true }).eq('created_by', uid).eq('settled', false);
+  if(error){ toast('❌ 정산 처리 실패: '+error.message, 'error', 5000); return; }
+  await loadOrders();   // 화면 즉시 반영
 }
+// 💳 'oms_paid'(OMS/카트 결제 확인 플래그)가 DB에 없으면 결제 체크가 저장 자체가 안 됨.
+//    select('*') 결과 객체에 그 키가 하나도 없으면 = 컬럼 미존재 → 런타임 감지해 사용자에게 SQL 안내.
+const OMS_PAID_SQL = 'alter table public.orders add column if not exists oms_paid boolean not null default false;';
+function omsPaidColMissing(){ return ORDERS.length > 0 && !ORDERS.some(o => 'oms_paid' in o); }
 // 💳 OMS 결제 완료 일괄 체크 — 발주완료 + 미결제 건 모두 oms_paid=true
 async function markOmsPaid(){
+  if (omsPaidColMissing()){
+    toast("⚠️ DB에 'oms_paid' 컬럼이 없어 결제 체크가 저장되지 않아요. Supabase SQL Editor에서 실행: " + OMS_PAID_SQL, 'error', 14000);
+    return;
+  }
   const targets = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid && o.type !== '직거래');
   if (targets.length === 0){ toast('결제 대기 건이 없어요', 'info', 3000); return; }
   const cost = targets.reduce((s,o) => s + (+o.cost_price||0)*(+o.qty||1), 0);
@@ -2826,7 +2836,26 @@ function renderTodaySummary(){
   // 💳 결제 체크 — 발주완료(봇 등록)인데 아직 결제 안 한 것 (13:00 마감)
   // 직거래는 OMS 결제 대상 아님 → 제외
   const omsEl = $('#omsPayBlock');
-  if (omsEl){
+  if (omsEl && omsPaidColMissing()){
+    // DB에 oms_paid 컬럼이 없음 → 결제 체크 기능 자체가 작동 못 함. 클릭 전에 원인+해결 SQL 노출.
+    omsEl.innerHTML = `
+      <div class="ts-section-label" style="margin-top:14px">💳 마감 전 결제 체크</div>
+      <div class="omspay-box pending" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div class="omspay-info">
+          <div class="omspay-amount" style="font-size:15px">⚠️ 결제 체크 비활성</div>
+          <div class="omspay-label">DB에 <code>oms_paid</code> 컬럼이 없어 결제 확인이 저장되지 않습니다. 아래 SQL을 Supabase에서 1회 실행하면 정상화됩니다.</div>
+        </div>
+        <div style="font-size:11px;color:#7f1d1d;background:#fff;border:1px dashed #fca5a5;border-radius:6px;padding:8px;font-family:monospace;word-break:break-all">${esc(OMS_PAID_SQL)}</div>
+        <button class="omspay-btn" id="btnCopyOmsSql">📋 SQL 복사</button>
+      </div>`;
+    const cb = $('#btnCopyOmsSql');
+    if (cb) cb.addEventListener('click', () => {
+      (navigator.clipboard?.writeText(OMS_PAID_SQL) || Promise.reject()).then(
+        () => toast('✅ SQL 복사됨 — Supabase SQL Editor에 붙여넣고 RUN 하세요', 'success', 6000),
+        () => toast('복사 실패 — 위 SQL을 직접 길게 눌러 복사하세요', 'warn', 6000)
+      );
+    });
+  } else if (omsEl){
     const omsUnpaid = ORDERS.filter(o => o.status === '발주완료' && !o.oms_paid && o.type !== '직거래');
     if (omsUnpaid.length === 0){
       // 발주완료 건이 아예 없으면 숨김. 있는데 다 결제했으면 ✅ 표시
@@ -4101,7 +4130,7 @@ $('#list').addEventListener('change', async e=>{
     try {
       const { error } = await sb.from('orders').update({ paid_by: val || null }).eq('id', id);
       if(error) toast('❌ 입금자명 저장 실패: '+error.message, 'error', 4000);
-      else toast('✅ 입금자명 저장', 'success', 2000);
+      else { const o=ORDERS.find(x=>x.id===id); if(o) o.paid_by = val||null; toast('✅ 입금자명 저장', 'success', 2000); }
     } catch(err){ toast('❌ '+err.message, 'error', 4000); }
     return;
   }
@@ -4115,7 +4144,7 @@ $('#list').addEventListener('change', async e=>{
     try {
       const { error } = await sb.from('orders').update({ memo: val || null }).eq('id', id);
       if(error) toast('❌ 메모 저장 실패: '+error.message, 'error', 4000);
-      else toast('✅ 메모 저장', 'success', 2000);
+      else { o.memo = val||null; toast('✅ 메모 저장', 'success', 2000); }
     } catch(err){ toast('❌ '+err.message, 'error', 4000); }
     return;
   }
