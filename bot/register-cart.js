@@ -42,8 +42,8 @@ async function markRegistered(id){
   const { error } = await sb.from('orders').update({ status:'발주완료' }).eq('id', id);
   if(error) throw error;
   // 💳 카트는 주문=선결제 (출고완료=결제완료) → 발주완료 시 결제완료도 자동
-  //    oms_paid 컬럼 없으면(SQL 미실행) error만 무시
-  await sb.from('orders').update({ oms_paid: true }).eq('id', id);
+  const { error: omsErr } = await sb.from('orders').update({ oms_paid: true }).eq('id', id);
+  if (omsErr) console.warn(`⚠️ oms_paid 자동처리 실패 (id=${id}): ${omsErr.message} — DB에 oms_paid 컬럼이 있는지 확인 필요`);
 }
 
 // GAS 웹앱은 다중 iframe (안내문 iframe + 실제 앱 sandbox iframe)

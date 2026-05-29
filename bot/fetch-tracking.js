@@ -48,8 +48,8 @@ async function updateTracking(id, value, currentOrder) {
   const { error } = await sb.from('orders').update(updates).eq('id', id);
   if (error) throw error;
   // 💳 송장 = 결제+출고 증거 → OMS 결제완료 자동 처리 (수동 체크 깜빡해도 보정)
-  //    oms_paid 컬럼이 아직 없으면(SQL 미실행) error만 무시 (송장 업데이트는 위에서 성공)
-  await sb.from('orders').update({ oms_paid: true }).eq('id', id);
+  const { error: omsErr } = await sb.from('orders').update({ oms_paid: true }).eq('id', id);
+  if (omsErr) console.warn(`⚠️ oms_paid 자동처리 실패 (id=${id}): ${omsErr.message} — DB에 oms_paid 컬럼이 있는지 확인 필요 (alter table public.orders add column if not exists oms_paid boolean not null default false)`);
 }
 
 function normTel(t) { return (t||'').replace(/\D/g, ''); }
@@ -271,11 +271,19 @@ async function main() {
         }
         // ② 송장은 아직 없지만 결제완료 확인됨 → oms_paid만 자동 처리 (13시 전 결제 확인!)
         else if (m.paid && o.status === '발주완료' && !o.oms_paid) {
-          if (!isDry) {
-            await sb.from('orders').update({ oms_paid: true }).eq('id', o.id);
+          if (isDry) {
+            paidConfirmed++;
+            console.log(`💳 결제 확인: ${o.name} → 결제완료 처리 (DRY)`);
+          } else {
+            const { error: omsErr } = await sb.from('orders').update({ oms_paid: true }).eq('id', o.id);
+            if (omsErr) {
+              missed++;
+              console.warn(`⚠️ 결제완료 자동처리 실패 (${o.name}, id=${o.id}): ${omsErr.message} — DB에 oms_paid 컬럼이 있는지 확인 필요`);
+            } else {
+              paidConfirmed++;
+              console.log(`💳 결제 확인: ${o.name} → 결제완료 처리`);
+            }
           }
-          paidConfirmed++;
-          console.log(`💳 결제 확인: ${o.name} → 결제완료 처리${isDry ? ' (DRY)' : ''}`);
         } else {
           missed++;
           console.log(`⏭️  매칭됐으나 송장·결제 모두 미확인: ${o.name}`);
