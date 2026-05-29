@@ -1,0 +1,40 @@
+name: DB 자가진단 (라이브 점검 → 리포트 커밋)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install deps
+        working-directory: bot
+        run: npm install
+      - name: Run DB diagnose
+        working-directory: bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node diagnose.js
+      - name: Commit report
+        run: |
+          git config user.name "diagnose-bot"
+          git config user.email "diagnose@noreply.github.com"
+          git add bot/diagnostics/
+          if git diff --staged --quiet; then
+            echo "변경 없음 — commit 생략"
+          else
+            git commit -m "DB 자가진단 $(TZ=Asia/Seoul date +%Y-%m-%d_%H%M)"
+            git push
+          fi
+      - name: Show report in run log
+        if: always()
+        run: cat bot/diagnostics/latest.md || echo "리포트 파일 없음"
