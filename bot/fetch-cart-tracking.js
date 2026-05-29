@@ -52,8 +52,9 @@ async function updateTracking(id, value, currentOrder){
   }
   const { error } = await sb.from('orders').update(updates).eq('id', id);
   if(error) throw error;
-  // 💳 송장 = 결제+출고 증거 → OMS 결제완료 자동 처리 (oms_paid 컬럼 없으면 error 무시)
-  await sb.from('orders').update({ oms_paid: true }).eq('id', id);
+  // 💳 송장 = 결제+출고 증거 → OMS 결제완료 자동 처리
+  const { error: omsErr } = await sb.from('orders').update({ oms_paid: true }).eq('id', id);
+  if (omsErr) console.warn(`⚠️ oms_paid 자동처리 실패 (id=${id}): ${omsErr.message} — DB에 oms_paid 컬럼이 있는지 확인 필요`);
 }
 
 // GAS 다중 iframe — input 들어있는 frame 반환
