@@ -1461,11 +1461,21 @@ async function loadPendingUsers(){
 }
 async function openApproveModal(){ await loadPendingUsers(); $('#approveModal').classList.add('open'); }
 async function approveUser(id){
-  await sb.from('profiles').update({ role:'input', approved_at: new Date().toISOString() }).eq('id', id);
+  // role만 바꾸면 승인 완료. approved_at(아무 곳에서도 안 읽는 칸)을 같이 쓰면
+  // 그 칸이 DB에 없을 때 update 전체가 거부돼 "승인 눌러도 아무 일 안 일어남"(조용한 실패)이 됨.
+  const { error } = await sb.from('profiles').update({ role:'input' }).eq('id', id);
+  if(error){ toast('❌ 승인 실패: '+error.message, 'error', 6000); return; }
+  toast('✅ 승인 완료 — 입력자로 전환됨', 'success', 2500);
+  await refreshPendingCount();
+  await loadPendingUsers();   // realtime 꺼져 있어도 목록·뱃지 즉시 갱신
 }
 async function rejectUser(id){
   if(!confirm('이 사용자를 거부합니다. 계속할까요?')) return;
-  await sb.from('profiles').delete().eq('id', id);
+  const { error } = await sb.from('profiles').delete().eq('id', id);
+  if(error){ toast('❌ 거부 실패: '+error.message, 'error', 6000); return; }
+  toast('거부 처리됨', 'info', 2000);
+  await refreshPendingCount();
+  await loadPendingUsers();
 }
 
 async function loadOrders(){
@@ -2259,7 +2269,8 @@ async function saveCatalogRow(id, cost, costPickup, rep){
 }
 async function deleteCatalog(id){
   if(!confirm('이 상품을 삭제할까요?')) return;
-  await sb.from('products').delete().eq('id', id);
+  const { error } = await sb.from('products').delete().eq('id', id);
+  if(error){ toast('❌ 상품 삭제 실패: '+error.message, 'error', 5000); return; }
   await loadCatalog();
 }
 
@@ -2301,12 +2312,14 @@ async function addUserPrice(){
   await loadUserPrices();
 }
 async function saveUserPriceRow(id, price){
-  await sb.from('user_prices').update({ rep_price:+price }).eq('id', id);
+  const { error } = await sb.from('user_prices').update({ rep_price:+price }).eq('id', id);
+  if(error){ toast('❌ 단가 저장 실패: '+error.message, 'error', 5000); return; }
   await loadUserPrices();
 }
 async function deleteUserPrice(id){
   if(!confirm('삭제할까요?')) return;
-  await sb.from('user_prices').delete().eq('id', id);
+  const { error } = await sb.from('user_prices').delete().eq('id', id);
+  if(error){ toast('❌ 단가 삭제 실패: '+error.message, 'error', 5000); return; }
   await loadUserPrices();
 }
 
@@ -2593,7 +2606,8 @@ async function addReceipt(){
 }
 async function deleteReceipt(id){
   if(!confirm('이 입고 기록을 삭제할까요? (상품 default_cost는 자동 복원되지 않습니다)')) return;
-  await sb.from('stock_receipts').delete().eq('id', id);
+  const { error } = await sb.from('stock_receipts').delete().eq('id', id);
+  if(error){ toast('❌ 입고 기록 삭제 실패: '+error.message, 'error', 5000); return; }
   await loadReceipts();
 }
 
