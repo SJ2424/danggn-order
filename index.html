@@ -1705,6 +1705,7 @@ async function addOrder(){
   btn.disabled=false; btn.textContent='✓ 주문 목록에 추가';
   if(error){ toast('❌ 저장 실패: '+error.message, 'error', 6000); return; }
   toast('✅ 주문 추가됨', 'success', 2500);
+  await loadOrders();   // 새 주문 즉시 화면에 (트리거 계산값 cost/rep 포함 재조회)
   // 채팅·닉네임·휴대폰 별칭 + 주소 다 초기화
   ['tAll','fNick','fPhone','pAddrBase','pAddrDetail','pAddr'].forEach(id=>$('#'+id).value='');
   $('#addrWarn').style.display = 'none';
@@ -1714,7 +1715,15 @@ async function togglePaid(id){
   const o=ORDERS.find(x=>x.id===id); if(!o) return;
   // 입금 체크는 관리자 + 본인 주문 입력자 모두 가능 (수령 후 입금받는 구조)
   if(userRole !== 'admin' && o.created_by !== myUserId) return;
-  await sb.from('orders').update({ paid:!o.paid }).eq('id',id);
+  const next = !o.paid;
+  o.paid = next;          // 낙관적 갱신 — realtime 꺼져있어도 화면 즉시 반영
+  renderList();
+  const { error } = await sb.from('orders').update({ paid: next }).eq('id',id);
+  if(error){
+    o.paid = !next;       // 실패하면 되돌리기
+    renderList();
+    toast('❌ 입금 상태 변경 실패: '+error.message, 'error', 5000);
+  }
 }
 async function toggleStatus(id){
   if(userRole!=='admin') return;
@@ -1728,12 +1737,18 @@ async function toggleStatus(id){
   if(next === '발송완료' && !o.shipped_at) updates.shipped_at = new Date().toISOString();
   // 발송완료에서 나가면(되돌리기) 발송 시각 초기화
   if(next !== '발송완료' && o.shipped_at) updates.shipped_at = null;
-  await sb.from('orders').update(updates).eq('id',id);
+  const { error } = await sb.from('orders').update(updates).eq('id',id);
+  if(error){ toast('❌ 상태 변경 실패: '+error.message, 'error', 5000); return; }
+  Object.assign(o, updates);   // 화면 즉시 반영 (realtime 의존 X)
+  renderList();
 }
 async function delRow(id){
   if(userRole!=='admin') return;
   if(!confirm('이 주문을 삭제할까요?')) return;
-  await sb.from('orders').delete().eq('id',id);
+  const { error } = await sb.from('orders').delete().eq('id',id);
+  if(error){ toast('❌ 삭제 실패: '+error.message, 'error', 5000); return; }
+  ORDERS = ORDERS.filter(x=>x.id!==id);   // 화면 즉시 반영
+  renderList();
 }
 async function updateTracking(id,val){
   if(userRole!=='admin') return;
@@ -1839,7 +1854,9 @@ async function saveEdit(){
   const { error } = await sb.from('orders').update(updates).eq('id', editingId);
   btn.disabled=false; btn.textContent='저장';
   if(error){ alert('저장 실패: '+error.message); return; }
+  Object.assign(o, updates);   // 화면 즉시 반영 (realtime 의존 X)
   closeEditModal();
+  renderList();
 }
 function closeEditModal(){
   editingId = null;
@@ -2785,9 +2802,10 @@ async function markOmsPaid(){
     const { error } = await sb.from('orders').update({ oms_paid: true }).eq('id', o.id);
     if (error){
       fail++;
-      // 컬럼이 없으면 (SQL 미실행) 명확히 안내
-      if (/column.*oms_paid|oms_paid.*does not exist/i.test(error.message)){
-        toast('⚠️ DB에 oms_paid 컬럼이 없어요 — 설정 안내의 SQL 한 줄 먼저 실행 필요', 'error', 8000);
+      // 컬럼이 없으면 (SQL 미실행) 명확히 안내 — PostgREST는 PGRST204 / "Could not find the 'oms_paid' column ... in the schema cache" 형태로 응답
+      const detail = (error.message||'') + ' ' + (error.code||'') + ' ' + (error.details||'');
+      if (/oms_paid|PGRST204|could not find.*column|schema cache|does not exist/i.test(detail)){
+        toast("⚠️ DB에 'oms_paid' 컬럼이 없어요. Supabase SQL Editor에서 이 한 줄 실행하세요:  alter table public.orders add column if not exists oms_paid boolean not null default false;", 'error', 14000);
         if (btn){ btn.disabled = false; btn.textContent = '💳 결제 완료 체크'; }
         return;
       }

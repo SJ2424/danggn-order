@@ -155,6 +155,8 @@ alter table public.orders   add column if not exists bot_note text;
 alter table public.orders   add column if not exists memo text;
 alter table public.orders   add column if not exists shipped_at timestamptz;
 alter table public.orders   add column if not exists settled boolean default false;
+-- ⭐ OMS/카트 결제 확인 플래그 — 이게 없으면 "💳 결제 완료 체크"가 영원히 '결제 대기'로 떠 있음
+alter table public.orders   add column if not exists oms_paid boolean not null default false;
 
 -- 2) 기본 상품
 insert into public.products (name, color, default_cost, default_rep_price)
