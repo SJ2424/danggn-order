@@ -231,6 +231,7 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .track-carriers.open{display:flex}
 .track-chip{background:#fff;color:#374151;border:1px solid #d1d5db;padding:6px 14px;font-size:12.5px;font-weight:500;border-radius:8px;cursor:pointer;line-height:1.3}
 .track-chip:active{background:#f3f4f6;border-color:#9ca3af}
+.track-chip-rec{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd;font-weight:700}
 .oc-track{flex:1;padding:5px 8px;font-size:12.5px}
 .oc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid #f0f0f0;font-size:11.5px;gap:8px;flex-wrap:wrap}
 /* 날짜 배지 — 우상단처럼 강조 */
@@ -687,7 +688,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.30-배송조회(택배사선택)</b></span>
+    <span>버전: <b id="appVersion">v2026.05.30-송장조회수정(번호정제)</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1948,11 +1949,29 @@ function renderOwnerChips(){
   html += mk('전체', 'all');
   el.innerHTML = html;
 }
-// 배송 조회 택배사 — CJ·한진은 운송장번호 자동입력 URL / 천일은 자동입력 불가(공식페이지 + 번호 자동복사로 보완)
+// 송장번호만 추출 — 저장값은 "CJ대한통운 1234567890"·"한진 1234-5678" 형태라
+// 숫자만 남겨야 택배사 사이트가 인식한다 (이전엔 택배사명까지 통째로 넘겨 조회가 전부 실패)
+function trackNum(raw){
+  const d = String(raw||'').replace(/\D/g, '');     // 한글 택배사명·공백·하이픈·점 제거 → 순수 숫자
+  return d.length >= 8 ? d : String(raw||'').trim(); // 숫자가 거의 없으면(영문송장 등) 원본 사용
+}
+// 저장값에서 택배사 자동감지 → 알맞은 칩을 추천(✓)으로 강조 (봇이 택배사명을 함께 저장해줌)
+function detectCarrier(raw){
+  const s = String(raw||'');
+  if(/CJ|대한통운/i.test(s))        return 'CJ대한통운';
+  if(/한진/.test(s))                return '한진택배';
+  if(/롯데/.test(s))                return '롯데택배';
+  if(/우체국|우정사업|epost/i.test(s)) return '우체국택배';
+  if(/천일/.test(s))                return '천일택배';
+  return '';
+}
+// 배송 조회 택배사 — 송장번호 자동입력 GET URL. 봇이 수집하는 주요 택배사를 모두 커버
 const TRACK_CARRIERS = [
-  { name:'CJ대한통운', auto:true,  url:n => 'https://trace.cjlogistics.com/next/tracking.html?wblNo=' + encodeURIComponent(n) },
-  { name:'한진택배',   auto:true,  url:n => 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=' + encodeURIComponent(n) },
-  { name:'천일택배',   auto:true,  url:n => 'http://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
+  { name:'CJ대한통운', url:n => 'https://trace.cjlogistics.com/next/tracking.html?wblNo=' + encodeURIComponent(n) },
+  { name:'한진택배',   url:n => 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=' + encodeURIComponent(n) },
+  { name:'롯데택배',   url:n => 'https://www.lotteglogis.com/home/reservation/tracking/linkView?InvNo=' + encodeURIComponent(n) },
+  { name:'우체국택배', url:n => 'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=' + encodeURIComponent(n) },
+  { name:'천일택배',   url:n => 'http://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
 ];
 function cardHtml(o){
   const id=o.id;
@@ -1969,11 +1988,15 @@ function cardHtml(o){
   // 송장 — 있으면 보여주고, 없으면 며칠째 대기인지 표시
   let trackHtml;
   if(o.tracking){
-    const tnum = o.tracking;
-    const chips = TRACK_CARRIERS.map(c =>
-      '<button class="track-chip" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'">'+esc(c.name)+'</button>'
-    ).join('');
-    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(tnum)+'</b>'
+    const tnum = trackNum(o.tracking);        // 조회 URL용 — 순수 송장번호만
+    const rec  = detectCarrier(o.tracking);   // 저장값에서 택배사 자동감지 → 추천 칩
+    const chips = TRACK_CARRIERS.map(c => {
+      const isRec = rec && c.name === rec;
+      const cls = 'track-chip' + (isRec ? ' track-chip-rec' : '');
+      const ttl = isRec ? ' title="추천 — 송장에서 감지된 택배사"' : '';
+      return '<button class="'+cls+'" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'"'+ttl+'>'+(isRec?'✓ ':'')+esc(c.name)+'</button>';
+    }).join('');
+    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'   // 표시는 원본(택배사명 포함) 그대로
       + ' <button class="btn-track-go" data-act="track" title="택배사 선택해서 배송 조회">🔍 조회</button>'
       + '<span class="track-carriers">'+chips+'</span>';
   } else if(status === '발주완료'){
