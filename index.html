@@ -231,7 +231,6 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .track-carriers.open{display:flex}
 .track-chip{background:#fff;color:#374151;border:1px solid #d1d5db;padding:6px 14px;font-size:12.5px;font-weight:500;border-radius:8px;cursor:pointer;line-height:1.3}
 .track-chip:active{background:#f3f4f6;border-color:#9ca3af}
-.deliv-badge{display:inline-block;padding:3px 9px;font-size:12px;font-weight:700;border-radius:999px;border:1px solid;line-height:1.4;white-space:nowrap;vertical-align:middle}
 .oc-track{flex:1;padding:5px 8px;font-size:12.5px}
 .oc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid #f0f0f0;font-size:11.5px;gap:8px;flex-wrap:wrap}
 /* 날짜 배지 — 우상단처럼 강조 */
@@ -688,14 +687,13 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.30-배송상태자동표시</b></span>
+    <span>버전: <b id="appVersion">v2026.05.30-배송조회(택배사선택)</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
     <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문 즉시 발주">🤖 선반랙 발주</button>
     <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
     <button class="btn-pri-sm" id="btnRunTracking" title="송장 자동 수집">🚚 송장 수집</button>
-    <button class="btn-pri-sm" id="btnRefreshDeliv" title="송장 있는 주문의 배송상태를 자동 조회해서 카드에 표시 (손님 문의 대응용)">📍 배송상태 새로고침</button>
   </div>
   <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·상품·주소·메모·송장 검색 (부분일치)"></div>
   <div class="chips admin-only" id="ownerChips" style="display:none"></div>
@@ -1950,20 +1948,6 @@ function renderOwnerChips(){
   html += mk('전체', 'all');
   el.innerHTML = html;
 }
-// 배송상태 뱃지 — /api/track이 DB에 캐시한 delivery_status를 색깔 칩으로. 손님 문의에 즉답용
-function deliveryBadge(statusName, atIso){
-  const s = String(statusName||'');
-  let bg='#eff6ff', fg='#1d4ed8', bd='#bfdbfe', ico='🚚';            // 기본: 배송중(파랑)
-  if(/배송완료|배달완료|배달됨/.test(s)){ bg='#f0fdf4'; fg='#15803d'; bd='#bbf7d0'; ico='✅'; }
-  else if(/집화|접수|발송|상품인수/.test(s)){ bg='#fefce8'; fg='#a16207'; bd='#fde68a'; ico='📦'; }
-  else if(/반송|미배달|보류/.test(s)){ bg='#fef2f2'; fg='#b91c1c'; bd='#fecaca'; ico='⚠️'; }
-  // 갱신 경과시간 (KST)
-  let ago='';
-  if(atIso){ const h=Math.floor((Date.now()-new Date(atIso).getTime())/3600000);
-    ago = h<1?' · 방금':(h<24?` · ${h}시간 전`:` · ${Math.floor(h/24)}일 전`); }
-  return ' <span class="deliv-badge" style="background:'+bg+';color:'+fg+';border-color:'+bd+'" title="배송상태'+esc(ago)+' (자동 조회)">'+ico+' '+esc(s)+'</span>';
-}
-
 // 배송 조회 택배사 — CJ·한진은 운송장번호 자동입력 URL / 천일은 자동입력 불가(공식페이지 + 번호 자동복사로 보완)
 const TRACK_CARRIERS = [
   { name:'CJ대한통운', auto:true,  url:n => 'https://trace.cjlogistics.com/next/tracking.html?wblNo=' + encodeURIComponent(n) },
@@ -1989,9 +1973,7 @@ function cardHtml(o){
     const chips = TRACK_CARRIERS.map(c =>
       '<button class="track-chip" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'">'+esc(c.name)+'</button>'
     ).join('');
-    // 배송상태 자동표시 — /api/track이 채워둔 캐시. 손님 문의에 앱만 보고 바로 답변용
-    const ds = o.delivery_status ? deliveryBadge(o.delivery_status, o.delivery_status_at) : '';
-    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(tnum)+'</b>' + ds
+    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(tnum)+'</b>'
       + ' <button class="btn-track-go" data-act="track" title="택배사 선택해서 배송 조회">🔍 조회</button>'
       + '<span class="track-carriers">'+chips+'</span>';
   } else if(status === '발주완료'){
@@ -4277,37 +4259,6 @@ $('#btnRunTracking') && $('#btnRunTracking').addEventListener('click', async e =
   await manualRunBot('tracking', e.currentTarget);
   await new Promise(r => setTimeout(r, 600));
   await manualRunBot('cartTracking', e.currentTarget);
-});
-
-// 📍 배송상태 새로고침 — /api/track 호출 → DB 캐시 → 목록 다시 그려 카드에 상태 자동표시
-$('#btnRefreshDeliv') && $('#btnRefreshDeliv').addEventListener('click', async e => {
-  const btn = e.currentTarget;
-  const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = '📍 조회 중…';
-  try {
-    const { data: { session } } = await sb.auth.getSession();
-    if(!session){ toast('로그인이 필요합니다', 'error', 3000); return; }
-    const res = await fetch('/api/track', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-    });
-    let j = {};
-    try { j = await res.json(); } catch {}
-    if(res.ok && j.ok){
-      toast('📍 ' + (j.message || '배송상태 갱신 완료'), 'success', 4500);
-      await loadOrders();   // DB에서 delivery_status 다시 읽어옴
-      renderList();          // 카드에 자동표시
-      if(j.firstError) toast('일부 실패: ' + j.firstError, 'warn', 5000);
-    } else if(j.needsSetup){
-      toast('⚙️ 배송조회 API 키 설정 필요 — ' + (j.hint || '관리자 안내 참고'), 'warn', 9000);
-    } else {
-      toast('❌ ' + (j.error || ('조회 실패 (HTTP ' + res.status + ')')), 'error', 6000);
-    }
-  } catch(err){
-    toast('❌ 배송상태 조회 오류: ' + err.message, 'error', 5000);
-  } finally {
-    btn.disabled = false; btn.textContent = orig;
-  }
 });
 
 // 과거 주문 단가 재계산
