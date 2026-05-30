@@ -1952,7 +1952,7 @@ function renderOwnerChips(){
 const TRACK_CARRIERS = [
   { name:'CJ대한통운', auto:true,  url:n => 'https://trace.cjlogistics.com/next/tracking.html?wblNo=' + encodeURIComponent(n) },
   { name:'한진택배',   auto:true,  url:n => 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=' + encodeURIComponent(n) },
-  { name:'천일택배',   auto:false, url:n => 'http://www.chunil.co.kr/HText/0204.html' },
+  { name:'천일택배',   auto:true,  url:n => 'http://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
 ];
 function cardHtml(o){
   const id=o.id;
