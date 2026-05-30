@@ -690,7 +690,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.30-송장조회원클릭(택배사자동연결)</b></span>
+    <span>버전: <b id="appVersion">v2026.05.30-송장조회(7개택배사+원클릭)</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1957,24 +1957,24 @@ function trackNum(raw){
   const d = String(raw||'').replace(/\D/g, '');     // 한글 택배사명·공백·하이픈·점 제거 → 순수 숫자
   return d.length >= 8 ? d : String(raw||'').trim(); // 숫자가 거의 없으면(영문송장 등) 원본 사용
 }
-// 저장값에서 택배사 자동감지 → 알맞은 칩을 추천(✓)으로 강조 (봇이 택배사명을 함께 저장해줌)
+// 배송 조회 택배사 — 봇이 수집/저장하는 택배사 전부 커버.
+//  re = 저장값에서 택배사 자동감지용 / url = 운송장번호 자동조회 GET URL
+//  (로젠은 공식조회가 POST라 자동입력 불가 → 페이지만 열고 번호는 클립보드 복사로 보완)
+const TRACK_CARRIERS = [
+  { name:'CJ대한통운', re:/CJ|대한통운/i,          url:n => 'https://trace.cjlogistics.com/next/tracking.html?wblNo=' + encodeURIComponent(n) },
+  { name:'한진택배',   re:/한진/,                  url:n => 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=' + encodeURIComponent(n) },
+  { name:'롯데택배',   re:/롯데/,                  url:n => 'https://www.lotteglogis.com/open/tracking?InvNo=' + encodeURIComponent(n) },
+  { name:'우체국택배', re:/우체국|우정사업|epost/i, url:n => 'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=' + encodeURIComponent(n) + '&displayHeader=N' },
+  { name:'로젠택배',   re:/로젠/,                  url:_ => 'https://www.ilogen.com/web/personal/tkSearch' },
+  { name:'경동택배',   re:/경동/,                  url:n => 'https://kdexp.com/service/delivery/etc/delivery.do?barcode=' + encodeURIComponent(n) },
+  { name:'천일택배',   re:/천일/,                  url:n => 'http://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
+];
+// 저장값에서 택배사 자동감지 (위 목록의 re로) → 알맞은 칩을 ✓추천/원클릭. 목록에 있는 택배사만 감지되므로 칩과 항상 일치
 function detectCarrier(raw){
   const s = String(raw||'');
-  if(/CJ|대한통운/i.test(s))        return 'CJ대한통운';
-  if(/한진/.test(s))                return '한진택배';
-  if(/롯데/.test(s))                return '롯데택배';
-  if(/우체국|우정사업|epost/i.test(s)) return '우체국택배';
-  if(/천일/.test(s))                return '천일택배';
-  return '';
+  const c = TRACK_CARRIERS.find(c => c.re.test(s));
+  return c ? c.name : '';
 }
-// 배송 조회 택배사 — 송장번호 자동입력 GET URL. 봇이 수집하는 주요 택배사를 모두 커버
-const TRACK_CARRIERS = [
-  { name:'CJ대한통운', url:n => 'https://trace.cjlogistics.com/next/tracking.html?wblNo=' + encodeURIComponent(n) },
-  { name:'한진택배',   url:n => 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=' + encodeURIComponent(n) },
-  { name:'롯데택배',   url:n => 'https://www.lotteglogis.com/home/reservation/tracking/linkView?InvNo=' + encodeURIComponent(n) },
-  { name:'우체국택배', url:n => 'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=' + encodeURIComponent(n) },
-  { name:'천일택배',   url:n => 'http://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
-];
 function cardHtml(o){
   const id=o.id;
   const status = o.status || '접수';
