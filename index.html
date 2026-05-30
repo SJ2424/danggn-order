@@ -222,18 +222,16 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .oc-line.paid-by-line{display:flex;align-items:center;gap:5px;font-size:12px}
 .oc-ico{display:inline-block;width:18px;color:var(--mut)}
 .oc-item{margin-top:6px;font-size:13.5px}
-.oc-track-line{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--mut);padding:7px 10px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0}
-.oc-track-line b{color:#0f172a;font-weight:700}
-.oc-track-line{flex-wrap:wrap}
-.btn-track-go{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:5px 12px;font-size:12.5px;font-weight:600;border-radius:8px;cursor:pointer;line-height:1.2}
-.btn-track-go:active{background:#dbeafe}
-.btn-track-more{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-left:none;padding:5px 8px;font-size:12.5px;font-weight:600;border-radius:0 8px 8px 0;cursor:pointer;margin-left:-3px}
-.btn-track-more:active{background:#dbeafe}
+.oc-track-line{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--mut);padding:7px 10px;background:#faf8f4;border-radius:8px;border:1px solid var(--line);flex-wrap:wrap}
+.oc-track-line b{color:var(--txt);font-weight:700}
+.btn-track-go{background:var(--pri-soft);color:var(--pri);border:1px solid #f4cda4;padding:5px 13px;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;line-height:1.2}
+.btn-track-go:hover{background:#ffedd9}
+.btn-track-go:active{background:#fde4c8}
 .track-carriers{display:none;flex-basis:100%;flex-wrap:wrap;gap:7px;margin-top:7px}
 .track-carriers.open{display:flex}
-.track-chip{background:#fff;color:#374151;border:1px solid #d1d5db;padding:6px 14px;font-size:12.5px;font-weight:500;border-radius:8px;cursor:pointer;line-height:1.3}
-.track-chip:active{background:#f3f4f6;border-color:#9ca3af}
-.track-chip-rec{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd;font-weight:700}
+.track-chip{background:#fff;color:var(--txt);border:1px solid var(--line);padding:6px 13px;font-size:12px;font-weight:500;border-radius:8px;cursor:pointer;line-height:1.3}
+.track-chip:hover{background:#faf8f4;border-color:#d8d4cc}
+.track-chip:active{background:#f4f3ef}
 .oc-track{flex:1;padding:5px 8px;font-size:12.5px}
 .oc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid #f0f0f0;font-size:11.5px;gap:8px;flex-wrap:wrap}
 /* 날짜 배지 — 우상단처럼 강조 */
@@ -690,7 +688,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.30-송장조회(7개택배사+원클릭)</b></span>
+    <span>버전: <b id="appVersion">v2026.05.30-송장조회(오렌지통일·조회단순화)</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1993,19 +1991,16 @@ function cardHtml(o){
     const tnum = trackNum(o.tracking);            // 조회 URL용 — 순수 송장번호만
     const rec  = detectCarrier(o.tracking);       // 저장값에서 택배사 자동감지
     const recC = rec ? TRACK_CARRIERS.find(c => c.name === rec) : null;
-    // 택배사 칩(감지된 건 ✓ 강조) — 감지가 틀렸거나 직접 고르고 싶을 때 ▾로 펼침
-    const chips = TRACK_CARRIERS.map(c => {
-      const isRec = recC && c.name === rec;
-      return '<button class="track-chip'+(isRec?' track-chip-rec':'')+'" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'">'+(isRec?'✓ ':'')+esc(c.name)+'</button>';
-    }).join('');
-    // 택배사 감지되면 → 그 택배사로 한 번에 바로 조회 (+ ▾ 다른 택배사) / 불명이면 → 택배사 선택 펼침
+    // 택배사 감지되면 → [🔍 조회] 한 번에 그 택배사로 바로 / 불명이면 → 택배사 선택 펼침
     const goBtn = recC
-      ? '<button class="btn-track-go" data-act="trackgo" data-url="'+esc(recC.url(tnum))+'" data-num="'+esc(tnum)+'" title="'+esc(rec)+' 배송조회 바로 열기">🔍 '+esc(rec)+' 조회</button>'
-        + '<button class="btn-track-more" data-act="track" title="다른 택배사로 조회">▾</button>'
-      : '<button class="btn-track-go" data-act="track" title="택배사 선택해서 배송 조회">🔍 조회</button>';
-    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b> '   // 표시는 원본(택배사명 포함) 그대로
-      + goBtn
-      + '<span class="track-carriers">'+chips+'</span>';
+      ? '<button class="btn-track-go" data-act="trackgo" data-url="'+esc(recC.url(tnum))+'" data-num="'+esc(tnum)+'" title="'+esc(rec)+' 배송조회">🔍 조회</button>'
+      : '<button class="btn-track-go" data-act="track" title="택배사 선택해서 배송조회">🔍 조회</button>';
+    // 택배사 불명(번호만 저장)일 때만 택배사 선택 칩 표시
+    const chips = recC ? '' :
+      '<span class="track-carriers">' + TRACK_CARRIERS.map(c =>
+        '<button class="track-chip" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'">'+esc(c.name)+'</button>'
+      ).join('') + '</span>';
+    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b> ' + goBtn + chips;
   } else if(status === '발주완료'){
     // 발주완료 + 송장 없음 = 발송 대기. 며칠째인지 계산 (created_at 또는 date 기준)
     const baseTime = new Date(o.date ? o.date + 'T00:00:00+09:00' : o.created_at).getTime();
