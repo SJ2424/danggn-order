@@ -4142,6 +4142,20 @@ $('#pendingList').addEventListener('click', e=>{
   else if(act==='reject') rejectUser(id);
 });
 
+// 배송 조회(네이버) + 운송장번호 복사 — 배송문의 대응·손님 전달용
+function openTracking(num){
+  if(!num) return;
+  const url = 'https://search.naver.com/search.naver?query=' + encodeURIComponent(num + ' 택배조회');
+  window.open(url, '_blank', 'noopener');
+}
+function copyTracking(num){
+  if(!num) return;
+  (navigator.clipboard?.writeText(num) || Promise.reject()).then(
+    () => toast('✅ 운송장번호 복사됨 — 손님에게 붙여넣기 ('+num+')', 'success', 3500),
+    () => toast('복사 실패 — 번호를 길게 눌러 복사하세요', 'warn', 4000)
+  );
+}
+
 $('#list').addEventListener('click', e=>{
   const b=e.target.closest('button[data-act]'); if(!b) return;
   const id=b.dataset.id, act=b.dataset.act;
