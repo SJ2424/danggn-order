@@ -43,6 +43,7 @@ async function main() {
   const checks = [
     ['orders', 'oms_paid'], ['orders', 'settled'], ['orders', 'shipped_at'],
     ['orders', 'bot_note'], ['orders', 'memo'], ['orders', 'cost_price'], ['orders', 'rep_price'],
+    ['orders', 'delivery_status'], ['orders', 'delivery_status_at'], ['orders', 'carrier'],
     ['products', 'default_cost_pickup'], ['profiles', 'approved_at'],
   ];
   const colState = {};
@@ -66,6 +67,14 @@ async function main() {
   log(`- 상태별: ${Object.entries(status).map(([k, v]) => `${k} ${v}`).join(' · ') || '없음'}`);
   log(`- 입금완료(paid): ${cnt(o => o.paid)} · 송장있음: ${cnt(o => o.tracking)} · 직거래: ${cnt(o => o.type === '직거래')} · 택배: ${cnt(o => o.type === '택배')}`);
   log(`- OMS결제(oms_paid): ${hasOmsPaid ? cnt(o => o.oms_paid) : '(컬럼없음 → 결제체크 작동안함)'}`);
+  if (hasDeliv) {
+    const withDeliv = orders.filter(o => o.delivery_status);
+    const dgrp = withDeliv.reduce((a, o) => { const k = o.delivery_status; a[k] = (a[k] || 0) + 1; return a; }, {});
+    const fresh = withDeliv.filter(o => o.delivery_status_at && (Date.now() - new Date(o.delivery_status_at).getTime()) < 24 * 3600 * 1000).length;
+    log(`- 배송상태(delivery_status): ${withDeliv.length}건 채워짐 · 최근24h갱신 ${fresh}건` + (withDeliv.length ? ` · 분포: ${Object.entries(dgrp).map(([k, v]) => `${k} ${v}`).join(' · ')}` : ' → 아직 [📍 배송상태 새로고침] 미실행 또는 API키 미설정'));
+  } else {
+    log(`- 배송상태(delivery_status): (컬럼없음 → 배송상태 자동표시 작동안함, SQL 실행 필요)`);
+  }
 
   // 3) 이상 징후 (0이면 정상)
   log(`\n## 3. 이상 징후 (0이면 정상)`);
