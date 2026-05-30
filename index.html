@@ -680,7 +680,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.29-파서버그수정(블랙오인식)</b></span>
+    <span>버전: <b id="appVersion">v2026.05.30-배송조회추가</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1956,7 +1956,9 @@ function cardHtml(o){
   // 송장 — 있으면 보여주고, 없으면 며칠째 대기인지 표시
   let trackHtml;
   if(o.tracking){
-    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b>';
+    trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b>'
+      + ' <button class="btn-sec btn-sm" data-act="track" data-track="'+esc(o.tracking)+'" title="네이버에서 배송 조회">🔍 조회</button>'
+      + ' <button class="btn-sec btn-sm" data-act="copytrack" data-track="'+esc(o.tracking)+'" title="운송장번호 복사 (손님 전달용)">📋 복사</button>';
   } else if(status === '발주완료'){
     // 발주완료 + 송장 없음 = 발송 대기. 며칠째인지 계산 (created_at 또는 date 기준)
     const baseTime = new Date(o.date ? o.date + 'T00:00:00+09:00' : o.created_at).getTime();
@@ -4123,6 +4125,20 @@ $('#pendingList').addEventListener('click', e=>{
   else if(act==='reject') rejectUser(id);
 });
 
+// 배송 조회(네이버) + 운송장번호 복사 — 배송문의 대응·손님 전달용
+function openTracking(num){
+  if(!num) return;
+  const url = 'https://search.naver.com/search.naver?query=' + encodeURIComponent(num + ' 택배조회');
+  window.open(url, '_blank', 'noopener');
+}
+function copyTracking(num){
+  if(!num) return;
+  (navigator.clipboard?.writeText(num) || Promise.reject()).then(
+    () => toast('✅ 운송장번호 복사됨 — 손님에게 붙여넣기 ('+num+')', 'success', 3500),
+    () => toast('복사 실패 — 번호를 길게 눌러 복사하세요', 'warn', 4000)
+  );
+}
+
 $('#list').addEventListener('click', e=>{
   const b=e.target.closest('button[data-act]'); if(!b) return;
   const id=b.dataset.id, act=b.dataset.act;
@@ -4130,6 +4146,8 @@ $('#list').addEventListener('click', e=>{
   else if(act==='status') toggleStatus(id);
   else if(act==='del') delRow(id);
   else if(act==='edit') openEditModal(id);
+  else if(act==='track') openTracking(b.dataset.track);
+  else if(act==='copytrack') copyTracking(b.dataset.track);
 });
 
 // 수정 모달
