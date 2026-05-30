@@ -1971,7 +1971,7 @@ function cardHtml(o){
   if(o.tracking){
     const tnum = o.tracking;
     const chips = TRACK_CARRIERS.map(c =>
-      '<button class="track-chip" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'" data-auto="'+(c.auto?'1':'0')+'">'+esc(c.name)+'</button>'
+      '<button class="track-chip" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'">'+esc(c.name)+'</button>'
     ).join('');
     trackHtml = '🚚 <b style="color:var(--txt)">'+esc(tnum)+'</b>'
       + ' <button class="btn-track-go" data-act="track" title="택배사 선택해서 배송 조회">🔍 조회</button>'
@@ -4170,10 +4170,9 @@ $('#list').addEventListener('click', e=>{
   }
   else if(act==='trackgo'){
     // 택배사 칩 — 공식조회 새 탭 + 번호 자동복사(안전망: 자동입력 안 되면 붙여넣기)
-    const url=b.dataset.url, num=b.dataset.num||'', auto=b.dataset.auto==='1';
+    const url=b.dataset.url, num=b.dataset.num||'';
     if(num && navigator.clipboard) navigator.clipboard.writeText(num).catch(()=>{});
-    toast(auto ? '🔍 새 탭에서 조회 — 안 뜨면 번호 붙여넣기('+num+')'
-               : '📋 번호 복사됨('+num+') — 천일택배 페이지에 붙여넣기', 'success', 4000);
+    toast('🔍 새 탭에서 조회 — 안 뜨면 번호 붙여넣기('+num+')', 'success', 4000);
     window.open(url, '_blank', 'noopener');
   }
 });
