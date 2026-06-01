@@ -1976,10 +1976,20 @@ function renderOwnerChips(){
   el.innerHTML = html;
 }
 // 송장번호만 추출 — 저장값은 "CJ대한통운 1234567890"·"한진 1234-5678" 형태라
-// 숫자만 남겨야 택배사 사이트가 인식한다 (이전엔 택배사명까지 통째로 넘겨 조회가 전부 실패)
+// 송장번호 추출 — 저장값('CJ대한통운 1234567890' 등)에서 조회 URL에 넣을 순수 번호만.
+// 숫자/하이픈/공백 토큰 중 가장 그럴듯한 송장(8~15자리 숫자)을 고르고, 없으면 영숫자 송장(EMS 'EE..KR' 등) 보존.
 function trackNum(raw){
-  const d = String(raw||'').replace(/\D/g, '');     // 한글 택배사명·공백·하이픈·점 제거 → 순수 숫자
-  return d.length >= 8 ? d : String(raw||'').trim(); // 숫자가 거의 없으면(영문송장 등) 원본 사용
+  const s = String(raw||'').trim();
+  if(!s) return '';
+  // 1) 영숫자 송장(국제/EMS): 영문+숫자 10자 이상 토큰이 있으면 그대로 (영문자 보존)
+  const alnum = s.match(/\b[A-Za-z]{2}\d{6,}[A-Za-z]{0,2}\b/);
+  if(alnum) return alnum[0];
+  // 2) 국내 송장: 공백·하이픈 제거한 숫자 토큰들 중 8~15자리를 우선 채택
+  const groups = (s.match(/[\d-]{8,}/g)||[]).map(g => g.replace(/\D/g,'')).filter(d => d.length>=8 && d.length<=15);
+  if(groups.length) return groups.sort((a,b)=>b.length-a.length)[0];  // 가장 긴 것(전화·우편번호보다 송장이 김)
+  // 3) 폴백: 전체에서 숫자만 (8자리 이상이면) — 그래도 없으면 빈 문자열(조회 버튼 비활성화 신호)
+  const all = s.replace(/\D/g,'');
+  return all.length>=8 ? all : '';
 }
 // 배송 조회 택배사 — 봇이 수집/저장하는 택배사 전부 커버.
 //  re = 저장값에서 택배사 자동감지용 / url = 운송장번호 자동조회 GET URL
@@ -1991,7 +2001,9 @@ const TRACK_CARRIERS = [
   { name:'우체국택배', re:/우체국|우정사업|epost/i, url:n => 'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=' + encodeURIComponent(n) + '&displayHeader=N' },
   { name:'로젠택배',   re:/로젠/,                  url:_ => 'https://www.ilogen.com/web/personal/tkSearch' },
   { name:'경동택배',   re:/경동/,                  url:n => 'https://kdexp.com/service/delivery/etc/delivery.do?barcode=' + encodeURIComponent(n) },
-  { name:'천일택배',   re:/천일/,                  url:n => 'http://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
+  { name:'쿠팡',       re:/쿠팡|쿠로지|coupang/i,  url:n => 'https://www.coupangls.com/web/personal/tracking?invoiceNo=' + encodeURIComponent(n) },
+  { name:'GS편의점택배', re:/(^|\W)GS|편의점/i,     url:n => 'https://www.cvsnet.co.kr/invoice/tracking.do?invoice_no=' + encodeURIComponent(n) },
+  { name:'천일택배',   re:/천일/,                  url:n => 'https://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
 ];
 // 저장값에서 택배사 자동감지 (위 목록의 re로) → 알맞은 칩을 ✓추천/원클릭. 목록에 있는 택배사만 감지되므로 칩과 항상 일치
 function detectCarrier(raw){
@@ -2014,18 +2026,23 @@ function cardHtml(o){
   // 송장 — 있으면 보여주고, 없으면 며칠째 대기인지 표시
   let trackHtml;
   if(o.tracking){
-    const tnum = trackNum(o.tracking);            // 조회 URL용 — 순수 송장번호만
+    const tnum = trackNum(o.tracking);            // 조회 URL용 — 순수 송장번호만(추출 실패 시 빈 문자열)
     const rec  = detectCarrier(o.tracking);       // 저장값에서 택배사 자동감지
     const recC = rec ? TRACK_CARRIERS.find(c => c.name === rec) : null;
-    // 택배사 감지되면 → [🔍 조회] 한 번에 그 택배사로 바로 / 불명이면 → 택배사 선택 펼침
-    const goBtn = recC
-      ? '<button class="btn-track-go" data-act="trackgo" data-url="'+esc(recC.url(tnum))+'" data-num="'+esc(tnum)+'" title="'+esc(rec)+' 배송조회">🔍 조회</button>'
-      : '<button class="btn-track-go" data-act="track" title="택배사 선택해서 배송조회">🔍 조회</button>';
-    // 택배사 불명(번호만 저장)일 때만 택배사 선택 칩 표시
-    const chips = recC ? '' :
-      '<span class="track-carriers">' + TRACK_CARRIERS.map(c =>
+    let goBtn, chips='';
+    if(!tnum){
+      // 송장번호를 못 뽑음(이름만 저장·짧은값 등) → 깨진 URL 대신 비활성 안내(엉뚱한 조회 방지)
+      goBtn = '<span class="btn-track-go" style="opacity:.5;cursor:default" title="송장번호를 인식 못 했어요 — 수정에서 번호 확인">🔍 번호확인</span>';
+    } else if(recC){
+      // 택배사 감지 → [🔍 조회] 한 번에 그 택배사로 바로
+      goBtn = '<button class="btn-track-go" data-act="trackgo" data-url="'+esc(recC.url(tnum))+'" data-num="'+esc(tnum)+'" title="'+esc(rec)+' 배송조회">🔍 조회</button>';
+    } else {
+      // 택배사 불명(번호만 저장) → [🔍 조회] 누르면 택배사 선택 칩 펼침
+      goBtn = '<button class="btn-track-go" data-act="track" title="택배사 선택해서 배송조회">🔍 조회</button>';
+      chips = '<span class="track-carriers">' + TRACK_CARRIERS.map(c =>
         '<button class="track-chip" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'">'+esc(c.name)+'</button>'
       ).join('') + '</span>';
+    }
     trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b> ' + goBtn + chips;
   } else if(status === '발주완료'){
     // 발주완료 + 송장 없음 = 발송 대기. 며칠째인지 계산 (created_at 또는 date 기준)
@@ -4222,9 +4239,15 @@ $('#list').addEventListener('click', e=>{
   else if(act==='trackgo'){
     // 택배사 칩 — 공식조회 새 탭 + 번호 자동복사(안전망: 자동입력 안 되면 붙여넣기)
     const url=b.dataset.url, num=b.dataset.num||'';
-    if(num && navigator.clipboard) navigator.clipboard.writeText(num).catch(()=>{});
-    toast('🔍 새 탭에서 조회 — 안 뜨면 번호 붙여넣기('+num+')', 'success', 4000);
-    window.open(url, '_blank', 'noopener');
+    // 번호 클립보드 복사 — 실패(비HTTPS·구형 브라우저)해도 무시(아래 toast에 번호 노출됨)
+    if(num) (navigator.clipboard?.writeText(num) || Promise.reject()).catch(()=>{});
+    const w = window.open(url, '_blank', 'noopener');
+    if(!w){
+      // 팝업 차단 — 사용자가 번호를 잃지 않게 명시
+      toast('⚠️ 팝업이 차단됐어요. 운송장번호: '+num+' (복사됨 — 택배사앱에 붙여넣기)', 'warn', 7000);
+    } else {
+      toast('🔍 새 탭에서 조회 — 안 뜨면 번호 붙여넣기 ('+num+')', 'success', 4000);
+    }
   }
 });
 
