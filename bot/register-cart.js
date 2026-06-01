@@ -3,18 +3,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { chromium } from 'playwright';
 import fs from 'fs';
+import { isCartProduct } from './cart-products.js';
 
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, DRY_RUN } = process.env;
 const isDry = DRY_RUN === 'true' || DRY_RUN === true;
 
 const CART_URL = 'https://script.google.com/macros/s/AKfycbyK1MU-BWQeiNwv1Sx5BP4pesUytBmYmCTDDXdna24hRB6YY5sB6M1l_2xfQmDMKdmw7w/exec';
 const CART_LOGIN_ID = 'comltd';
-const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는 선풍기'];
-function isCartProduct(p){
-  if(!p) return false;
-  const norm = p.replace(/\s+/g,'');
-  return CART_PRODUCTS.some(cp => cp.replace(/\s+/g,'') === norm);
-}
+// CART_PRODUCTS / isCartProduct → ./cart-products.js 공유 모듈 (목록 어긋남 방지)
 
 for (const [k,v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_KEY })) {
   if (!v){ console.error(`❌ 환경변수 누락: ${k}`); process.exit(1); }
@@ -331,7 +327,7 @@ async function main(){
       try {
         await claimOrder(orders[i].id);              // ① 등록 직전 처리중 표식 (중복발주 방지)
         await registerOrder(page, orders[i], i+1);   // ② 실제 카트사이트 등록
-        await markRegistered(orders[i].id);          // ③ 발주완료+결제완료+claim해제 (원자적)
+        await markRegistered(orders[i].id);          // ③ 발주완료 + claim 해제 (결제완료는 박지 않음 — 발주≠결제)
         // 성공시 이전 에러 note 클리어
         try { await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id); } catch {}
         ok++;

@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { chromium } from 'playwright';
 import fs from 'fs';
+import { isCartProduct } from './cart-products.js';
 
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, OMS_USERNAME, OMS_PASSWORD, DRY_RUN } = process.env;
 const isDry = DRY_RUN === 'true' || DRY_RUN === true;
@@ -21,12 +22,13 @@ async function fetchPending() {
   // 처리 대상 — 발주완료/발송완료 중:
   //   ① 송장 없는 것 (송장 수집 대상)
   //   ② 발주완료인데 아직 결제 확인 안 된 것 (oms_paid=false — 결제 확인 대상)
-  // 직거래는 OMS 대상 아님 → 제외
+  // 제외: 직거래(OMS 대상 아님) + 카트 상품(dooldool6611엔 없음 → 찾아도 매칭 실패, 헛수고·로그오염).
+  //   카트 상품의 송장·결제는 카트송장봇(fetch-cart-tracking)·수동 결제체크가 담당.
   const { data, error } = await sb.from('orders').select('*')
     .in('status', ['발주완료', '발송완료']);
   if (error) throw error;
   return (data || []).filter(o =>
-    o.type !== '직거래' && (
+    o.type !== '직거래' && !isCartProduct(o.product) && (
       !o.tracking ||                                 // 송장 없음
       (o.status === '발주완료' && !o.oms_paid)        // 미결제 (결제 확인 필요)
     )
