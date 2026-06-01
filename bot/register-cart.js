@@ -29,21 +29,42 @@ async function fetchPending(){
   const { data, error } = await sb.from('orders').select('*').eq('status','접수');
   if(error) throw error;
   // 직거래는 카트사이트 등록 X (손님과 직접 만나서 전달)
-  const all = (data||[]);
+  let all = (data||[]);
+  // 멱등성 — 처리중(claim) 주문 제외 (등록 성공→마킹 직전 죽은 케이스 재발주 방지)
+  const staleBefore = Date.now() - CLAIM_STALE_MIN * 60 * 1000;
+  const claimedN = all.filter(o => o.bot_claimed_at && new Date(o.bot_claimed_at).getTime() > staleBefore).length;
+  if(claimedN) console.log(`⏳ 처리중(claim) ${claimedN}건 스킵 — 최근 ${CLAIM_STALE_MIN}분내 등록중일 수 있음`);
+  all = all.filter(o => !(o.bot_claimed_at && new Date(o.bot_claimed_at).getTime() > staleBefore));
   const list = all.filter(o => o.type !== '직거래' && isCartProduct(o.product));
-  const skippedDirect = all.filter(o => o.type === '직거래' && isCartProduct(o.product)).length;
+  const skippedDirect = (data||[]).filter(o => o.type === '직거래' && isCartProduct(o.product)).length;
   if(skippedDirect > 0) console.log(`⏭️  직거래 ${skippedDirect}건 스킵 (카트사이트 등록 X)`);
   return list;
 }
 
 async function markRegistered(id){
   if(isDry) return;
-  // 에러 체크 필수 — 실패시 status='접수' 그대로라 다음 크론에 중복 등록 위험
-  const { error } = await sb.from('orders').update({ status:'발주완료' }).eq('id', id);
-  if(error) throw error;
+  // 원자적 업데이트 — status·oms_paid·claim해제를 한 번에 (예전엔 2-스텝이라 부분실패 시 모순)
   // 💳 카트는 주문=선결제 (출고완료=결제완료) → 발주완료 시 결제완료도 자동
-  const { error: omsErr } = await sb.from('orders').update({ oms_paid: true }).eq('id', id);
-  if (omsErr) console.warn(`⚠️ oms_paid 자동처리 실패 (id=${id}): ${omsErr.message} — DB에 oms_paid 컬럼이 있는지 확인 필요`);
+  const { error } = await sb.from('orders').update({ status:'발주완료', oms_paid: true, bot_claimed_at: null }).eq('id', id);
+  if(error){
+    // oms_paid/bot_claimed_at 컬럼 없는 환경 → status만이라도 반드시 넘긴다(누락보다 안전)
+    const { error: e2 } = await sb.from('orders').update({ status:'발주완료' }).eq('id', id);
+    if(e2) throw e2;
+    console.warn(`⚠️ oms_paid/claim 동시처리 실패 (id=${id}): ${error.message} — 컬럼 확인 필요`);
+  }
+}
+
+// 멱등성 — 외부 카트사이트 등록 직전 처리중 표식(register-orders.js와 동일 설계)
+const CLAIM_STALE_MIN = 15;
+async function claimOrder(id){
+  if(isDry) return true;
+  const { error } = await sb.from('orders').update({ bot_claimed_at: new Date().toISOString() }).eq('id', id);
+  if(error){ console.warn(`⚠️ claim 실패 (id=${id}): ${error.message} — bot_claimed_at 컬럼 확인 필요`); return false; }
+  return true;
+}
+async function releaseClaim(id){
+  if(isDry) return;
+  try { await sb.from('orders').update({ bot_claimed_at: null }).eq('id', id); } catch {}
 }
 
 // GAS 웹앱은 다중 iframe (안내문 iframe + 실제 앱 sandbox iframe)
@@ -307,8 +328,9 @@ async function main(){
     await login(page);
     for (let i=0; i<orders.length; i++){
       try {
-        await registerOrder(page, orders[i], i+1);
-        await markRegistered(orders[i].id);
+        await claimOrder(orders[i].id);              // ① 등록 직전 처리중 표식 (중복발주 방지)
+        await registerOrder(page, orders[i], i+1);   // ② 실제 카트사이트 등록
+        await markRegistered(orders[i].id);          // ③ 발주완료+결제완료+claim해제 (원자적)
         // 성공시 이전 에러 note 클리어
         try { await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id); } catch {}
         ok++;
@@ -318,6 +340,7 @@ async function main(){
         // 🆕 앱 화면에서 원인 볼 수 있게 bot_note에 기록 (선반랙 봇과 동일)
         const msg = `❌ ${new Date().toISOString().slice(0,16).replace('T',' ')}: [카트] ${e.message.slice(0,300)}`;
         try { await sb.from('orders').update({ bot_note: msg }).eq('id', orders[i].id); } catch {}
+        await releaseClaim(orders[i].id);            // 실패 → 표식 해제(재시도 허용)
         fail++;
       }
     }

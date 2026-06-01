@@ -43,6 +43,7 @@ async function main() {
   const checks = [
     ['orders', 'oms_paid'], ['orders', 'settled'], ['orders', 'shipped_at'],
     ['orders', 'bot_note'], ['orders', 'memo'], ['orders', 'cost_price'], ['orders', 'rep_price'],
+    ['orders', 'bot_claimed_at'],
     ['products', 'default_cost_pickup'], ['profiles', 'approved_at'],
   ];
   const colState = {};
