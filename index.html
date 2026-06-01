@@ -1109,6 +1109,19 @@ function removeToast(el){
   setTimeout(() => { if(el.parentNode) el.parentNode.removeChild(el); }, 200);
 }
 const won = n => (n===''||n==null)?'':Number(n).toLocaleString('ko-KR');
+// 금액 파싱 — 콤마·원·공백 등 제거 후 유효 숫자만. 비숫자/음수는 null(입력값 조용히 NaN→null 저장 방지)
+function parseAmount(v){
+  if(v==null) return null;
+  const cleaned = String(v).replace(/[^\d.]/g,'');   // 숫자·소수점만
+  if(cleaned==='') return null;
+  const n = Math.round(parseFloat(cleaned));
+  return Number.isFinite(n) && n>=0 ? n : null;
+}
+// 수량 파싱 — 1 이상 정수로 강제(음수·소수·NaN 방지)
+function parseQty(v){
+  const n = Math.floor(parseFloat(String(v??'').replace(/[^\d.]/g,'')));
+  return Number.isFinite(n) && n>=1 ? n : 1;
+}
 // 한국시간 기준 오늘 YYYY-MM-DD (UTC 자정 직후 한국에선 이미 다음날인 문제 회피)
 const kstToday = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
 
@@ -1735,9 +1748,9 @@ async function addOrder(){
     addr:$('#pAddr').value.trim(),
     product:normalizeProductName($('#pProduct').value.trim()),
     color:$('#pColor').value.trim(),
-    qty:+$('#pQty').value || 1,
+    qty:parseQty($('#pQty').value),
     type:$('#pType').value.trim() || '택배',
-    amount: $('#pAmount').value? +$('#pAmount').value : null,
+    amount: parseAmount($('#pAmount').value),
     paid:false, status:'접수',
     created_by: myUserId  // 입력자 본인 ID 명시 — DB default 의존하지 않음
   };
@@ -1855,8 +1868,8 @@ async function saveEdit(){
   const status = o.status||'접수';
   const editable = (status==='접수' || status==='발주대기');
   const trackingNew = $('#eTracking').value.trim() || null;
-  const newAmount = $('#eAmount').value ? +$('#eAmount').value : null;
-  const newQty    = +$('#eQty').value || 1;
+  const newAmount = parseAmount($('#eAmount').value);
+  const newQty    = parseQty($('#eQty').value);
   // 모든 상태에서 풀린 필드 — 금액·수량·정산·메모·송장 (할인·환불 반영용)
   const alwaysEditable = {
     qty: newQty,
@@ -2834,7 +2847,8 @@ function exportLedgerCsv(){
   const rows = sorted.map(o => {
     const u = INPUT_USERS.find(x => x.id === o.created_by);
     const q = +o.qty||1;
-    const rev = (+o.rep_price||0) * q;
+    // 매출 규칙 통일 — 화면 장부(computeLedger)와 동일하게: 관리자 본인 주문은 amount 직접
+    const rev = (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
     const cst = (+o.cost_price||0) * q;
     return [
       o.date||'', o.paid_by||'', o.name||'', o.phone||'', o.nick||'', o.tel||'',
@@ -3100,7 +3114,8 @@ function renderTodaySummary(){
     const q = +o.qty || 1;
     totalAmount += (+o.amount||0);
     totalCost   += (+o.cost_price||0) * q;
-    totalRev    += (+o.rep_price||0) * q;
+    // 매출 규칙 통일 — 관리자 본인 주문은 amount 직접(할인 반영), 그 외는 rep_price×수량
+    totalRev    += (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
   });
   const margin = totalRev - totalCost;
   const rate = totalRev > 0 ? Math.round(margin/totalRev*1000)/10 : 0;
