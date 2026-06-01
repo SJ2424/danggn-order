@@ -191,18 +191,6 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .chip-line .chip-flt{font-size:11px;padding:3px 9px}
 .order-list{display:flex;flex-direction:column;gap:10px}
 @media (min-width:760px){.order-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
-/* 📋 주문 목록 그룹 (상태별 그룹화 — 액션 필요 → 진행 → 완료) */
-.order-group-header{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;padding:10px 14px;background:#fff;border-radius:var(--r-md);box-shadow:var(--shadow-sm);letter-spacing:-0.01em;list-style:none}
-.order-group-header::-webkit-details-marker{display:none}
-.order-group-header b{font-weight:600;color:var(--mut);font-size:12px;margin-left:auto}
-.order-group-header .ogh-arrow{color:var(--mut);font-size:11px;transition:transform 0.15s}
-.order-group{display:flex;flex-direction:column}
-.order-group summary{cursor:pointer;-webkit-tap-highlight-color:transparent}
-.order-group[open] summary .ogh-arrow{transform:rotate(180deg)}
-.order-group-cards{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-.order-group-section{display:flex;flex-direction:column;gap:10px;margin-top:18px}
-.order-group-section:first-child{margin-top:0}
-@media (min-width:760px){.order-group-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
 /* 📋 주문 카드 — 상태별 좌측 색 띠 + 시각적 hierarchy */
 .card-order{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 14px 14px 18px;box-shadow:var(--shadow-sm);transition:box-shadow 0.15s,transform 0.15s;position:relative;overflow:hidden}
 .card-order:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
