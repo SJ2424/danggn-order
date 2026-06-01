@@ -41,7 +41,13 @@ async function fetchPendingOrders() {
     .eq('status', '접수')
     .order('created_at', { ascending: true });
   if (error) throw error;
-  const all = data || [];
+  let all = data || [];
+  // 멱등성 — 다른(또는 직전) 봇이 처리중인 주문 제외. claim이 STALE_MIN 이내면 건드리지 않음.
+  // (claim 후 등록 성공→마킹 직전 죽은 케이스를 다음 크론이 재발주하는 사고 방지)
+  const staleBefore = Date.now() - CLAIM_STALE_MIN * 60 * 1000;
+  const claimed = all.filter(o => o.bot_claimed_at && new Date(o.bot_claimed_at).getTime() > staleBefore);
+  if (claimed.length) console.log(`⏳ 처리중(claim) ${claimed.length}건 스킵 — 최근 ${CLAIM_STALE_MIN}분내 다른 실행이 등록중일 수 있음`);
+  all = all.filter(o => !(o.bot_claimed_at && new Date(o.bot_claimed_at).getTime() > staleBefore));
   // 직거래는 OMS 등록 X (손님과 직접 만나서 전달)
   const nonDirect = all.filter(o => o.type !== '직거래');
   // 지원 상품 매핑된 것 / 안 된 것 분리
@@ -67,8 +73,28 @@ async function fetchPendingOrders() {
 async function markRegistered(id) {
   if (isDry) return;
   // 카트 봇과 일관성 맞춤 — 등록 후 바로 발주완료 (옛 발주대기 → 일괄완료 수동 단계 제거)
-  const { error } = await sb.from('orders').update({ status: '발주완료' }).eq('id', id);
-  if (error) throw error;
+  // claim도 함께 클리어 (등록 완료됐으니 더 이상 처리중 아님)
+  const { error } = await sb.from('orders').update({ status: '발주완료', bot_claimed_at: null }).eq('id', id);
+  if (error) {
+    // bot_claimed_at 컬럼이 없는 환경(마이그레이션 전) → status만이라도 반드시 넘긴다
+    const { error: e2 } = await sb.from('orders').update({ status: '발주완료' }).eq('id', id);
+    if (e2) throw e2;
+  }
+}
+
+// 멱등성 — 외부 OMS 등록 "직전"에 처리중 표식(bot_claimed_at)을 찍는다.
+// 등록 성공→markRegistered가 발주완료로, 실패→releaseClaim이 표식 해제(재시도 허용).
+// 등록 성공 후 마킹 직전에 봇이 죽어도, status='접수'+claim이 남아 다음 크론이 STALE_MIN 동안 건드리지 않음 → 중복 발주 차단.
+const CLAIM_STALE_MIN = 15;   // 이 시간(분) 지난 claim은 "죽은 봇"으로 보고 재시도 허용
+async function claimOrder(id) {
+  if (isDry) return true;
+  const { error } = await sb.from('orders').update({ bot_claimed_at: new Date().toISOString() }).eq('id', id);
+  if (error) { console.warn(`⚠️ claim 실패 (id=${id}): ${error.message} — bot_claimed_at 컬럼 확인 필요(중복방지 약화)`); return false; }
+  return true;
+}
+async function releaseClaim(id) {
+  if (isDry) return;
+  try { await sb.from('orders').update({ bot_claimed_at: null }).eq('id', id); } catch {}
 }
 
 // ====== 주소 분리·검증 ======
@@ -370,8 +396,9 @@ async function main() {
 
     for (let i = 0; i < orders.length; i++) {
       try {
-        await registerOrder(page, orders[i], i + 1);
-        await markRegistered(orders[i].id);
+        await claimOrder(orders[i].id);              // ① 외부 등록 직전 처리중 표식 (중복발주 방지 핵심)
+        await registerOrder(page, orders[i], i + 1); // ② 실제 OMS 등록
+        await markRegistered(orders[i].id);          // ③ 발주완료 + claim 클리어
         // 성공시 이전 에러 note 클리어 (Supabase는 .catch 없음 → try/catch로 래핑)
         try { await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id); } catch {}
         ok++;
@@ -381,6 +408,7 @@ async function main() {
         // 앱에서 보이도록 주문에 에러 메시지 기록 (bot_note 컬럼)
         const msg = `❌ ${new Date().toISOString().slice(0,16).replace('T',' ')}: ${e.message.slice(0,300)}`;
         try { await sb.from('orders').update({ bot_note: msg }).eq('id', orders[i].id); } catch {}
+        await releaseClaim(orders[i].id);            // 실패 → 표식 해제(다음 크론이 재시도 허용)
         fail++;
       }
     }

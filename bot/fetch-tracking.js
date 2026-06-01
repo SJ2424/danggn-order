@@ -45,11 +45,15 @@ async function updateTracking(id, value, currentOrder) {
   if (!currentOrder?.shipped_at) {
     updates.shipped_at = new Date().toISOString();
   }
-  const { error } = await sb.from('orders').update(updates).eq('id', id);
-  if (error) throw error;
+  // 원자적 업데이트 — 송장·상태·oms_paid를 한 번에 (예전엔 2-스텝이라 부분실패 시 "발송완료인데 미결제" 모순)
   // 💳 송장 = 결제+출고 증거 → OMS 결제완료 자동 처리 (수동 체크 깜빡해도 보정)
-  const { error: omsErr } = await sb.from('orders').update({ oms_paid: true }).eq('id', id);
-  if (omsErr) console.warn(`⚠️ oms_paid 자동처리 실패 (id=${id}): ${omsErr.message} — DB에 oms_paid 컬럼이 있는지 확인 필요 (alter table public.orders add column if not exists oms_paid boolean not null default false)`);
+  const { error } = await sb.from('orders').update({ ...updates, oms_paid: true }).eq('id', id);
+  if (error) {
+    // oms_paid 컬럼 없는 환경 → 송장·상태만이라도 반드시 넘긴다
+    const { error: e2 } = await sb.from('orders').update(updates).eq('id', id);
+    if (e2) throw e2;
+    console.warn(`⚠️ oms_paid 동시처리 실패 (id=${id}): ${error.message} — oms_paid 컬럼 확인 필요 (alter table public.orders add column if not exists oms_paid boolean not null default false)`);
+  }
 }
 
 function normTel(t) { return (t||'').replace(/\D/g, ''); }
@@ -256,11 +260,8 @@ async function main() {
           console.log(`  ⚠ 동명이인 ${sameName.length}명: "${o.name}" — 전화번호 없어서 매칭 보류`);
         }
       }
-      // 3단계: 부분일치 (이름 앞 2자 같고 1건만) - 보수적
-      if (!m && name.length >= 2) {
-        const partial = scraped.filter(s => normName(s.name).startsWith(name.slice(0,2)));
-        if (partial.length === 1) m = partial[0];
-      }
+      // ⚠️ 이름 앞 2자 부분일치 폴백 제거 — "김민수" 주문에 "김민지" 송장이 박히는 오매칭 위험
+      // (송장=배송·결제 증거라 오매칭=오배송 확정. 1·2단계 정확매칭만 신뢰, 나머지는 수동 처리가 안전)
 
       if (m) {
         // ① 송장 있으면 → tracking + 발송완료 (+ updateTracking이 oms_paid도 자동 처리)
