@@ -3601,11 +3601,13 @@ function mapCsvRow(r){
   const memo = pick('메모','remark2');
   const remarkCol = pick('비고','remark');
   // 💳 입금 판정 — ⚠️ '입금' 칸에 이름만 있다고 입금완료로 치지 않는다(과거: 이름만 있어도 paid=true → 미입금 손님이 입금완료로 들어가는 사고).
-  //   명확한 입금완료 신호(완료/입금/O/Y/✓/true/1)가 '입금완료'나 '입금상태' 칸에 있을 때만 true.
+  //   명확한 '완료' 신호(완료/O/Y/✓/true/done)가 '입금완료'·'입금상태' 칸에 있을 때만 true.
+  //   ⚠️ '입금대기/결제예정'처럼 '입금·결제'가 들어가도 아직 안 받은 것 → 미입금으로 본다(오판은 늘 미입금 쪽 = 안전).
   //   '입금' 칸은 입금자명 용도로만 쓰고(입금자명·구매자명), 입금 여부로 해석하지 않음.
   const paidSignalCol = pick('입금완료','입금여부','입금상태','결제','결제완료','paid');
-  const explicitUnpaid = /미입금|미결제|unpaid|x|✗/i.test(memo + ' ' + remarkCol + ' ' + paidSignalCol);
-  const explicitPaid   = /완료|입금|결제|paid|true|done|^o$|^y$|✓|✔|1/i.test(paidSignalCol);
+  const explicitUnpaid = /미입금|미결제|unpaid|x|✗/i.test(memo + ' ' + remarkCol + ' ' + paidSignalCol)
+                      || /대기|예정|보류|취소|안함|미수/i.test(paidSignalCol);   // 상태칸의 '입금대기' 등
+  const explicitPaid   = /완료|paid|true|done|^o$|^y$|✓|✔/i.test(paidSignalCol);   // 모호한 '입금/결제/1' 제거(오판 차단)
   const paid = explicitUnpaid ? false : explicitPaid;   // 신호 없으면 기본 미입금(안전)
   const paid_by = depositor || pick('paid_by') || null;  // 입금자명은 입금여부와 무관하게 보존
   const status = pick('상태','status','Status') || '발송완료';
