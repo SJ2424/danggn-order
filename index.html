@@ -3787,11 +3787,52 @@ async function getPushStatus(){
   }
 }
 
+// 🔁 조용한 자동 재구독 — 권한이 이미 허용된 경우에만 (팝업·토스트·권한요청 없음).
+//   강제 새로고침으로 SW가 해제되거나 iOS가 구독을 만료시켜도, 로드할 때마다 자동 복구되어
+//   사용자가 버전 업데이트마다 [알림 켜기]를 다시 누를 필요가 없다.
+//   실패하면 조용히 false 반환 → 기존 배너가 수동 안내를 대신함.
+async function ensurePushSubscription(){
+  try {
+    if (!myUserId) return false;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+    if (isIosSafariNonStandalone()) return false;
+    const vapidKey = await loadVapidPublicKey();
+    if (!vapidKey) return false;
+    const reg = await registerSW();
+    if (!reg) return false;
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey)
+      });
+    }
+    const j = sub.toJSON();
+    const { error } = await sb.from('push_subscriptions').upsert({
+      user_id: myUserId,
+      endpoint: j.endpoint,
+      p256dh: j.keys.p256dh,
+      auth: j.keys.auth
+    }, { onConflict: 'endpoint' });
+    if (error) return false;
+    return true;
+  } catch(e){
+    console.warn('자동 재구독 실패(조용히 무시):', e);
+    return false;
+  }
+}
+
 // 푸시 OFF 배너 표시·숨김
 async function refreshPushBanner(){
   const banner = $('#pushOffBanner'); if(!banner) return;
   if (!myUserId){ banner.style.display = 'none'; return; }
-  const s = await getPushStatus();
+  let s = await getPushStatus();
+  // 🔁 권한이 이미 허용돼 있으면 조용히 자동 재구독 후 상태 재확인 (사용자 동작 불필요)
+  if ((s.state === 'NOT_SUBSCRIBED' || s.state === 'DB_MISSING') && s.perm === 'granted'){
+    if (await ensurePushSubscription()) s = await getPushStatus();
+  }
   const iosGuide = $('#pobIosGuide');
   iosGuide.style.display = 'none';
   if (s.state === 'OK'){
