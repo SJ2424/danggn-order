@@ -3,20 +3,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { chromium } from 'playwright';
 import fs from 'fs';
+import { isCartProduct } from './cart-products.js';
 
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, DRY_RUN } = process.env;
 const isDry = DRY_RUN === 'true' || DRY_RUN === true;
 
 const CART_URL = 'https://script.google.com/macros/s/AKfycbyK1MU-BWQeiNwv1Sx5BP4pesUytBmYmCTDDXdna24hRB6YY5sB6M1l_2xfQmDMKdmw7w/exec';
 const CART_LOGIN_ID = 'comltd';
-// ⚠️ 앱(index.html) + register-cart.js와 반드시 동일하게 유지할 것
-// 철제선반은 선반랙(OMS) 취급 — 카트사이트 대상 아님 (cc39e7b에서 카트 목록서 제거됨)
-const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는 선풍기'];
-function isCartProduct(p){
-  if(!p) return false;
-  const norm = p.replace(/\s+/g,'');
-  return CART_PRODUCTS.some(cp => cp.replace(/\s+/g,'') === norm);
-}
+// CART_PRODUCTS / isCartProduct → ./cart-products.js 공유 모듈 (목록 어긋남 방지)
 
 for (const [k,v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_KEY })){
   if (!v){ console.error(`❌ 환경변수 누락: ${k}`); process.exit(1); }
@@ -41,7 +35,7 @@ async function fetchPending(){
 
 async function updateTracking(id, value, currentOrder){
   if(isDry) return;
-  // shipped_at 이미 있으면 보존 (72H 카운터 리셋 방지)
+  // shipped_at 이미 있으면 보존 (미입금 7일 카운터 리셋 방지)
   const updates = {
     tracking: value,
     status: '발송완료',

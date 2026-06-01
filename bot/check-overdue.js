@@ -1,4 +1,5 @@
-// 72시간+ 미입금 알림 봇 (매일 오전 10시 KST)
+// 7일+ 미입금 알림 봇 (매일 오전 10시 KST)
+// ⚠️ 발송완료 = 송장 발급(발송)이지 손님 수령(배송완료)이 아님 → 배송+입금 시간 감안해 7일 기준
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 
@@ -11,14 +12,14 @@ webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { auth:{ persistSession:false } });
 
 async function main(){
-  const cutoff = new Date(Date.now() - 72*3600*1000).toISOString();
+  const cutoff = new Date(Date.now() - 7*24*3600*1000).toISOString();
   const { data: orders, error } = await sb.from('orders')
     .select('id, created_by, amount, name')
     .eq('paid', false)
     .eq('status', '발송완료')
     .lt('shipped_at', cutoff);
   if (error){ console.error('주문 조회 실패:', error); process.exit(1); }
-  if (!orders || orders.length === 0){ console.log('✅ 72H+ 미입금 없음. 종료.'); return; }
+  if (!orders || orders.length === 0){ console.log('✅ 7일+ 미입금 없음. 종료.'); return; }
 
   // 사용자별 집계 (입력자 본인용 — 관리자는 화면에서만 확인, 푸시 X)
   const byUser = {};
@@ -47,7 +48,7 @@ async function main(){
     const count = g.count;
     const total = g.total;
     const payload = JSON.stringify({
-      title: `💸 입금 대기 ${count}건 (3일 지남)`,
+      title: `💸 입금 대기 ${count}건 (7일 지남)`,
       body: `합계 ${total.toLocaleString('ko-KR')}원 — 손님 입금 확인 필요`,
       url: '/',
       tag: 'overdue-unpaid'

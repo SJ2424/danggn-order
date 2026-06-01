@@ -1,4 +1,4 @@
-name: Check 72H overdue unpaid
+name: Check 7-day overdue unpaid
 
 on:
   workflow_dispatch:

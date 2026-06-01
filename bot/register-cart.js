@@ -3,18 +3,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { chromium } from 'playwright';
 import fs from 'fs';
+import { isCartProduct } from './cart-products.js';
 
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, DRY_RUN } = process.env;
 const isDry = DRY_RUN === 'true' || DRY_RUN === true;
 
 const CART_URL = 'https://script.google.com/macros/s/AKfycbyK1MU-BWQeiNwv1Sx5BP4pesUytBmYmCTDDXdna24hRB6YY5sB6M1l_2xfQmDMKdmw7w/exec';
 const CART_LOGIN_ID = 'comltd';
-const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는 선풍기'];
-function isCartProduct(p){
-  if(!p) return false;
-  const norm = p.replace(/\s+/g,'');
-  return CART_PRODUCTS.some(cp => cp.replace(/\s+/g,'') === norm);
-}
+// CART_PRODUCTS / isCartProduct → ./cart-products.js 공유 모듈 (목록 어긋남 방지)
 
 for (const [k,v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_KEY })) {
   if (!v){ console.error(`❌ 환경변수 누락: ${k}`); process.exit(1); }
@@ -43,14 +39,15 @@ async function fetchPending(){
 
 async function markRegistered(id){
   if(isDry) return;
-  // 원자적 업데이트 — status·oms_paid·claim해제를 한 번에 (예전엔 2-스텝이라 부분실패 시 모순)
-  // 💳 카트는 주문=선결제 (출고완료=결제완료) → 발주완료 시 결제완료도 자동
-  const { error } = await sb.from('orders').update({ status:'발주완료', oms_paid: true, bot_claimed_at: null }).eq('id', id);
+  // ⚠️ 발주 ≠ 결제. 봇은 카트사이트에 '주문 등록'만 한 것이지 내가 결제한 게 아니다.
+  //   (특히 주말 입력→월요일 발주처럼 발주와 결제 타이밍이 다른 경우가 많음)
+  //   결제완료(oms_paid)는 내가 [💳 결제 체크]를 눌러야만 → 그래야 결제체크 목록·마감알림이 정직하게 작동.
+  //   선반랙봇(register-orders.js)과 동일하게 status·claim만 갱신.
+  const { error } = await sb.from('orders').update({ status:'발주완료', bot_claimed_at: null }).eq('id', id);
   if(error){
-    // oms_paid/bot_claimed_at 컬럼 없는 환경 → status만이라도 반드시 넘긴다(누락보다 안전)
+    // bot_claimed_at 컬럼 없는 환경 → status만이라도 반드시 넘긴다(누락보다 안전)
     const { error: e2 } = await sb.from('orders').update({ status:'발주완료' }).eq('id', id);
     if(e2) throw e2;
-    console.warn(`⚠️ oms_paid/claim 동시처리 실패 (id=${id}): ${error.message} — 컬럼 확인 필요`);
   }
 }
 
@@ -330,7 +327,7 @@ async function main(){
       try {
         await claimOrder(orders[i].id);              // ① 등록 직전 처리중 표식 (중복발주 방지)
         await registerOrder(page, orders[i], i+1);   // ② 실제 카트사이트 등록
-        await markRegistered(orders[i].id);          // ③ 발주완료+결제완료+claim해제 (원자적)
+        await markRegistered(orders[i].id);          // ③ 발주완료 + claim 해제 (결제완료는 박지 않음 — 발주≠결제)
         // 성공시 이전 에러 note 클리어
         try { await sb.from('orders').update({ bot_note: null }).eq('id', orders[i].id); } catch {}
         ok++;
