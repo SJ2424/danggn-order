@@ -220,11 +220,17 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .pill-status[data-status="발송완료"]{background:var(--ok-bg-2);color:var(--ok);border-color:var(--ok-border)}
 .oc-line{font-size:13px;color:var(--txt-2);margin:4px 0;line-height:1.5;word-break:break-word}
 .oc-line .oc-ico{display:inline-block;margin-right:5px;opacity:0.7}
-/* 휴대폰·닉네임 — 컬러 칩으로 강조 (핵심 식별 정보) */
-.oc-line.oc-alias{font-size:11.5px;color:var(--mut);margin:5px 0;display:flex;gap:5px;flex-wrap:wrap}
-.oc-line.oc-alias > span{display:inline-flex;align-items:center;background:var(--surface-2);color:var(--txt-2);padding:3px 9px;border-radius:var(--r-full);font-size:11.5px;font-weight:600;border:1px solid var(--line);letter-spacing:-0.005em}
-.oc-line.oc-alias > span:first-child{background:var(--info-bg);color:var(--info-on);border-color:var(--info-border)}
-.oc-line.oc-alias > span:nth-child(2){background:var(--accent-bg);color:var(--accent-on);border-color:var(--accent-border)}
+/* 연락처(별칭·닉·전화) — 조용한 muted 한 줄로 통합 (식별정보, 스캔 대상 아님) */
+.oc-line.oc-contact{display:flex;flex-wrap:wrap;gap:2px 8px;font-size:12px;color:var(--mut);margin:3px 0}
+/* 💰📝 메모·입금자명 — 값 표시 줄(탭하면 인라인 편집). 빈 칸 큰 박스 대신 compact 텍스트 */
+.oc-meta{display:flex;align-items:flex-start;gap:6px;width:100%;text-align:left;background:none;border:none;padding:3px 4px;margin:2px 0;font-family:inherit;font-size:12.5px;color:var(--txt-2);line-height:1.45;cursor:text;border-radius:var(--r-xs)}
+.oc-meta:hover{background:var(--surface-2)}
+.oc-meta-ro{display:flex;align-items:flex-start;gap:6px;font-size:12.5px;color:var(--txt-2);margin:2px 0;padding:3px 4px}
+.oc-meta-ico{flex:none;opacity:.85}
+/* '+ 메모 / + 입금자명' 고스트 — 비어있을 때만, 조용한 점선 칩 */
+.oc-add-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.oc-add{font-family:inherit;font-size:11.5px;color:var(--mut);background:none;border:1px dashed var(--line-strong);border-radius:var(--r-full);padding:3px 11px;cursor:pointer;line-height:1.3}
+.oc-add:hover{border-color:var(--pri-200);color:var(--pri-on);background:var(--pri-soft)}
 /* 상품·금액 — 박스로 시각적 강조 */
 .oc-item{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:9px 11px;margin:9px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px}
 .oc-item > b:last-child{margin-left:auto;color:var(--pri);font-size:15px;font-weight:800;letter-spacing:-0.01em}
@@ -242,7 +248,7 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .oc-line.paid-by-line{display:flex;align-items:center;gap:5px;font-size:12px}
 .oc-ico{display:inline-block;width:18px;color:var(--mut)}
 .oc-item{margin-top:6px;font-size:13.5px}
-.oc-track-line{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--mut);padding:7px 10px;background:var(--surface);border-radius:var(--r-sm);border:1px solid var(--line);flex-wrap:wrap}
+.oc-track-line{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12.5px;color:var(--mut);flex-wrap:wrap}
 .oc-track-line b{color:var(--txt);font-weight:700}
 .btn-track-go{background:var(--pri-soft);color:var(--pri);border:1px solid var(--pri-200);padding:5px 13px;font-size:12px;font-weight:600;border-radius:var(--r-sm);cursor:pointer;line-height:1.2}
 .btn-track-go:hover{background:var(--pri-50)}
@@ -253,9 +259,9 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .track-chip:hover{background:var(--surface);border-color:var(--line-strong)}
 .track-chip:active{background:var(--surface-2)}
 .oc-track{flex:1;padding:5px 8px;font-size:12.5px}
-.oc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line-2);font-size:11.5px;gap:8px;flex-wrap:wrap}
-/* 날짜 배지 — 우상단처럼 강조 */
-.oc-foot > .muted:first-child{background:var(--surface);color:var(--txt-2);padding:3px 9px;border-radius:var(--r-xs);font-size:11px;font-weight:600;border:1px solid var(--line);letter-spacing:-0.01em}
+.oc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11.5px;gap:8px;flex-wrap:wrap}
+/* 날짜 — 조용한 muted 텍스트 (배지 장식 제거) */
+.oc-foot > .muted:first-child{color:var(--mut);font-size:11px}
 .oc-actions{display:flex;gap:5px;flex-wrap:wrap}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 /* 📅 다음 자동 실행 시간표 */
@@ -2026,7 +2032,7 @@ function detectCarrier(raw){
   const c = TRACK_CARRIERS.find(c => c.re.test(s));
   return c ? c.name : '';
 }
-function cardHtml(o){
+function cardHtml(o, editField){
   const id=o.id;
   const status = o.status || '접수';
   const canEdit = (userRole==='admin' || o.created_by===myUserId);
@@ -2075,15 +2081,31 @@ function cardHtml(o){
     trackHtml = '🚚 <span style="color:var(--mut)">발송 후 자동</span>';
   }
   // 입금자명 inline 편집 (관리자만)
-  const paidByLine = '<div class="oc-line paid-by-line admin-only">'
-    + '💰 <input type="text" class="paid-by-inp" data-id="'+id+'" value="'+esc(o.paid_by||o.name||'')+'" placeholder="입금자명">'
-    + '</div>';
-  // 메모 inline 편집 (모든 사용자) — 입금자명과 동일 패턴
-  const memoLine = canEdit
-    ? '<div class="oc-line memo-line">'
-      + '📝 <input type="text" class="memo-inp" data-id="'+id+'" value="'+esc(o.memo||'')+'" placeholder="메모 (자유 입력)">'
-      + '</div>'
-    : (o.memo ? '<div class="oc-line memo-line">📝 <span>'+esc(o.memo)+'</span></div>' : '');
+  // 💰 입금자명 / 📝 메모 — 값 있으면 compact 텍스트(탭→인라인 편집), 비면 하단 작은 '+' 고스트로.
+  //   (예전: 빈 입력칸이 카드마다 큰 색 박스로 떠 스크롤·번잡 유발 → 값 있을 때만 표시, 편집은 탭)
+  const _fieldInput = (field) => {
+    const cls = field==='paid_by' ? 'paid-by-inp' : 'memo-inp';
+    const ico = field==='paid_by' ? '💰' : '📝';
+    const ph  = field==='paid_by' ? '입금자명' : '메모 (자유 입력)';
+    const val = field==='paid_by' ? (o.paid_by||o.name||'') : (o.memo||'');
+    const lc  = field==='paid_by' ? 'paid-by-line' : 'memo-line';
+    return '<div class="oc-line '+lc+'">'+ico+' <input type="text" class="'+cls+'" data-id="'+id+'" value="'+esc(val)+'" placeholder="'+ph+'"></div>';
+  };
+  const _metaParts = [], _ghostParts = [];
+  if(userRole==='admin'){            // 입금자명 — 관리자만. 손님과 '다른' 입금자만 의미있어 표시(이름과 같으면 중복 → 고스트)
+    if(editField==='paid_by') _metaParts.push(_fieldInput('paid_by'));
+    else if(o.paid_by && o.paid_by !== o.name) _metaParts.push('<button class="oc-meta" data-act="editfield" data-field="paid_by" data-id="'+id+'"><span class="oc-meta-ico">💰</span>'+esc(o.paid_by)+'</button>');
+    else _ghostParts.push('<button class="oc-add" data-act="editfield" data-field="paid_by" data-id="'+id+'">+ 입금자명</button>');
+  }
+  if(canEdit){                       // 메모 — 관리자 또는 본인
+    if(editField==='memo') _metaParts.push(_fieldInput('memo'));
+    else if(o.memo) _metaParts.push('<button class="oc-meta" data-act="editfield" data-field="memo" data-id="'+id+'"><span class="oc-meta-ico">📝</span>'+esc(o.memo)+'</button>');
+    else _ghostParts.push('<button class="oc-add" data-act="editfield" data-field="memo" data-id="'+id+'">+ 메모</button>');
+  } else if(o.memo){                 // 권한 없으면 읽기전용 텍스트
+    _metaParts.push('<div class="oc-line oc-meta-ro"><span class="oc-meta-ico">📝</span>'+esc(o.memo)+'</div>');
+  }
+  const metaHtml = _metaParts.join('');
+  const ghostHtml = _ghostParts.length ? '<div class="oc-add-row">'+_ghostParts.join('')+'</div>' : '';
   // ⚠️ 발송완료 = 송장 떠서 '발송'된 것(≠ 손님 수령/배송완료). 손님은 받은 뒤 입금하므로
   //   발송 직후 며칠은 정상 대기 — 7일 지나야 '독촉'(빨간 배지)으로 표시(배송+입금 시간 감안).
   const isOverdue = !o.paid && status==='발송완료' && o.shipped_at &&
@@ -2099,14 +2121,15 @@ function cardHtml(o){
   const mgnInline = (userRole==='admin' && (rev > 0 || cst > 0))
     ? ' <span class="oc-mgn-inline'+(mgn>=0?'':' neg')+'">'+(mgn>=0?'+':'')+wonInt(mgn)+' <small>('+mgnRate+'%)</small></span>'
     : '';
-  // 휴대폰별칭/닉네임 한 줄
-  const phoneNickParts = [];
-  if(o.phone) phoneNickParts.push('📱 '+esc(o.phone));
-  if(o.nick)  phoneNickParts.push('🎫 '+esc(o.nick));
-  const phoneNickLine = phoneNickParts.length
-    ? '<div class="oc-line oc-alias">'+phoneNickParts.join(' · ')+'</div>'
+  // 연락처 한 줄 — 별칭·닉·전화를 조용한 muted 텍스트로 통합 (식별정보 — 스캔 대상 아님)
+  const contactParts = [];
+  if(o.phone) contactParts.push('📱 '+esc(o.phone));
+  if(o.nick)  contactParts.push('🎫 '+esc(o.nick));
+  if(o.tel)   contactParts.push('📞 '+esc(o.tel));
+  const contactLine = contactParts.length
+    ? '<div class="oc-line oc-contact">'+contactParts.join(' · ')+'</div>'
     : '';
-  return '<div class="card-order'+overdueCls+'" data-status="'+esc(status)+'">'
+  return '<div class="card-order'+overdueCls+'" data-status="'+esc(status)+'" data-id="'+id+'">'
     +'<div class="oc-top">'
       +'<div class="oc-name">'+esc(o.name||'(이름없음)')+'</div>'
       +'<div class="oc-tags">'
@@ -2115,14 +2138,13 @@ function cardHtml(o){
         +'<button class="pill pill-status" data-act="status" data-id="'+id+'" data-status="'+esc(status)+'">'+esc(status)+'</button>'
       +'</div>'
     +'</div>'
-    +phoneNickLine
-    +(o.tel?'<div class="oc-line"><span class="oc-ico">📞</span>'+esc(o.tel)+'</div>':'')
+    +contactLine
     +(o.addr?'<div class="oc-line"><span class="oc-ico">📍</span>'+esc(o.addr)+'</div>':'')
     +'<div class="oc-line oc-item"><b>'+esc(o.product)+(o.color?' / '+esc(o.color):'')+' · '+esc(o.qty)+'개</b> · '+esc(o.type)+' · <b>'+won(o.amount)+'원</b>'+mgnInline+'</div>'
     +(o.bot_note?'<div class="oc-line" style="background:#fdebea;border-left:3px solid #c5221f;padding:6px 8px;border-radius:4px;font-size:11.5px;color:#c5221f;white-space:pre-wrap">🤖 '+esc(o.bot_note)+'</div>':'')
     +'<div class="oc-line oc-track-line">'+trackHtml+'</div>'
-    +paidByLine
-    +memoLine
+    +metaHtml
+    +ghostHtml
     +'<div class="oc-foot">'
       +'<span class="muted">'+esc(o.date)+'</span>'
       +'<span class="oc-actions">'
@@ -4271,6 +4293,18 @@ function copyTracking(num){
   );
 }
 
+// 💰📝 메모·입금자명 인라인 편집 진입 — 텍스트/고스트를 입력칸으로 교체 후 포커스(그 카드만 재렌더)
+function enterFieldEdit(b){
+  const id=b.dataset.id, field=b.dataset.field;
+  const o=ORDERS.find(x=>x.id===id); if(!o) return;
+  if(field==='paid_by' && userRole!=='admin') return;
+  if(field==='memo' && userRole!=='admin' && o.created_by!==myUserId) return;
+  const card=b.closest('.card-order'); if(!card) return;
+  card.outerHTML = cardHtml(o, field);
+  const key=(window.CSS&&CSS.escape)?CSS.escape(id):id;
+  const inp=$('#list').querySelector('.card-order[data-id="'+key+'"] '+(field==='paid_by'?'.paid-by-inp':'.memo-inp'));
+  if(inp){ inp.focus(); try{ inp.setSelectionRange(inp.value.length, inp.value.length); }catch(_){} }
+}
 $('#list').addEventListener('click', e=>{
   const b=e.target.closest('button[data-act]'); if(!b) return;
   const id=b.dataset.id, act=b.dataset.act;
@@ -4278,6 +4312,7 @@ $('#list').addEventListener('click', e=>{
   else if(act==='status') toggleStatus(id);
   else if(act==='del') delRow(id);
   else if(act==='edit') openEditModal(id);
+  else if(act==='editfield') enterFieldEdit(b);
   else if(act==='track'){
     // [🔍 조회] — 택배사 칩 펼치기/접기
     const box = b.parentElement.querySelector('.track-carriers');
@@ -4304,33 +4339,27 @@ $('#btnEditCancel').addEventListener('click', closeEditModal);
 $('#editModal').addEventListener('click', e=>{
   if(e.target.id==='editModal') closeEditModal();
 });
-$('#list').addEventListener('change', async e=>{
-  // 입금자명 인라인 수정
-  if(e.target.classList && e.target.classList.contains('paid-by-inp')){
-    if(userRole!=='admin') return;
-    const id = e.target.dataset.id;
-    const val = e.target.value.trim();
+// 💰📝 인라인 편집 저장 + 표시모드 복귀 — blur(focusout) 시. 값이 바뀐 경우에만 저장(낙관적), 권한 체크.
+$('#list').addEventListener('focusout', async e=>{
+  const inp = e.target;
+  const isPaid = inp.classList && inp.classList.contains('paid-by-inp');
+  const isMemo = inp.classList && inp.classList.contains('memo-inp');
+  if(!isPaid && !isMemo) return;
+  const id = inp.dataset.id, field = isPaid ? 'paid_by' : 'memo';
+  const o = ORDERS.find(x => x.id === id); if(!o) return;
+  if(isPaid && userRole !== 'admin') return;
+  if(isMemo && userRole !== 'admin' && o.created_by !== myUserId) return;
+  const val = inp.value.trim() || null, cur = o[field] || null;
+  const card = inp.closest('.card-order');
+  if(val !== cur){
+    o[field] = val;                                   // 낙관적 갱신
     try {
-      const { error } = await sb.from('orders').update({ paid_by: val || null }).eq('id', id);
-      if(error) toast('❌ 입금자명 저장 실패: '+error.message, 'error', 4000);
-      else { const o=ORDERS.find(x=>x.id===id); if(o) o.paid_by = val||null; toast('✅ 입금자명 저장', 'success', 2000); }
-    } catch(err){ toast('❌ '+err.message, 'error', 4000); }
-    return;
+      const { error } = await sb.from('orders').update({ [field]: val }).eq('id', id);
+      if(error){ o[field] = cur; toast('❌ 저장 실패: '+error.message, 'error', 4000); }
+      else toast(isPaid ? '✅ 입금자명 저장' : '✅ 메모 저장', 'success', 1500);
+    } catch(err){ o[field] = cur; toast('❌ '+err.message, 'error', 4000); }
   }
-  // 메모 인라인 수정 (본인 주문 또는 관리자)
-  if(e.target.classList && e.target.classList.contains('memo-inp')){
-    const id = e.target.dataset.id;
-    const o = ORDERS.find(x => x.id === id);
-    if(!o) return;
-    if(userRole !== 'admin' && o.created_by !== myUserId) return;
-    const val = e.target.value.trim();
-    try {
-      const { error } = await sb.from('orders').update({ memo: val || null }).eq('id', id);
-      if(error) toast('❌ 메모 저장 실패: '+error.message, 'error', 4000);
-      else { o.memo = val||null; toast('✅ 메모 저장', 'success', 2000); }
-    } catch(err){ toast('❌ '+err.message, 'error', 4000); }
-    return;
-  }
+  if(card) card.outerHTML = cardHtml(o);              // 표시 모드로 복귀(값 반영)
 });
 
 // 정산 완료 버튼
