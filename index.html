@@ -2728,16 +2728,19 @@ let ledgerUserFilter='', ledgerBuyerFilter='';
 let ledgerProductFilter='', ledgerColorFilter='', ledgerTypeFilter='', ledgerPaidFilter='';
 // 1단계: 기간 + 사용자 + 구매자 검색 (칩 필터는 적용 안된 base list)
 function getLedgerBase(){
-  const now=new Date();
-  let since=null;
-  if(ledgerPeriod==='today'){ since=new Date(now); since.setHours(0,0,0,0); }
-  else if(ledgerPeriod==='month'){ since=new Date(now.getFullYear(), now.getMonth(), 1); }
-  // 주문 날짜(date) 기준 — 임포트된 데이터도 원래 날짜로 필터됨 (created_at 무시)
-  // date 없을 때만 created_at fallback
+  // KST 기준 경계를 YYYY-MM-DD 문자열로 — o.date(KST 날짜문자열)와 문자열 비교해 폰 타임존 무관하게 정확
+  // (예전엔 new Date(date+'T00:00:00')가 로컬 파싱이라 해외/오설정 기기서 월말 경계가 옆날/옆달로 샜음)
+  let sinceStr=null;
+  const todayKst = kstToday();              // 'YYYY-MM-DD' (KST)
+  if(ledgerPeriod==='today'){ sinceStr = todayKst; }
+  else if(ledgerPeriod==='month'){ sinceStr = todayKst.slice(0,7) + '-01'; }  // 이번달 1일(KST)
+  // 주문 날짜(date) 기준 — 임포트된 데이터도 원래 날짜로 필터됨. date 없을 때만 created_at의 KST 날짜로 fallback
   let list = ORDERS.filter(o => {
-    if(!since) return true;
-    const d = o.date ? new Date(o.date + 'T00:00:00') : new Date(o.created_at || 0);
-    return d >= since;
+    if(!sinceStr) return true;
+    const dStr = o.date
+      ? o.date.slice(0,10)
+      : (o.created_at ? new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date(o.created_at)) : '');
+    return dStr >= sinceStr;
   });
   if(ledgerUserFilter) list = list.filter(o => o.created_by === ledgerUserFilter);
   if(ledgerBuyerFilter){
@@ -2807,11 +2810,11 @@ function renderLedgerChips(){
 // 📈 월별 매출·마진 추이 (관리자 — 최근 6개월)
 function renderMonthlyTrend(){
   const el = $('#monthlyTrend'); if(!el) return;
-  // 최근 6개월 (이번달 포함)
-  const now = new Date();
+  // 최근 6개월 (이번달 포함) — 기준월을 KST로 잡아 폰 타임존 무관(월말 경계 오차 방지)
+  const [ky, km] = kstToday().split('-').map(Number);   // KST 연·월
   const months = [];
   for(let i=5; i>=0; i--){
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const d = new Date(ky, (km-1)-i, 1);   // km은 1-based → 0-based로
     const ym = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     months.push({ym, label:(d.getMonth()+1)+'월'});
   }
@@ -4076,7 +4079,7 @@ $('#btnGenCronSecret') && $('#btnGenCronSecret').addEventListener('click', () =>
     save('cron_secret_shown', secret);
   }
   const result = $('#cronSecretResult');
-  const escc = s => String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  const escc = s => String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
   result.innerHTML = `
     <div style="padding:9px;background:#fff8e1;border:1px solid #f6c343;border-radius:6px;margin-top:6px">
       <div style="font-size:11.5px;font-weight:600;margin-bottom:4px;color:#7c2d12">아래 시크릿을 Vercel <code>CRON_SECRET</code> 환경변수로 등록 → 재배포</div>
@@ -4120,7 +4123,7 @@ $('#btnSetupCronJobs') && $('#btnSetupCronJobs').addEventListener('click', () =>
 async function runSetupCronJobs(allowAutoRetry){
   const apiKey = $('#cronOrgApiKey').value.trim();
   const out = $('#setupCronJobsResult');
-  const escc = s => String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  const escc = s => String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
   if (!apiKey) {
     out.innerHTML = '<span style="color:#c5221f">⚠️ cron-job.org API 키 입력 필요 (위 2️⃣ 단계에서 발급)</span>';
     return;

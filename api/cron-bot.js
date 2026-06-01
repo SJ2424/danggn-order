@@ -1,13 +1,19 @@
 // 외부 cron (cron-job.org 등) → GitHub workflow_dispatch 라우팅
 // GitHub Actions 무료 cron이 지연될 때 백업으로 작동
-// 인증: X-Cron-Secret header (또는 ?secret= query)
+// 인증: X-Cron-Secret header (헤더 전용 — 쿼리 ?secret=는 로그 노출로 제거됨)
 //
 // 사용:
 //   POST /api/cron-bot
 //   Header: X-Cron-Secret: <CRON_SECRET 환경변수 값>
 //   Body: {"bot": "register" | "cart" | "tracking" | "cartTracking" | "push" | "overdue"}
-// 또는 (GET도 지원):
-//   GET /api/cron-bot?secret=...&bot=register
+
+import crypto from 'node:crypto';
+// 상수시간 문자열 비교 — 타이밍 공격 방지(길이 노출 회피 위해 해시 후 비교)
+function timingSafeEqualStr(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
 
 const BOT_MAP = {
   register:     'register-orders.yml',
@@ -31,10 +37,11 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'CRON_SECRET 환경변수 미설정' });
   }
 
-  // 인증
-  const provided = req.headers['x-cron-secret'] || (req.query && req.query.secret) || '';
-  if (provided !== CRON_SECRET) {
-    return res.status(401).json({ error: '인증 실패 (X-Cron-Secret header 또는 ?secret= 필요)' });
+  // 인증 — 헤더로만 받음(쿼리 ?secret=는 액세스로그·히스토리에 평문 노출되어 제거).
+  // 상수시간 비교로 타이밍 공격 차단.
+  const provided = req.headers['x-cron-secret'] || '';
+  if (!timingSafeEqualStr(provided, CRON_SECRET)) {
+    return res.status(401).json({ error: '인증 실패 (X-Cron-Secret header 필요)' });
   }
 
   // 봇 종류
