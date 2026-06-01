@@ -2187,9 +2187,8 @@ function setMode(m){
   $('#mManage').classList.toggle('active', m==='manage');
   if(m==='manage') renderLedger();
 }
-const CART_PRODUCTS = ['핸드카트','하체마사지기','족욕기','날개없는선풍기'];
-function isCartProduct(p){ return CART_PRODUCTS.includes((p||'').replace(/\s+/g,'')); }
-
+// (카트 상품 분류는 '어느 봇이 처리하나'를 정하는 백엔드 관심사 → bot/cart-products.js.
+//  프론트는 이 분류가 필요 없어 옛 미사용 CART_PRODUCTS/isCartProduct 정의를 제거함)
 const ALARM_START='12:00', CUTOFF='13:00', REPEAT_MIN=5;
 let lastAlarm=0;
 const toMin=s=>{const a=s.split(':');return +a[0]*60+ +a[1];};
