@@ -41,7 +41,7 @@ async function fetchPending(){
 
 async function updateTracking(id, value, currentOrder){
   if(isDry) return;
-  // shipped_at 이미 있으면 보존 (72H 카운터 리셋 방지)
+  // shipped_at 이미 있으면 보존 (미입금 7일 카운터 리셋 방지)
   const updates = {
     tracking: value,
     status: '발송완료',

@@ -77,7 +77,7 @@ async function main() {
   flag('발주완료인데 송장없이 3일+ (등록 누락/거짓성공 의심)', cnt(o => o.status === '발주완료' && o.type !== '직거래' && !o.tracking && o.created_at && (now - new Date(o.created_at).getTime()) > 3 * dayMs));
   flag('봇 실패메시지(bot_note) 남은 주문', cnt(o => o.bot_note));
   if (hasOmsPaid) flag('직거래인데 OMS결제 표시(모순)', cnt(o => o.type === '직거래' && o.oms_paid));
-  flag('발송완료·미입금 3일+ (수금 추적 필요)', cnt(o => !o.paid && o.status === '발송완료' && o.shipped_at && (now - new Date(o.shipped_at).getTime()) > 3 * dayMs));
+  flag('발송완료·미입금 7일+ (수금 추적 필요)', cnt(o => !o.paid && o.status === '발송완료' && o.shipped_at && (now - new Date(o.shipped_at).getTime()) > 7 * dayMs));
   flag('옛 상태(발주대기) 잔존 — 정리 대상', cnt(o => o.status === '발주대기'));
 
   // 4) 사용자 · 카탈로그

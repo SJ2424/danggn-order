@@ -832,7 +832,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
   <details class="sub-section">
     <summary>🔔 이 기기 알림 켜기</summary>
-    <p class="muted" style="margin:8px 0;font-size:12px">평일 12:35 + 12:50 (13:00 마감 임박) · 발주 완료 · 손님 입금 대기 3일+ 푸시 받기 (한 번만 설정).<br>
+    <p class="muted" style="margin:8px 0;font-size:12px">평일 12:35 + 12:50 (13:00 마감 임박) · 발주 완료 · 손님 입금 대기 7일+ 푸시 받기 (한 번만 설정).<br>
       🍎 iPhone은 먼저 <b>홈 화면에 추가</b> 후 가능.</p>
     <button class="btn-sec btn-sm" id="btnEnablePush">🔔 이 기기 알림 켜기</button>
     <button class="btn-sec btn-sm" id="btnTestAlarm" style="margin-left:6px">🔔 테스트 알림 보내기</button>
@@ -1807,7 +1807,7 @@ async function toggleStatus(id){
   const cur=seq.indexOf(o.status||'접수');
   const next=seq[((cur<0?0:cur)+1)%seq.length];
   const updates = { status: next };
-  // 발송완료로 진입: 발송 시각 자동 기록 (72시간 미입금 알림 기준)
+  // 발송완료로 진입: 발송 시각 자동 기록 (7일 미입금 알림 기준)
   if(next === '발송완료' && !o.shipped_at) updates.shipped_at = new Date().toISOString();
   // 발송완료에서 나가면(되돌리기) 발송 시각 초기화
   if(next !== '발송완료' && o.shipped_at) updates.shipped_at = null;
@@ -2096,10 +2096,12 @@ function cardHtml(o){
       + '📝 <input type="text" class="memo-inp" data-id="'+id+'" value="'+esc(o.memo||'')+'" placeholder="메모 (자유 입력)">'
       + '</div>'
     : (o.memo ? '<div class="oc-line memo-line">📝 <span>'+esc(o.memo)+'</span></div>' : '');
+  // ⚠️ 발송완료 = 송장 떠서 '발송'된 것(≠ 손님 수령/배송완료). 손님은 받은 뒤 입금하므로
+  //   발송 직후 며칠은 정상 대기 — 7일 지나야 '독촉'(빨간 배지)으로 표시(배송+입금 시간 감안).
   const isOverdue = !o.paid && status==='발송완료' && o.shipped_at &&
-    (Date.now() - new Date(o.shipped_at).getTime()) > 72*3600*1000;
+    (Date.now() - new Date(o.shipped_at).getTime()) > 7*24*3600*1000;
   const overdueCls = isOverdue ? ' overdue' : '';
-  const overdueBadge = isOverdue ? '<span class="overdue-badge">🚨 72H+</span>' : '';
+  const overdueBadge = isOverdue ? '<span class="overdue-badge">🚨 7일+</span>' : '';
   // 마진 — 가격 옆에 작게 inline (관리자만)
   const q = +o.qty || 1;
   const rev = (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
@@ -2161,43 +2163,20 @@ function renderList(){
     ? '<div class="empty">현재 필터에 해당하는 주문이 없습니다<br><span class="muted" style="font-size:12px">전체 '+ownerBase.length+'건 — 위 칩에서 <b>전체</b> 클릭하면 모두 보임</span></div>'
     : '<div class="empty">표시할 주문이 없습니다</div>';
 
-  // 📋 4개 버킷으로 분류 — 액션 필요 → 등록 대기 → 진행 중 → 완료
-  const now = Date.now(), dayMs = 24*3600*1000;
-  const buckets = { action:[], pending:[], progress:[], done:[] };
-  for (const o of items) {
-    const st = o.status || '접수';
-    const isAction = (o.bot_note && (st==='접수'||st==='발주대기'))
-      || (!o.paid && st==='발송완료' && o.shipped_at && (now - new Date(o.shipped_at).getTime()) > 3*dayMs);
-    if (isAction) buckets.action.push(o);
-    else if (st === '접수' || st === '발주대기') buckets.pending.push(o);
-    else if (st === '발주완료' || (st === '발송완료' && !o.paid)) buckets.progress.push(o);
-    else buckets.done.push(o);
-  }
-  const sec = (label, color, list, collapsed) => {
-    if (list.length === 0) return '';
-    const cards = list.map(cardHtml).join('');
-    const hdrInner = `<span>${label}</span> <b>${list.length}건</b>`;
-    if (collapsed) {
-      return `<details class="order-group order-group-section"><summary class="order-group-header" style="border-left:4px solid ${color};padding-left:10px">${hdrInner}<span class="ogh-arrow">▾</span></summary><div class="order-group-cards">${cards}</div></details>`;
-    }
-    return `<div class="order-group-section"><div class="order-group-header" style="border-left:4px solid ${color};padding-left:10px">${hdrInner}</div><div class="order-group-cards">${cards}</div></div>`;
-  };
-  // 색 띠 — 카드 좌측 띠(접수=danger·발주대기=pri·발주완료=info·발송완료=ok)와 의미 통일
-  const groupedHtml =
-      sec('🚨 즉시 확인 필요', 'var(--danger)', buckets.action, false)
-    + sec('📥 등록 대기 (자동봇이 처리 중)', 'var(--pri)', buckets.pending, false)
-    + sec('🚚 진행 중 · 입금 대기', 'var(--info)', buckets.progress, false)
-    + sec('✅ 완료', 'var(--ok-strong)', buckets.done, true);
-  $('#list').innerHTML = items.length ? groupedHtml : emptyMsg;
+  // 📋 버킷 그룹핑 제거 — 위에서 정렬한 날짜순 그대로 평탄하게 출력.
+  //   미입금·긴급건을 맨 위로 끌어올리지 않는다(갑자기 순서가 튀면 불편 + 어차피 카드 배지로 제자리에서 보임).
+  //   미입금만 따로 보려면 상단 [미입금] 칩 사용.
+  const listHtml = items.map(cardHtml).join('');
+  $('#list').innerHTML = items.length ? listHtml : emptyMsg;
   $('#cnt').textContent = ownerBase.length
     ? '('+items.length+(items.length===ownerBase.length?'':'/'+ownerBase.length)+'건)'
     : '';
   const recv=ownerBase.filter(o=>(o.status||'접수')==='접수').length;
   const pend=ownerBase.filter(o=>o.status==='발주대기').length;
   const unpaid=ownerBase.filter(o=>!o.paid).length;
-  const overdue=ownerBase.filter(o=>!o.paid && o.status==='발송완료' && o.shipped_at && (Date.now()-new Date(o.shipped_at).getTime())>72*3600*1000).length;
+  const overdue=ownerBase.filter(o=>!o.paid && o.status==='발송완료' && o.shipped_at && (Date.now()-new Date(o.shipped_at).getTime())>7*24*3600*1000).length;
   $('#summary').textContent = ownerBase.length
-    ? ('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'+(overdue?' (🚨 '+overdue+'건 72H+)':''))
+    ? ('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'+(overdue?' (🚨 '+overdue+'건 7일+)':''))
     : '';
   renderLedger();
 }
@@ -3037,7 +3016,7 @@ function renderTodaySummary(){
       unpaid.forEach(o => {
         const amt = +o.amount || 0;
         total += amt;
-        const isOver = o.status==='발송완료' && o.shipped_at && (nowMs - new Date(o.shipped_at).getTime()) > 3*dayMs;
+        const isOver = o.status==='발송완료' && o.shipped_at && (nowMs - new Date(o.shipped_at).getTime()) > 7*dayMs;
         if (isOver){ totalOver += amt; countOver++; }
         const key = (o.name || '(이름없음)') + '|' + (o.tel||'');
         if (!byCustomer[key]) byCustomer[key] = { name: o.name||'(이름없음)', tel: o.tel||'', count: 0, total: 0 };
@@ -3055,7 +3034,7 @@ function renderTodaySummary(){
           <div class="unpaid-count">${unpaid.length}건 / 손님 ${customers.length}명</div>
         </div>
         ${countOver > 0 ? `
-          <div class="unpaid-warn">🚨 3일 지난 미입금 <b>${countOver}건 · ${wonInt(totalOver)}원</b> — 추적 필요</div>
+          <div class="unpaid-warn">🚨 7일 지난 미입금 <b>${countOver}건 · ${wonInt(totalOver)}원</b> — 추적 필요</div>
         ` : ''}
         <details style="margin-top:8px">
           <summary class="muted" style="cursor:pointer;font-size:11.5px;font-weight:600;padding:4px 0">👥 손님별 (큰 순) ▾</summary>
@@ -3082,12 +3061,12 @@ function renderTodaySummary(){
     const failed = ORDERS.filter(o => o.bot_note && (o.status==='접수'||o.status==='발주대기')).length;
     // ② 등록 안 됨 (접수 상태 — 직거래 제외) — 자동봇이 처리할 거지만 점심 후엔 확인 필요
     const pending = ORDERS.filter(o => (o.status||'접수')==='접수' && o.type!=='직거래').length;
-    // ③ 미입금 72시간+ — 추적 필요
-    const unpaidOverdue = ORDERS.filter(o => !o.paid && o.status==='발송완료' && o.shipped_at && (nowMs-new Date(o.shipped_at).getTime()) > 3*dayMs).length;
+    // ③ 미입금 7일+ — 추적 필요 (발송 후 배송+입금 시간 감안)
+    const unpaidOverdue = ORDERS.filter(o => !o.paid && o.status==='발송완료' && o.shipped_at && (nowMs-new Date(o.shipped_at).getTime()) > 7*dayMs).length;
     actionsEl.innerHTML =
       `<div class="ts-action ${failed?'urgent':'zero'}"><div class="ts-action-num">${failed}</div><div class="ts-action-label">🚨 발주 실패</div></div>`
     + `<div class="ts-action ${pending?'warn':'zero'}"><div class="ts-action-num">${pending}</div><div class="ts-action-label">📥 등록 대기</div></div>`
-    + `<div class="ts-action ${unpaidOverdue?'urgent':'zero'}"><div class="ts-action-num">${unpaidOverdue}</div><div class="ts-action-label">💰 입금 대기 3일+</div></div>`;
+    + `<div class="ts-action ${unpaidOverdue?'urgent':'zero'}"><div class="ts-action-num">${unpaidOverdue}</div><div class="ts-action-label">💰 입금 대기 7일+</div></div>`;
   }
 
   // 오늘 = date 컬럼이 오늘 날짜인 주문만 (created_at 무시 — 임포트 데이터 안 잡힘)

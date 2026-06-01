@@ -36,7 +36,7 @@ async function fetchPending() {
 // 한 주문 캐시 — shipped_at 보존 결정용
 async function updateTracking(id, value, currentOrder) {
   if (isDry) return;
-  // shipped_at은 이미 있으면 보존 (72H 카운터 리셋 방지) — 없으면 지금 시각으로 세팅
+  // shipped_at은 이미 있으면 보존 (미입금 7일 카운터 리셋 방지) — 없으면 지금 시각으로 세팅
   const updates = {
     tracking: value,
     status: '발송완료',
