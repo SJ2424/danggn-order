@@ -212,7 +212,7 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 .overdue-badge{display:inline-block;background:var(--danger);color:#fff;font-weight:700;font-size:10.5px;padding:2px 8px;border-radius:999px;margin-right:4px}
 .oc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
 /* 이름 — 핵심 정보, 더 강조 */
-.oc-name{font-size:16px;font-weight:800;line-height:1.25;letter-spacing:-0.01em;color:var(--txt)}
+.oc-name{font-size:16px;font-weight:800;line-height:1.25;letter-spacing:-0.01em;color:var(--txt);min-width:0;overflow-wrap:anywhere}
 .oc-nick{font-size:12px;color:var(--mut);font-weight:400;margin-left:6px}
 .oc-tags{display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
 .pill{border:0;border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.15s;letter-spacing:-0.005em}
@@ -235,15 +235,16 @@ textarea::placeholder,input::placeholder{font-size:12.5px;line-height:1.4;opacit
 /* 상품·금액 — 박스로 시각적 강조 */
 .oc-item{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin:9px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px}
 .oc-item > b:last-child{margin-left:auto;color:var(--pri);font-size:15px;font-weight:800;letter-spacing:-0.01em}
-.oc-mgn-inline{font-size:11.5px;font-weight:700;margin-left:auto;padding:2px 8px;background:var(--ok-bg);border-radius:6px;white-space:nowrap;border:1px solid var(--ok-border)}
+.oc-mgn-inline{font-size:11.5px;font-weight:700;margin-left:auto;padding:2px 8px;background:var(--ok-bg);color:var(--ok);border-radius:6px;white-space:nowrap;border:1px solid var(--ok-border)}
+.oc-mgn-inline.neg{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
 .oc-mgn-inline small{font-size:10px;font-weight:500;opacity:.8}
 .oc-line.memo-line{display:flex;align-items:center;gap:6px;font-size:12px;margin-top:8px}
 .oc-line.memo-line input{flex:1;padding:6px 10px;font-size:12.5px;border:1px solid var(--warn-border);border-radius:8px;background:var(--warn-bg);color:var(--pri-900);font-weight:500}
-.oc-line.memo-line input::placeholder{color:var(--mut-2);font-weight:400}
+.oc-line.memo-line input::placeholder{color:var(--warn-on-2);opacity:.75;font-weight:400}
 .oc-line.memo-line input:focus{background:#fff;border-color:var(--pri);box-shadow:0 0 0 2px rgba(234,88,12,0.1)}
 .oc-line.paid-by-line{display:flex;align-items:center;gap:6px;margin-top:5px}
 .oc-line.paid-by-line input{flex:1;padding:6px 10px;font-size:12.5px;border:1px solid var(--ok-border);border-radius:8px;background:var(--ok-bg);color:var(--ok);font-weight:500}
-.oc-line.paid-by-line input::placeholder{color:var(--mut-2);font-weight:400}
+.oc-line.paid-by-line input::placeholder{color:var(--ok);opacity:.7;font-weight:400}
 .oc-line.paid-by-line input:focus{background:#fff;border-color:var(--ok-strong);box-shadow:0 0 0 2px rgba(22,163,74,0.1)}
 .oc-line.paid-by-line{display:flex;align-items:center;gap:5px;font-size:12px}
 .oc-ico{display:inline-block;width:18px;color:var(--mut)}
@@ -714,7 +715,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.05.30-색상시스템화(시맨틱토큰)</b></span>
+    <span>버전: <b id="appVersion">v2026.06.01-교차검증반영(렉·머니·송장·대비)</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1109,6 +1110,25 @@ function removeToast(el){
   setTimeout(() => { if(el.parentNode) el.parentNode.removeChild(el); }, 200);
 }
 const won = n => (n===''||n==null)?'':Number(n).toLocaleString('ko-KR');
+// 금액 파싱 — 콤마·원·공백 등 제거 후 유효 숫자만. 비숫자/음수는 null(입력값 조용히 NaN→null 저장 방지)
+function parseAmount(v){
+  if(v==null) return null;
+  const cleaned = String(v).replace(/[^\d.]/g,'');   // 숫자·소수점만
+  if(cleaned==='') return null;
+  const n = Math.round(parseFloat(cleaned));
+  return Number.isFinite(n) && n>=0 ? n : null;
+}
+// 수량 파싱 — 1 이상 정수로 강제(음수·소수·NaN 방지)
+function parseQty(v){
+  const n = Math.floor(parseFloat(String(v??'').replace(/[^\d.]/g,'')));
+  return Number.isFinite(n) && n>=1 ? n : 1;
+}
+// 디바운스 — 검색 키입력·realtime 폭주 시 마지막 1회만 실행(렉/네트워크 스톰 방지)
+function debounce(fn, ms){
+  let t; const d = (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); };
+  d.cancel = ()=>clearTimeout(t);
+  return d;
+}
 // 한국시간 기준 오늘 YYYY-MM-DD (UTC 자정 직후 한국에선 이미 다음날인 문제 회피)
 const kstToday = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
 
@@ -1529,10 +1549,12 @@ async function loadOrders(){
   renderList();
 }
 let realtimeChan=null;
+// realtime 변경 폭주(봇 다건 처리 등) 시 마지막 1회만 전체 재조회 — 네트워크 스톰·렉 방지
+const debouncedReload = debounce(()=>loadOrders(), 600);
 function subscribeOrders(){
   if(realtimeChan) sb.removeChannel(realtimeChan);
   realtimeChan = sb.channel('orders-changes')
-    .on('postgres_changes',{event:'*',schema:'public',table:'orders'}, () => loadOrders())
+    .on('postgres_changes',{event:'*',schema:'public',table:'orders'}, () => debouncedReload())
     .subscribe();
 }
 
@@ -1735,9 +1757,9 @@ async function addOrder(){
     addr:$('#pAddr').value.trim(),
     product:normalizeProductName($('#pProduct').value.trim()),
     color:$('#pColor').value.trim(),
-    qty:+$('#pQty').value || 1,
+    qty:parseQty($('#pQty').value),
     type:$('#pType').value.trim() || '택배',
-    amount: $('#pAmount').value? +$('#pAmount').value : null,
+    amount: parseAmount($('#pAmount').value),
     paid:false, status:'접수',
     created_by: myUserId  // 입력자 본인 ID 명시 — DB default 의존하지 않음
   };
@@ -1855,8 +1877,8 @@ async function saveEdit(){
   const status = o.status||'접수';
   const editable = (status==='접수' || status==='발주대기');
   const trackingNew = $('#eTracking').value.trim() || null;
-  const newAmount = $('#eAmount').value ? +$('#eAmount').value : null;
-  const newQty    = +$('#eQty').value || 1;
+  const newAmount = parseAmount($('#eAmount').value);
+  const newQty    = parseQty($('#eQty').value);
   // 모든 상태에서 풀린 필드 — 금액·수량·정산·메모·송장 (할인·환불 반영용)
   const alwaysEditable = {
     qty: newQty,
@@ -1976,10 +1998,20 @@ function renderOwnerChips(){
   el.innerHTML = html;
 }
 // 송장번호만 추출 — 저장값은 "CJ대한통운 1234567890"·"한진 1234-5678" 형태라
-// 숫자만 남겨야 택배사 사이트가 인식한다 (이전엔 택배사명까지 통째로 넘겨 조회가 전부 실패)
+// 송장번호 추출 — 저장값('CJ대한통운 1234567890' 등)에서 조회 URL에 넣을 순수 번호만.
+// 숫자/하이픈/공백 토큰 중 가장 그럴듯한 송장(8~15자리 숫자)을 고르고, 없으면 영숫자 송장(EMS 'EE..KR' 등) 보존.
 function trackNum(raw){
-  const d = String(raw||'').replace(/\D/g, '');     // 한글 택배사명·공백·하이픈·점 제거 → 순수 숫자
-  return d.length >= 8 ? d : String(raw||'').trim(); // 숫자가 거의 없으면(영문송장 등) 원본 사용
+  const s = String(raw||'').trim();
+  if(!s) return '';
+  // 1) 영숫자 송장(국제/EMS): 영문+숫자 10자 이상 토큰이 있으면 그대로 (영문자 보존)
+  const alnum = s.match(/\b[A-Za-z]{2}\d{6,}[A-Za-z]{0,2}\b/);
+  if(alnum) return alnum[0];
+  // 2) 국내 송장: 공백·하이픈 제거한 숫자 토큰들 중 8~15자리를 우선 채택
+  const groups = (s.match(/[\d-]{8,}/g)||[]).map(g => g.replace(/\D/g,'')).filter(d => d.length>=8 && d.length<=15);
+  if(groups.length) return groups.sort((a,b)=>b.length-a.length)[0];  // 가장 긴 것(전화·우편번호보다 송장이 김)
+  // 3) 폴백: 전체에서 숫자만 (8자리 이상이면) — 그래도 없으면 빈 문자열(조회 버튼 비활성화 신호)
+  const all = s.replace(/\D/g,'');
+  return all.length>=8 ? all : '';
 }
 // 배송 조회 택배사 — 봇이 수집/저장하는 택배사 전부 커버.
 //  re = 저장값에서 택배사 자동감지용 / url = 운송장번호 자동조회 GET URL
@@ -1991,7 +2023,9 @@ const TRACK_CARRIERS = [
   { name:'우체국택배', re:/우체국|우정사업|epost/i, url:n => 'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=' + encodeURIComponent(n) + '&displayHeader=N' },
   { name:'로젠택배',   re:/로젠/,                  url:_ => 'https://www.ilogen.com/web/personal/tkSearch' },
   { name:'경동택배',   re:/경동/,                  url:n => 'https://kdexp.com/service/delivery/etc/delivery.do?barcode=' + encodeURIComponent(n) },
-  { name:'천일택배',   re:/천일/,                  url:n => 'http://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
+  { name:'쿠팡',       re:/쿠팡|쿠로지|coupang/i,  url:n => 'https://www.coupangls.com/web/personal/tracking?invoiceNo=' + encodeURIComponent(n) },
+  { name:'GS편의점택배', re:/(^|\W)GS|편의점/i,     url:n => 'https://www.cvsnet.co.kr/invoice/tracking.do?invoice_no=' + encodeURIComponent(n) },
+  { name:'천일택배',   re:/천일/,                  url:n => 'https://www.chunil.co.kr/HTrace/HTrace.jsp?transNo=' + encodeURIComponent(n) },
 ];
 // 저장값에서 택배사 자동감지 (위 목록의 re로) → 알맞은 칩을 ✓추천/원클릭. 목록에 있는 택배사만 감지되므로 칩과 항상 일치
 function detectCarrier(raw){
@@ -2014,18 +2048,23 @@ function cardHtml(o){
   // 송장 — 있으면 보여주고, 없으면 며칠째 대기인지 표시
   let trackHtml;
   if(o.tracking){
-    const tnum = trackNum(o.tracking);            // 조회 URL용 — 순수 송장번호만
+    const tnum = trackNum(o.tracking);            // 조회 URL용 — 순수 송장번호만(추출 실패 시 빈 문자열)
     const rec  = detectCarrier(o.tracking);       // 저장값에서 택배사 자동감지
     const recC = rec ? TRACK_CARRIERS.find(c => c.name === rec) : null;
-    // 택배사 감지되면 → [🔍 조회] 한 번에 그 택배사로 바로 / 불명이면 → 택배사 선택 펼침
-    const goBtn = recC
-      ? '<button class="btn-track-go" data-act="trackgo" data-url="'+esc(recC.url(tnum))+'" data-num="'+esc(tnum)+'" title="'+esc(rec)+' 배송조회">🔍 조회</button>'
-      : '<button class="btn-track-go" data-act="track" title="택배사 선택해서 배송조회">🔍 조회</button>';
-    // 택배사 불명(번호만 저장)일 때만 택배사 선택 칩 표시
-    const chips = recC ? '' :
-      '<span class="track-carriers">' + TRACK_CARRIERS.map(c =>
+    let goBtn, chips='';
+    if(!tnum){
+      // 송장번호를 못 뽑음(이름만 저장·짧은값 등) → 깨진 URL 대신 비활성 안내(엉뚱한 조회 방지)
+      goBtn = '<span class="btn-track-go" style="opacity:.5;cursor:default" title="송장번호를 인식 못 했어요 — 수정에서 번호 확인">🔍 번호확인</span>';
+    } else if(recC){
+      // 택배사 감지 → [🔍 조회] 한 번에 그 택배사로 바로
+      goBtn = '<button class="btn-track-go" data-act="trackgo" data-url="'+esc(recC.url(tnum))+'" data-num="'+esc(tnum)+'" title="'+esc(rec)+' 배송조회">🔍 조회</button>';
+    } else {
+      // 택배사 불명(번호만 저장) → [🔍 조회] 누르면 택배사 선택 칩 펼침
+      goBtn = '<button class="btn-track-go" data-act="track" title="택배사 선택해서 배송조회">🔍 조회</button>';
+      chips = '<span class="track-carriers">' + TRACK_CARRIERS.map(c =>
         '<button class="track-chip" data-act="trackgo" data-url="'+esc(c.url(tnum))+'" data-num="'+esc(tnum)+'">'+esc(c.name)+'</button>'
       ).join('') + '</span>';
+    }
     trackHtml = '🚚 <b style="color:var(--txt)">'+esc(o.tracking)+'</b> ' + goBtn + chips;
   } else if(status === '발주완료'){
     // 발주완료 + 송장 없음 = 발송 대기. 며칠째인지 계산 (created_at 또는 date 기준)
@@ -2063,7 +2102,7 @@ function cardHtml(o){
   const mgn = rev - cst;
   const mgnRate = rev > 0 ? Math.round(mgn/rev*1000)/10 : 0;
   const mgnInline = (userRole==='admin' && (rev > 0 || cst > 0))
-    ? ' <span class="oc-mgn-inline" style="color:'+(mgn>=0?'#137333':'#c5221f')+'">'+(mgn>=0?'+':'')+wonInt(mgn)+' <small>('+mgnRate+'%)</small></span>'
+    ? ' <span class="oc-mgn-inline'+(mgn>=0?'':' neg')+'">'+(mgn>=0?'+':'')+wonInt(mgn)+' <small>('+mgnRate+'%)</small></span>'
     : '';
   // 휴대폰별칭/닉네임 한 줄
   const phoneNickParts = [];
@@ -2138,11 +2177,12 @@ function renderList(){
     }
     return `<div class="order-group-section"><div class="order-group-header" style="border-left:4px solid ${color};padding-left:10px">${hdrInner}</div><div class="order-group-cards">${cards}</div></div>`;
   };
+  // 색 띠 — 카드 좌측 띠(접수=danger·발주대기=pri·발주완료=info·발송완료=ok)와 의미 통일
   const groupedHtml =
-      sec('🚨 즉시 확인 필요', '#c5221f', buckets.action, false)
-    + sec('📥 등록 대기 (자동봇이 처리 중)', '#d97706', buckets.pending, false)
-    + sec('🚚 진행 중 · 입금 대기', '#1e40af', buckets.progress, false)
-    + sec('✅ 완료', '#0f6e34', buckets.done, true);
+      sec('🚨 즉시 확인 필요', 'var(--danger)', buckets.action, false)
+    + sec('📥 등록 대기 (자동봇이 처리 중)', 'var(--pri)', buckets.pending, false)
+    + sec('🚚 진행 중 · 입금 대기', 'var(--info)', buckets.progress, false)
+    + sec('✅ 완료', 'var(--ok-strong)', buckets.done, true);
   $('#list').innerHTML = items.length ? groupedHtml : emptyMsg;
   $('#cnt').textContent = ownerBase.length
     ? '('+items.length+(items.length===ownerBase.length?'':'/'+ownerBase.length)+'건)'
@@ -2817,7 +2857,8 @@ function exportLedgerCsv(){
   const rows = sorted.map(o => {
     const u = INPUT_USERS.find(x => x.id === o.created_by);
     const q = +o.qty||1;
-    const rev = (+o.rep_price||0) * q;
+    // 매출 규칙 통일 — 화면 장부(computeLedger)와 동일하게: 관리자 본인 주문은 amount 직접
+    const rev = (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
     const cst = (+o.cost_price||0) * q;
     return [
       o.date||'', o.paid_by||'', o.name||'', o.phone||'', o.nick||'', o.tel||'',
@@ -3083,7 +3124,8 @@ function renderTodaySummary(){
     const q = +o.qty || 1;
     totalAmount += (+o.amount||0);
     totalCost   += (+o.cost_price||0) * q;
-    totalRev    += (+o.rep_price||0) * q;
+    // 매출 규칙 통일 — 관리자 본인 주문은 amount 직접(할인 반영), 그 외는 rep_price×수량
+    totalRev    += (ADMIN_IDS.has(o.created_by) && o.amount) ? +o.amount : ((+o.rep_price||0) * q);
   });
   const margin = totalRev - totalCost;
   const rate = totalRev > 0 ? Math.round(margin/totalRev*1000)/10 : 0;
@@ -4222,9 +4264,15 @@ $('#list').addEventListener('click', e=>{
   else if(act==='trackgo'){
     // 택배사 칩 — 공식조회 새 탭 + 번호 자동복사(안전망: 자동입력 안 되면 붙여넣기)
     const url=b.dataset.url, num=b.dataset.num||'';
-    if(num && navigator.clipboard) navigator.clipboard.writeText(num).catch(()=>{});
-    toast('🔍 새 탭에서 조회 — 안 뜨면 번호 붙여넣기('+num+')', 'success', 4000);
-    window.open(url, '_blank', 'noopener');
+    // 번호 클립보드 복사 — 실패(비HTTPS·구형 브라우저)해도 무시(아래 toast에 번호 노출됨)
+    if(num) (navigator.clipboard?.writeText(num) || Promise.reject()).catch(()=>{});
+    const w = window.open(url, '_blank', 'noopener');
+    if(!w){
+      // 팝업 차단 — 사용자가 번호를 잃지 않게 명시
+      toast('⚠️ 팝업이 차단됐어요. 운송장번호: '+num+' (복사됨 — 택배사앱에 붙여넣기)', 'warn', 7000);
+    } else {
+      toast('🔍 새 탭에서 조회 — 안 뜨면 번호 붙여넣기 ('+num+')', 'success', 4000);
+    }
   }
 });
 
@@ -4271,7 +4319,8 @@ $('#settleList').addEventListener('click', e=>{
 
 // 장부 필터 (입력자, 구매자명)
 $('#lfUser').addEventListener('change', e=>{ ledgerUserFilter=e.target.value; ledgerListLimit=20; renderLedger(); });
-$('#lfBuyer').addEventListener('input', e=>{ ledgerBuyerFilter=e.target.value.trim(); ledgerListLimit=20; renderLedger(); });
+const debouncedRenderLedger = debounce(()=>renderLedger(), 200);
+$('#lfBuyer').addEventListener('input', e=>{ ledgerBuyerFilter=e.target.value.trim(); ledgerListLimit=20; debouncedRenderLedger(); });
 // 장부 칩 필터 (상품/색상/거래)
 function bindLedgerChipRow(containerId, setter){
   const el = $('#'+containerId);
@@ -4300,7 +4349,9 @@ $('#ownerChips') && $('#ownerChips').addEventListener('click', e=>{
   const b=e.target.closest('button[data-owner]'); if(!b) return;
   curOwner=b.dataset.owner; renderList();
 });
-$('#search').addEventListener('input', e=>{ curSearch=e.target.value.trim(); renderList(); });
+// 검색 — 디바운스(200ms)로 키입력마다 전체 재렌더하던 렉 해소(특히 한글 IME·다건)
+const debouncedRenderList = debounce(()=>renderList(), 200);
+$('#search').addEventListener('input', e=>{ curSearch=e.target.value.trim(); debouncedRenderList(); });
 
 // 수동 발주 + 일괄 발주완료 + CSV + 발주서수동복사
 $('#btnRunBot') && $('#btnRunBot').addEventListener('click', e => manualRunBot('register', e.currentTarget));
