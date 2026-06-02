@@ -13,30 +13,19 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// 백업할 봇 시간표 (KST) — GitHub Actions와 동일 시각
-// 운영: 08:00/11:50 발주 → 12:08/33/48 결제확인 → 12:10/35/50 알림 → 14·16시 송장
-//
-// ⚠️ 순서 = 우선순위. cron-job.org 무료 API는 분당 5건 제한이라 한 번에 5~6개만 생성됨.
-//    가장 중요한 것(마감 알림 push + 11:50 발주)을 앞에 둬서 제한에 걸리기 전에 먼저 만든다.
-//    나머지는 [🔁 다시 시도]로 "빠진 것만" 누적 생성됨(아래 skip-existing).
+// 🎯 핵심 백업만 (KST) — cron-job.org 무료 API는 분당 5건 제한이라, 한 번에 다 생성되도록
+//    13:00 마감 전 "반드시" 떠야 하는 것만 추림: 마감 알림 push 3개 + 11:50 발주 2개.
+//    (이미 있는 잡은 건너뛰므로 — 아래 skip-existing — 보통 push 3개만 새로 생성됨)
 const JOBS = [
-  // 🥇 결제·입금 알림 (가장 중요 — GitHub 지연되면 13시 마감 알림을 놓침)
+  // ⏰ 마감 알림 (사용자 핵심 — GitHub 지연되면 13시 마감 알림을 놓침)
   { title: '⏰ 결제 알림 12:10 (백업)', hour: 12, minute: 10, body: { bot: 'push' } },
   { title: '⏰ 결제 알림 12:35 (백업)', hour: 12, minute: 35, body: { bot: 'push' } },
   { title: '⏰ 마감 임박 12:50 (백업)', hour: 12, minute: 50, body: { bot: 'push' } },
-  // 🥈 11:50 오전 최종 발주 (지연되면 주문이 마감 못 맞춤 — 핵심)
+  // 🤖 11:50 오전 최종 발주 (지연되면 주문이 13시 마감 못 맞춤 — 핵심)
   { title: '🤖 선반랙 발주 11:50 (백업·핵심)', hour: 11, minute: 50, body: { bot: 'register' } },
-  { title: '🛒 카트 발주 11:50 (백업·핵심)',  hour: 11, minute: 50, body: { bot: 'cart' } },
-  // 🥉 결제 확인 (선반랙 OMS 결제상태) — 마감직전 우선
-  { title: '💳 결제확인 12:48 (백업·마감직전)', hour: 12, minute: 48, body: { bot: 'tracking' } },
-  { title: '💳 결제확인 12:33 (백업)', hour: 12, minute: 33, body: { bot: 'tracking' } },
-  { title: '💳 결제확인 12:08 (백업)', hour: 12, minute: 8,  body: { bot: 'tracking' } },
-  // 발주 08:00 (오전 1차 — 덜 급함)
-  { title: '🤖 선반랙 발주 08:00 (백업)', hour: 8, minute: 1, body: { bot: 'register' } },
-  { title: '🛒 카트 발주 08:00 (백업)',  hour: 8, minute: 1, body: { bot: 'cart' } },
-  // 송장 — 선반랙 14:00 / 카트 16:00 → 결제완료 자동 확정
-  { title: '🚚 송장 14:00 선반랙 (백업)', hour: 14, minute: 0, body: { bot: 'tracking' } },
-  { title: '🚚 송장 16:00 카트 (백업)',  hour: 16, minute: 0, body: { bot: 'cartTracking' } }
+  { title: '🛒 카트 발주 11:50 (백업·핵심)',  hour: 11, minute: 50, body: { bot: 'cart' } }
+  // (결제확인·송장·08:00 발주 등 부차적인 백업은 제외 — 무료 API 분당 5건 제한 안에 들도록
+  //  핵심만 남김. GitHub 예약 + 수동 버튼으로 충분. 이미 만들어둔 잡이 있으면 그대로 둬도 작동함)
 ];
 
 export default async function handler(req, res) {

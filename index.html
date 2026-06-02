@@ -859,7 +859,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
       <input id="cronOrgApiKey" type="text" placeholder="cron-job.org API 키 (긴 문자열 — 이 기기에 저장됨)" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
              style="width:100%;margin-top:6px;padding:10px;font-size:12.5px;font-family:monospace;border:1px solid #c8e6c9;border-radius:6px;background:#fff">
       <div style="display:flex;gap:6px;margin-top:8px">
-        <button id="btnSetupCronJobs" class="btn-pri" style="flex:1;padding:11px;font-size:13.5px">🤖 12개 백업 cronjob 자동 생성</button>
+        <button id="btnSetupCronJobs" class="btn-pri" style="flex:1;padding:11px;font-size:13.5px">🤖 백업 자동 생성 (핵심 5개)</button>
         <button id="btnClearCronApiKey" class="btn-sec btn-sm" title="저장된 API 키 삭제" style="font-size:11px">🗑</button>
       </div>
       <div id="setupCronJobsResult" style="margin-top:8px;font-size:12px"></div>
@@ -4177,7 +4177,7 @@ async function runSetupCronJobs(allowAutoRetry){
   //    (예전엔 매번 지우고 다시 만들어 우선순위 낮은 push 잡이 계속 실패하던 원인)
   const cleanedUp = 0;
   const btn = $('#btnSetupCronJobs');
-  const orig = '🤖 백업 cronjob 자동 생성';
+  const orig = '🤖 백업 자동 생성 (핵심 5개)';
   btn.disabled = true; btn.textContent = '⏳ 생성 중 (20~30초)...';
   out.innerHTML = `<span style="color:var(--mut)">백업 cronjob 생성 중 (이미 있는 건 건너뜀 · rate limit 회피해 천천히)... 페이지 닫지 마세요.</span>`;
   try {
