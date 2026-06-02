@@ -95,15 +95,20 @@ async function main(){
       sent++;
       console.log(`  ✅ 전송: ${s.endpoint.slice(0, 60)}...`);
     } catch(e){
-      console.error(`  ❌ 실패 (${e.statusCode || '?'}): ${e.body || e.message}`);
-      // 만료된 구독 정리
-      if (e.statusCode === 410 || e.statusCode === 404){
+      const reason = String(e.body || e.message || '');
+      console.error(`  ❌ 실패 (${e.statusCode || '?'}): ${reason}`);
+      // 죽은 구독 정리:
+      //  · 410/404 — 구독 만료·해지됨
+      //  · 400 VapidPkHashMismatch — 옛 VAPID 키로 등록된 구독. 현재 키로는 영영 실패하므로
+      //    지워야 기기가 다음 접속 때 현재 키로 재구독(자동복구)됨. (성공한 구독은 건드리지 않음)
+      const vapidMismatch = e.statusCode === 400 && /vapidpkhashmismatch|mismatch/i.test(reason);
+      if (e.statusCode === 410 || e.statusCode === 404 || vapidMismatch){
         await sb.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
         dead++;
       }
     }
   }
-  console.log(`\n📊 결과: 전송 ${sent}/${subs.length}건 · 만료 정리 ${dead}건`);
+  console.log(`\n📊 결과: 전송 ${sent}/${subs.length}건 · 죽은 구독 정리 ${dead}건(만료·키불일치)`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

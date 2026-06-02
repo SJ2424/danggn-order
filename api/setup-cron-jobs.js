@@ -15,21 +15,26 @@ import { createClient } from '@supabase/supabase-js';
 
 // 백업할 봇 시간표 (KST) — GitHub Actions와 동일 시각
 // 운영: 08:00/11:50 발주 → 12:08/33/48 결제확인 → 12:10/35/50 알림 → 14·16시 송장
+//
+// ⚠️ 순서 = 우선순위. cron-job.org 무료 API는 분당 5건 제한이라 한 번에 5~6개만 생성됨.
+//    가장 중요한 것(마감 알림 push + 11:50 발주)을 앞에 둬서 제한에 걸리기 전에 먼저 만든다.
+//    나머지는 [🔁 다시 시도]로 "빠진 것만" 누적 생성됨(아래 skip-existing).
 const JOBS = [
-  // 발주 — 08:00(실제 08:01) + 11:50 오전 최종 (선반랙 + 카트)
-  { title: '🤖 선반랙 발주 08:00 (백업)', hour: 8, minute: 1, body: { bot: 'register' } },
-  { title: '🛒 카트 발주 08:00 (백업)',  hour: 8, minute: 1, body: { bot: 'cart' } },
-  { title: '🤖 선반랙 발주 11:50 (백업·핵심)', hour: 11, minute: 50, body: { bot: 'register' } },
-  { title: '🛒 카트 발주 11:50 (백업·핵심)',  hour: 11, minute: 50, body: { bot: 'cart' } },
-  // 결제 확인 (선반랙 OMS 결제상태 읽기) 12:08 / 12:33 / 12:48 — 13시 마감 전 자동 확인
-  { title: '💳 결제확인 12:08 (백업)', hour: 12, minute: 8,  body: { bot: 'tracking' } },
-  { title: '💳 결제확인 12:33 (백업)', hour: 12, minute: 33, body: { bot: 'tracking' } },
-  { title: '💳 결제확인 12:48 (백업·마감직전)', hour: 12, minute: 48, body: { bot: 'tracking' } },
-  // 결제·입금 알림 12:10 / 12:35 / 12:50 (안 된 게 있으면 계속 상기)
+  // 🥇 결제·입금 알림 (가장 중요 — GitHub 지연되면 13시 마감 알림을 놓침)
   { title: '⏰ 결제 알림 12:10 (백업)', hour: 12, minute: 10, body: { bot: 'push' } },
   { title: '⏰ 결제 알림 12:35 (백업)', hour: 12, minute: 35, body: { bot: 'push' } },
   { title: '⏰ 마감 임박 12:50 (백업)', hour: 12, minute: 50, body: { bot: 'push' } },
-  // 송장 — 선반랙 14:00 (송장 14시+) / 카트 16:00 (송장 15시+) → 둘 다 결제완료 자동 확정
+  // 🥈 11:50 오전 최종 발주 (지연되면 주문이 마감 못 맞춤 — 핵심)
+  { title: '🤖 선반랙 발주 11:50 (백업·핵심)', hour: 11, minute: 50, body: { bot: 'register' } },
+  { title: '🛒 카트 발주 11:50 (백업·핵심)',  hour: 11, minute: 50, body: { bot: 'cart' } },
+  // 🥉 결제 확인 (선반랙 OMS 결제상태) — 마감직전 우선
+  { title: '💳 결제확인 12:48 (백업·마감직전)', hour: 12, minute: 48, body: { bot: 'tracking' } },
+  { title: '💳 결제확인 12:33 (백업)', hour: 12, minute: 33, body: { bot: 'tracking' } },
+  { title: '💳 결제확인 12:08 (백업)', hour: 12, minute: 8,  body: { bot: 'tracking' } },
+  // 발주 08:00 (오전 1차 — 덜 급함)
+  { title: '🤖 선반랙 발주 08:00 (백업)', hour: 8, minute: 1, body: { bot: 'register' } },
+  { title: '🛒 카트 발주 08:00 (백업)',  hour: 8, minute: 1, body: { bot: 'cart' } },
+  // 송장 — 선반랙 14:00 / 카트 16:00 → 결제완료 자동 확정
   { title: '🚚 송장 14:00 선반랙 (백업)', hour: 14, minute: 0, body: { bot: 'tracking' } },
   { title: '🚚 송장 16:00 카트 (백업)',  hour: 16, minute: 0, body: { bot: 'cartTracking' } }
 ];
@@ -158,8 +163,26 @@ export default async function handler(req, res) {
     });
   };
 
+  // 이미 만들어진 백업 job은 건너뜀 — rate limit(분당 5건)으로 일부만 됐어도
+  // 다음 클릭에 "빠진 것만" 채워 누적 완성. (예전엔 매번 지우고 다시 만들어서
+  // 우선순위 낮은 push 잡이 계속 제한에 걸려 실패하던 원인)
+  let existingTitles = new Set();
+  try {
+    const listRes = await cronFetch('https://api.cron-job.org/jobs', {
+      headers: { 'Authorization': 'Bearer ' + apiKey }
+    });
+    if (listRes.ok) {
+      const lj = await listRes.json().catch(() => ({}));
+      existingTitles = new Set((lj.jobs || []).map(x => x.title));
+    }
+  } catch {}
+
   const results = [];
   for (const j of JOBS) {
+    if (existingTitles.has(j.title)) {      // 이미 있음 → 건너뜀 (생성 호출 안 함)
+      results.push({ title: j.title, ok: true, skipped: true });
+      continue;
+    }
     let attempt = 0, lastErr = null;
     while (attempt < 3) {  // 최대 3회 시도 (1차 + retry 2회)
       attempt++;
@@ -193,19 +216,23 @@ export default async function handler(req, res) {
     await sleep(1100);  // 다음 job 전 1.1초 대기 (12개 × 1.1 ≈ 13초 — Vercel 60초 안)
   }
 
-  const okCount = results.filter(r => r.ok).length;
+  const created  = results.filter(r => r.ok && !r.skipped).length;
+  const skipped  = results.filter(r => r.skipped).length;
+  const okCount  = results.filter(r => r.ok).length;
   const failCount = results.length - okCount;
 
   return res.status(failCount === 0 ? 200 : 207).json({
     ok: failCount === 0,
     total: results.length,
     succeeded: okCount,
+    created,
+    skipped,
     failed: failCount,
     cleanedUp: existingDeleted,
     results,
     cronBotUrl,
     message: failCount === 0
-      ? `✅ ${okCount}개 백업 cronjob 생성 완료${existingDeleted ? ` (기존 ${existingDeleted}개 정리)` : ''} — 이제 GitHub 지연돼도 정시에 발주됩니다`
-      : `⚠️ ${okCount}개 성공 / ${failCount}개 실패 — 결과 상세 확인`
+      ? `✅ 백업 cronjob 준비 완료 (새로 ${created}개${skipped ? ` + 기존 ${skipped}개` : ''}) — 이제 GitHub 지연돼도 정시에 발주/알림`
+      : `⚠️ 새로 ${created}개${skipped ? ` (기존 ${skipped}개)` : ''} · ${failCount}개 남음 — 1~2분 뒤 [🔁 다시 시도] 누르면 나머지만 채워집니다`
   });
 }

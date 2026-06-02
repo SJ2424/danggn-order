@@ -4172,38 +4172,14 @@ async function runSetupCronJobs(allowAutoRetry){
   // 입력한 API 키는 이 기기에 저장 (다음에 안 입력해도 됨)
   save('cron_org_api_key', apiKey);
 
-  // 1단계: cleanup (Vercel timeout 회피 — 별도 호출)
-  const btn0 = $('#btnSetupCronJobs');
-  btn0.disabled = true; btn0.textContent = '⏳ 1/2 기존 정리 중...';
-  out.innerHTML = '<span style="color:var(--mut)">기존 백업 job 정리 중 (5~10초)...</span>';
-  let cleanedUp = 0;
-  try {
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인 필요</span>'; btn0.disabled=false; btn0.textContent='🤖 12개 백업 cronjob 자동 생성'; return; }
-    const cleanupRes = await fetch('/api/setup-cron-jobs', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey, mode: 'cleanup' })
-    });
-    const cleanupJ = await cleanupRes.json().catch(() => ({}));
-    if (!cleanupRes.ok) {
-      out.innerHTML = `<div style="padding:10px;background:#fef2f2;border:1px solid #c5221f;border-radius:6px;color:#7f1d1d">cleanup 실패: ${escc(cleanupJ.error||'')}</div>`;
-      btn0.disabled = false; btn0.textContent = '🔁 다시 시도';
-      return;
-    }
-    cleanedUp = cleanupJ.cleanedUp || 0;
-  } catch(e) {
-    out.innerHTML = `<span style="color:#c5221f">cleanup 실패: ${escc(e.message)}</span>`;
-    btn0.disabled = false; btn0.textContent = '🔁 다시 시도';
-    return;
-  }
-  // 잠시 대기 후 create (rate limit 마진)
-  await new Promise(r => setTimeout(r, 1500));
-  // 2단계: create
+  // ⚡ 정리(cleanup) 단계 제거 — create가 "이미 있는 건 건너뛰고 빠진 것만" 생성하므로
+  //    rate limit(분당 5건)으로 일부만 만들어져도 [🔁 다시 시도]로 누적 완성됨.
+  //    (예전엔 매번 지우고 다시 만들어 우선순위 낮은 push 잡이 계속 실패하던 원인)
+  const cleanedUp = 0;
   const btn = $('#btnSetupCronJobs');
-  const orig = '🤖 12개 백업 cronjob 자동 생성';
-  btn.disabled = true; btn.textContent = '⏳ 2/2 12개 생성 중 (20~30초)...';
-  out.innerHTML = `<span style="color:var(--mut)">${cleanedUp ? `기존 ${cleanedUp}개 정리됨. ` : ''}이제 12개 새로 생성 중 (rate limit 회피해서 천천히)... 페이지 닫지 마세요.</span>`;
+  const orig = '🤖 백업 cronjob 자동 생성';
+  btn.disabled = true; btn.textContent = '⏳ 생성 중 (20~30초)...';
+  out.innerHTML = `<span style="color:var(--mut)">백업 cronjob 생성 중 (이미 있는 건 건너뜀 · rate limit 회피해 천천히)... 페이지 닫지 마세요.</span>`;
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { out.innerHTML = '<span style="color:#c5221f">로그인이 풀렸어요 — 새로고침 후 다시 로그인</span>'; btn.disabled=false; btn.textContent=orig; return; }
@@ -4238,14 +4214,15 @@ async function runSetupCronJobs(allowAutoRetry){
       const failedList = (j.results||[]).filter(r => !r.ok).map(r => `<li>${escc(r.title)}: ${escc(r.error || ('HTTP '+r.status))}</li>`).join('');
       // 1개만 실패하고 allowAutoRetry면 자동으로 8초 대기 후 1회 다시 호출 (멱등성 안전)
       const failed = j.failed || 0;
-      if (allowAutoRetry && failed > 0 && failed <= 3) {
+      // 비파괴(누적) 방식 — 자동 1회 더 시도. 단 rate limit(분당 5건) 풀리도록 ~70초 대기.
+      if (allowAutoRetry && failed > 0 && failed <= 8) {
         out.innerHTML = `
           <div style="padding:10px;background:#fffbeb;border:1px solid #d97706;border-radius:6px;color:#7c2d12">
-            <b>⚠️ ${j.succeeded||0}개 성공 / ${failed}개 실패</b><br>
-            8초 후 자동으로 1회 더 시도합니다 (멱등성 보장)... 페이지 닫지 마세요.
+            <b>✅ 새로 ${j.created||0}개 생성 · ${failed}개 남음</b><br>
+            약 70초 후 <b>자동으로 나머지만</b> 채웁니다 (지운 거 아님)... 이 페이지 열어두세요.
           </div>
         `;
-        setTimeout(() => runSetupCronJobs(false), 8000);
+        setTimeout(() => runSetupCronJobs(false), 70000);
         return;
       }
       out.innerHTML = `
