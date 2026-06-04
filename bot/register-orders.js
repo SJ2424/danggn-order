@@ -432,26 +432,13 @@ async function main() {
 
 // 등록 직후 관리자 푸시 — 발주완료 → 결제 필요 알리기
 async function notifyAdmins(okCount, failCount) {
-  const isManual = process.env.MANUAL_RUN === 'true';
-  const hasFailure = failCount > 0;
-  // ⏰ KST 시간 가드 — 자동 cron + 성공만 (수동 / 실패는 항상 푸시)
-  // 이유:
-  //   - 자동 cron + 성공 = 점심 시간(12~14)에만 알림 의미 있음 (지연 발화 새벽·한밤 차단)
-  //   - 수동 실행 = 관리자가 결과 보고 싶어서 누른 거 → 우회
-  //   - 실패 = 언제 발생하든 즉시 알아야 함 (08:02 봇 실패도 가시화) → 우회
-  if (!isManual && !hasFailure) {
-    const kstHour = parseInt(new Date().toLocaleString('en-US', {
-      timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
-    }));
-    if (kstHour < 12 || kstHour > 14) {
-      console.log(`  ⏭️  현재 KST ${kstHour}시 — 푸시 시간대(12~14) 아님. 등록은 OK, 푸시만 skip.`);
-      return;
-    }
-  } else if (isManual) {
-    console.log('  📣 수동 실행 — 시간 가드 우회, 푸시 전송');
-  } else if (hasFailure) {
-    console.log(`  ⚠️ 실패 ${failCount}건 — 시간 가드 우회, 즉시 알림 전송`);
+  // 사용자 요청: 발주 "성공"은 알림 안 함(조용). 발주 "실패"만 즉시 알림 — 놓치면 안 되니까.
+  //   (결제 체크 리마인더는 평일 12:10 send-push 하나로 통일. 08:01·11:50 성공 알림 제거.)
+  if (failCount === 0) {
+    console.log(`  ✅ ${okCount}건 발주 완료 — 성공 푸시 생략 (실패 시에만 알림)`);
+    return;
   }
+  console.log(`  ⚠️ 발주 실패 ${failCount}건 — 즉시 알림 전송`);
 
   const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY;
   const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
@@ -470,13 +457,11 @@ async function notifyAdmins(okCount, failCount) {
   if (!subs || subs.length === 0) return;
 
   // 잠금화면 가독성 — 짧고 명확하게
-  const title = (okCount === 0 && failCount > 0)
-    ? `⚠️ 발주 실패 ${failCount}건`
-    : `✅ ${okCount}건 발주 완료`;
-  const body  = (okCount === 0 && failCount > 0)
-    ? `앱에서 빨간 메시지 확인 후 수정 필요`
-    : `💳 13:00 마감 전 결제·송금 필요`
-      + (failCount > 0 ? `\n⚠️ ${failCount}건 실패 — 앱 확인` : '');
+  // 여기 도달 = 실패 있음 (성공만이면 위에서 이미 return). 실패 경고만 발송.
+  const title = `⚠️ 발주 실패 ${failCount}건`;
+  const body  = okCount > 0
+    ? `${okCount}건 성공 · ${failCount}건 실패 — 앱에서 실패건 확인·수정`
+    : `앱에서 빨간 메시지 확인 후 수정 필요`;
 
   const payload = JSON.stringify({
     title,
