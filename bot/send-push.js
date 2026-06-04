@@ -20,22 +20,20 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 async function main(){
   console.log('🔔 푸시 알림 봇 시작');
 
-  const isManual = process.env.MANUAL_RUN === 'true';
-  // ⏰ KST 시간 가드 — 자동 cron만 (수동 실행은 항상 푸시)
-  // GitHub Actions cron 지연 발화 보정용. 수동은 관리자가 의도한 거니 우회.
-  if (!isManual){
-    const kstHourStr = new Date().toLocaleString('en-US', {
-      timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit'
-    });
-    const kstHour = parseInt(kstHourStr);
-    // 12:50 cron이 1~10분 지연 발화하면 13:xx가 됨 — 14시까지 허용 (그 이상이면 의미 없음)
-    if (kstHour < 11 || kstHour > 14){
-      console.log(`⏭️  현재 KST ${kstHour}시 — 마감 알림 시간대(11~14) 아님. 푸시 skip (지연 발화 보정).`);
-      return;
-    }
-  } else {
-    console.log('📣 수동 실행 — 시간 가드 우회');
+  // ⏰ '결제 체크' 알림은 평일 12:10 1회만.
+  //   cron-job.org이 12:10에 트리거하지만, 다른 시각(예전 12:35/12:50 잡 잔존 등)에
+  //   트리거돼도 이 가드로 skip → "하루 한 번"만 발송. (수동/자동 모두 동일 적용)
+  //   허용 창: 12:00~12:29 KST (12:10 발화 + 지연 여유 포함, 12:35/12:50은 제외)
+  const hhmm = new Date().toLocaleString('en-US', {
+    timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit', minute: '2-digit'
+  });                                    // 예: "12:10"
+  const [kh, km] = hhmm.split(':').map(n => parseInt(n, 10));
+  const kMin = kh * 60 + km;
+  if (kMin < 12*60 || kMin > 12*60 + 29){
+    console.log(`⏭️  현재 KST ${hhmm} — 결제 체크 알림 시간(12:00~12:29) 아님. 발송 skip.`);
+    return;
   }
+  console.log(`📣 결제 체크 알림 시간대 (KST ${hhmm}) — 발송 진행`);
 
   // 상태별 분리 카운트 (현 상태 사이클: 접수 → 발주완료 → 발송완료)
   // select('*') — oms_paid 컬럼이 아직 없어도(SQL 미실행) 에러 안 남
