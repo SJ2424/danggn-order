@@ -1,13 +1,9 @@
 name: Send deadline push
 
 on:
+  # 자동 스케줄 제거 — cron-job.org이 평일 12:10에 "한 번만" 트리거 (workflow_dispatch).
+  # (GitHub 예약은 지연·중복 발화 원인 → 제거. 알림은 '결제 체크' 하루 1번만.)
   workflow_dispatch:
-  schedule:
-    # 평일 3회 — 13:00 마감 대비 (결제·입금 안 된 게 있으면 계속 상기)
-    # send-push.js가 행동 필요한 게 0건이면 자동 skip → 다 됐으면 알람 안 옴
-    - cron: '10 3 * * 1-5'   # 12:10 KST — 발주 완료 → 결제 시작
-    - cron: '35 3 * * 1-5'   # 12:35 KST — 중간 점검
-    - cron: '50 3 * * 1-5'   # 12:50 KST — 마감 10분 전 마지막 콜
 
 jobs:
   push:
