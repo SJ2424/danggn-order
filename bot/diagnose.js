@@ -100,6 +100,45 @@ async function main() {
   else log(`- ✅ 점검한 컬럼 모두 존재`);
   if (!hasOmsPaid) log(`- ❌ oms_paid 없음 → 결제완료 체크 작동 안 함. SQL 실행 필요: \`alter table public.orders add column if not exists oms_paid boolean not null default false;\``);
 
+  // 6) 발주 집계 — 세금계산서(공급사 청구) 대조용
+  //    cost_price = 원가(공급사에 낼 단가) → Σ(원가×수량) ≈ 세금계산서 '공급가'(부가세 전)와 비교.
+  //    직거래 제외 + 발주완료/발송완료(= 실제 OMS 발주된 것)만 집계.
+  log(`\n## 6. 발주 집계 — 세금계산서 대조용`);
+  try {
+    const ao = await loadAll('orders', ['product','color','qty','cost_price','type','status','created_at'].join(','));
+    const placed = ao.filter(o => o.type !== '직거래' && (o.status === '발주완료' || o.status === '발송완료'));
+    const num = v => (v || 0).toLocaleString('ko-KR');
+    const agg = {};
+    for (const o of placed){
+      const key = `${o.product || '(품목없음)'}${o.color ? ' ' + o.color : ''}`;
+      const q = Math.max(1, parseInt(o.qty) || 1);
+      const cp = +o.cost_price || 0;
+      (agg[key] ||= { cnt:0, qty:0, costXqty:0 });
+      agg[key].cnt++; agg[key].qty += q; agg[key].costXqty += cp * q;
+    }
+    log(`(직거래 제외 · 발주완료/발송완료 기준 · 원가=cost_price)`);
+    log(`| 품목 | 주문수 | 수량합 | 원가×수량 합(=공급가 대조) |`);
+    log(`|---|---:|---:|---:|`);
+    for (const [k,v] of Object.entries(agg).sort((a,b)=>b[1].qty - a[1].qty)){
+      log(`| ${k} | ${v.cnt} | **${v.qty}** | **${num(v.costXqty)}원** |`);
+    }
+    // 선반류만 최근 21일 일자별 (세금계산서 기간과 매칭)
+    const recent = placed.filter(o => /선반/.test(o.product || '') && o.created_at && (Date.now() - new Date(o.created_at).getTime()) < 21*24*3600*1000);
+    if (recent.length){
+      const byDay = {};
+      for (const o of recent){
+        const d = new Date(new Date(o.created_at).getTime() + 9*3600*1000).toISOString().slice(0,10);
+        const q = Math.max(1, parseInt(o.qty) || 1);
+        (byDay[d] ||= { cnt:0, qty:0, cost:0 });
+        byDay[d].cnt++; byDay[d].qty += q; byDay[d].cost += (+o.cost_price || 0) * q;
+      }
+      log(`\n**선반류 최근 21일 (일자별 — 세금계산서 기간 매칭용):**`);
+      log(`| 날짜(KST) | 주문수 | 수량 | 원가×수량 |`);
+      log(`|---|---:|---:|---:|`);
+      for (const [d,v] of Object.entries(byDay).sort()) log(`| ${d} | ${v.cnt} | ${v.qty} | ${num(v.cost)}원 |`);
+    }
+  } catch(e){ log(`- 발주 집계 에러: ${e.message}`); }
+
   // 저장
   fs.mkdirSync('diagnostics', { recursive: true });
   const report = lines.join('\n') + '\n';
