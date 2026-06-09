@@ -242,7 +242,9 @@ async function registerOrder(page, order, idx){
       break;
     } catch {}
   }
-  if (!shipFilled) console.log(`  ⚠️ 배송정보 입력 실패`);
+  // 🛡️ [거짓 성공 방지] 배송정보(주소)를 못 넣으면 = 주소 없이 등록될 위험 → 즉시 실패 처리.
+  //   (예전엔 경고만 하고 그대로 제출 → 거짓 성공 가능. register-orders 주소버그와 같은 부류)
+  if (!shipFilled) throw new Error('🚨 배송정보(주소) 입력 실패 — 주소 없이 등록 방지. 앱에서 주소 확인 후 다시 발주하세요.');
 
   await page.screenshot({ path:`screenshots/${tag}-2-filled.png`, fullPage:true });
 
