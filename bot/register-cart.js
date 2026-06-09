@@ -293,17 +293,21 @@ async function registerOrder(page, order, idx){
   // ⑨ 제출 확인 — 충분히 대기 + 결과 검증
   await page.waitForTimeout(4500);
   await page.screenshot({ path:`screenshots/${tag}-3-after-submit.png`, fullPage:true });
+  const afterUrl = page.url();
+  const urlChanged = afterUrl !== beforeUrl;            // 제출 성공 시 화면 전환되면 = 양성 신호(안전)
   const afterText = await frame.locator('body').innerText().catch(()=>'');
   const success = /등록되었습니다|등록 완료|성공|접수되었|주문이 완료/.test(afterText);
   const errorMatch = /등록 실패|등록 오류|등록되지 않|에러가 발생|오류가 발생/i.test(afterText);
-  if (success){
-    console.log('✅ 등록 완료 (성공 메시지 확인됨)');
+  console.log(`  📋 제출후: urlChanged=${urlChanged} · 성공메시지=${success} · 에러=${errorMatch}`);
+  if (success || urlChanged){
+    console.log(`✅ 등록 완료 (${success ? '성공 메시지' : 'URL 전환'} 확인)`);
   } else if (errorMatch){
     const snippet = afterText.match(/.{0,40}(등록 실패|등록 오류|등록되지 않|에러가 발생|오류가 발생).{0,40}/)?.[0] || '등록 거부';
     throw new Error(`카트사이트 등록 거부: ${snippet.replace(/\s+/g,' ').trim()}`);
   } else {
-    // 명시적 에러도 없으면 통과 — 카트사이트는 성공 메시지 형식이 들쭉날쭉
-    console.log('✅ 등록 완료 (성공 신호 미확인이나 에러 신호도 없음)');
+    // 성공·전환·에러 신호 전부 없음 — 카트사이트 메시지가 들쭉날쭉이라 통과 유지(정상 주문 거짓실패 방지).
+    // 진단 로그로 추적 가능 → 추후 실측 보고 양성검증 강화.
+    console.log('✅ 등록 완료 (성공·전환 신호 미확인 — 에러도 없음 → 통과)');
   }
 }
 
