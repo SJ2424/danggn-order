@@ -366,6 +366,15 @@ async function registerOrder(page, order, idx) {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `screenshots/${tag}-4-after-submit.png`, fullPage: true });
 
+  // 📋 진단 로그(거짓 성공 추적·양성검증 설계용) — 이 OMS는 등록 후에도 같은 페이지에 머물러
+  //   URL/폼 변화로 성공을 확정하기 어려움. 제출 후 상태를 남겨 두면, 다음에 실제 성공/실패
+  //   사례의 로그를 보고 안전한 양성검증(예: 판매목록 확인)을 설계할 수 있음.
+  try {
+    const afterUrl  = page.url();
+    const baseStill = await page.getByPlaceholder(/기본 주소/).inputValue().catch(() => '');
+    console.log(`  📋 제출후 상태: url=...${afterUrl.slice(-45)} · 기본주소잔존="${(baseStill || '').slice(0, 24)}"`);
+  } catch {}
+
   // 🛡️ 명시적 에러 신호만 잡음 — 폼 잔존 / 일반 안내 텍스트는 정상으로 간주
   // OMS는 등록 후에도 같은 페이지에 머물 수 있고, "필수 입력" 같은 일반 안내가 항상 떠있을 수 있음
   // 진짜 에러일 때만 명시적 패턴으로 잡기 (오등록보다 누락이 더 안전)
