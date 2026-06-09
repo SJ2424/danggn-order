@@ -316,22 +316,33 @@ async function registerOrder(page, order, idx) {
     // 🛡️ 안전장치: 카카오가 채운 기본주소를 읽어서 입력값과 비교
     // 카카오가 비슷한 다른 주소(학연로 vs 학현로)로 자동매칭한 경우 캐치
     const filledBase = await page.getByPlaceholder(/기본 주소/).inputValue().catch(() => '');
-    if (filledBase) {
-      const inRB  = extractRoadAndBunji(base);
-      const outRB = extractRoadAndBunji(filledBase);
-      console.log(`  주소 검증: 입력 "${inRB?.road} ${inRB?.bunji}" vs 카카오 "${outRB?.road} ${outRB?.bunji}"`);
-      if (inRB && outRB && (inRB.road !== outRB.road || inRB.bunji !== outRB.bunji)) {
-        throw new Error(
-          `🚨 주소 불일치 — 카카오가 다른 곳으로 매칭함\n` +
-          `  입력: "${inRB.road} ${inRB.bunji}"  →  카카오: "${outRB.road} ${outRB.bunji}"\n` +
-          `  앱에서 주소를 수정(검색 버튼으로 정확한 주소 선택) 후 다시 시도하세요.`
-        );
-      }
+    // 🛡️ [거짓 성공 방지·핵심] 팝업을 거쳤는데 기본주소가 비어있으면 = 주소를 못 채운 것.
+    //   예전엔 `if (filledBase)`라 빈 주소면 검증을 통째로 건너뛰고 그대로 발주 → 거짓 성공.
+    //   이제 빈 주소는 즉시 실패 처리 (주소 없이 발주되는 사고 차단).
+    if (!filledBase || !filledBase.trim()) {
+      throw new Error('🚨 주소 미입력 — 주소검색 팝업이 기본주소를 못 채웠습니다 (이대로면 주소 없이 발주됨). 앱에서 [주소 검색]으로 정확한 주소를 선택한 뒤 다시 발주하세요.');
+    }
+    // 카카오가 비슷한 다른 주소(학연로 vs 학현로)로 자동매칭했는지 검증
+    const inRB  = extractRoadAndBunji(base);
+    const outRB = extractRoadAndBunji(filledBase);
+    console.log(`  주소 검증: 입력 "${inRB?.road} ${inRB?.bunji}" vs 카카오 "${outRB?.road} ${outRB?.bunji}"`);
+    if (inRB && outRB && (inRB.road !== outRB.road || inRB.bunji !== outRB.bunji)) {
+      throw new Error(
+        `🚨 주소 불일치 — 카카오가 다른 곳으로 매칭함\n` +
+        `  입력: "${inRB.road} ${inRB.bunji}"  →  카카오: "${outRB.road} ${outRB.bunji}"\n` +
+        `  앱에서 주소를 수정(검색 버튼으로 정확한 주소 선택) 후 다시 시도하세요.`
+      );
     }
   }
 
   // 상세 주소 (가게명 + 동/호 포함)
   await page.getByPlaceholder(/상세 주소/).fill(detailFinal);
+
+  // 🛡️ [제출 직전 최종 방어선] 기본주소가 비어있으면 절대 제출 안 함 (모든 경로 공통 — 거짓 성공 차단)
+  const finalBase = await page.getByPlaceholder(/기본 주소/).inputValue().catch(() => '');
+  if (!finalBase || !finalBase.trim()) {
+    throw new Error('🚨 제출 중단 — 기본주소가 비어있음 (주소 없이 발주되는 것 방지). 앱에서 주소 확인 후 다시 발주하세요.');
+  }
 
   await page.screenshot({ path: `screenshots/${tag}-3-filled.png` });
 

@@ -100,6 +100,39 @@ async function main() {
   else log(`- ✅ 점검한 컬럼 모두 존재`);
   if (!hasOmsPaid) log(`- ❌ oms_paid 없음 → 결제완료 체크 작동 안 함. SQL 실행 필요: \`alter table public.orders add column if not exists oms_paid boolean not null default false;\``);
 
+  // 6) 발주 집계 — 세금계산서(공급사 청구) 대조용
+  //    cost_price = 원가(공급사 단가) → Σ(원가×수량) ≈ 세금계산서 '공급가'(부가세 전).
+  //    ⚠️ 직거래(자체 조달)는 공급사 청구 대상 아님 → 구분해서 표시.
+  log(`\n## 6. 발주 집계 — 세금계산서 대조용`);
+  try {
+    const ao = await loadAll('orders', ['product','color','qty','cost_price','type','status'].join(','));
+    const placed = ao.filter(o => o.status === '발주완료' || o.status === '발송완료');
+    const num = v => (v || 0).toLocaleString('ko-KR');
+    const isDirect = o => o.type === '직거래';
+    const isShelf  = o => /선반/.test(o.product || '');
+    // 품목 · 구분(직거래/공급사)별
+    const agg = {};
+    for (const o of placed){
+      const prod = `${o.product || '(품목없음)'}${o.color ? ' ' + o.color : ''}`;
+      const key = `${prod} · ${isDirect(o) ? '직거래(자체)' : '공급사발주'}`;
+      const q = Math.max(1, parseInt(o.qty) || 1);
+      (agg[key] ||= { cnt:0, qty:0, cost:0 });
+      agg[key].cnt++; agg[key].qty += q; agg[key].cost += (+o.cost_price || 0) * q;
+    }
+    log(`(발주완료/발송완료 기준 · 원가=cost_price)`);
+    log(`| 품목 · 구분 | 주문수 | 수량합 | 원가×수량 |`);
+    log(`|---|---:|---:|---:|`);
+    for (const [k,v] of Object.entries(agg).sort()) log(`| ${k} | ${v.cnt} | ${v.qty} | ${num(v.cost)}원 |`);
+    // 🧾 선반 — 공급사발주 vs 직거래 분리 (세금계산서 대조)
+    const sum = arr => arr.reduce((a,o)=>{ const q=Math.max(1,parseInt(o.qty)||1); a.cnt++; a.qty+=q; a.cost+=(+o.cost_price||0)*q; return a; }, {cnt:0,qty:0,cost:0});
+    const sup = sum(placed.filter(o => isShelf(o) && !isDirect(o)));
+    const dir = sum(placed.filter(o => isShelf(o) &&  isDirect(o)));
+    log(`\n**🧾 선반 세금계산서 대조:**`);
+    log(`- ✅ 공급사발주 선반(청구 대상): **${sup.qty}개 · ${num(sup.cost)}원** (${sup.cnt}건)`);
+    log(`- ⛔ 직거래 선반(자체조달·청구 대상 아님): **${dir.qty}개 · ${num(dir.cost)}원** (${dir.cnt}건)`);
+    log(`- 선반 총합: ${sup.qty + dir.qty}개`);
+  } catch(e){ log(`- 발주 집계 에러: ${e.message}`); }
+
   // 저장
   fs.mkdirSync('diagnostics', { recursive: true });
   const report = lines.join('\n') + '\n';
