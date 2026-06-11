@@ -714,7 +714,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.06.02-외부크론정비·푸시키복구</b></span>
+    <span>버전: <b id="appVersion">v2026.06.03-주소검색 자동복구</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1657,16 +1657,42 @@ function fallbackDirectAddr(prefill){
   }
 }
 
+// Daum 스크립트 로드 보장 — 첫 로드 실패해도 동적 재주입으로 회복 (네트워크 일시오류·광고차단 우회 시도)
+let _daumLoadPromise = null;
+function ensureDaumLoaded(timeoutMs = 6000){
+  if (typeof daum !== 'undefined' && daum.Postcode) return Promise.resolve(true);
+  if (_daumLoadPromise) return _daumLoadPromise;
+  _daumLoadPromise = new Promise(resolve => {
+    let done = false;
+    const finish = ok => { if (!done){ done = true; resolve(ok); } };
+    // 기존 태그(있다면) 제거하고 캐시버스터로 강제 재요청
+    document.querySelectorAll('script[src*="postcode.v2.js"]').forEach(s => s.remove());
+    const s = document.createElement('script');
+    s.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js?_=' + Date.now();
+    s.async = true;
+    s.onload = () => finish(typeof daum !== 'undefined' && !!daum.Postcode);
+    s.onerror = () => finish(false);
+    document.head.appendChild(s);
+    setTimeout(() => finish(typeof daum !== 'undefined' && !!daum.Postcode), timeoutMs);
+  });
+  // 실패면 다음 클릭에서 다시 시도 가능하도록 promise 리셋
+  _daumLoadPromise.then(ok => { if (!ok) _daumLoadPromise = null; });
+  return _daumLoadPromise;
+}
+
 // 카카오 주소검색 — embed 방식 (PWA·iOS 안에서도 안정적, 팝업 차단 없음)
-function openAddrSearch(prefillQuery){
+async function openAddrSearch(prefillQuery){
   if(typeof daum === 'undefined' || !daum.Postcode){
-    // 스크립트 안 떴으면 직접 입력 fallback
-    if(confirm('주소 검색 스크립트가 안 떴어요. 직접 입력하시겠어요?\n(취소 누르면 5초 후 자동 재시도)')){
-      fallbackDirectAddr(prefillQuery);
-    } else {
-      setTimeout(()=>openAddrSearch(prefillQuery), 5000);
+    // 1차 자동복구 — 동적 재주입 시도 (네트워크 일시오류·기존 태그 실패 회복)
+    const loaded = await ensureDaumLoaded(6000);
+    if(!loaded){
+      if(confirm('주소 검색을 못 띄웠어요 (네트워크 또는 광고차단 의심).\n직접 입력하시겠어요?\n(취소 누르면 5초 후 자동 재시도)')){
+        fallbackDirectAddr(prefillQuery);
+      } else {
+        setTimeout(()=>openAddrSearch(prefillQuery), 5000);
+      }
+      return;
     }
-    return;
   }
   const original = (prefillQuery || $('#pAddrBase').value || $('#pAddr').value || '').trim();
   const modal = $('#addrModal');
