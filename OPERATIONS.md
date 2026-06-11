@@ -159,6 +159,9 @@ alter table public.orders   add column if not exists settled boolean default fal
 alter table public.orders   add column if not exists oms_paid boolean not null default false;
 -- ⭐ 중복발주 방지(멱등성) — 봇이 외부 등록 직전 처리중 표식. 없으면 "등록 성공→마킹 실패" 시 다음 크론이 재발주
 alter table public.orders   add column if not exists bot_claimed_at timestamptz;
+-- ⭐ 사람별 정산방식 — settle_basis: 'rep'(기본판매가, 기본값) | 'cost'(원가+마진). settle_margin: 원가정산 시 내 마진(원)
+alter table public.profiles add column if not exists settle_basis text not null default 'rep';
+alter table public.profiles add column if not exists settle_margin int not null default 0;
 
 -- 2) 기본 상품
 insert into public.products (name, color, default_cost, default_rep_price)
@@ -200,7 +203,7 @@ for each row execute function public.apply_receipt_to_product();
 -- 5) ⭐ 가격 자동 스냅샷 트리거 (가장 중요)
 create or replace function public.snapshot_prices()
 returns trigger language plpgsql security definer set search_path = public as $$
-declare v_cost int; v_rep int; v_role text;
+declare v_cost int; v_rep int; v_role text; v_basis text; v_margin int;
 begin
   -- cost_price: 거래 type 분기
   if NEW.cost_price is null then
@@ -215,16 +218,24 @@ begin
     end if;
     NEW.cost_price := coalesce(v_cost, 0);
   end if;
-  -- rep_price (개당): 사용자별 특별가 → 관리자면 amount/qty → 기본판매가
+  -- rep_price (개당): 특별단가(제품예외) → 관리자 amount/qty → 사람별 정산방식(원가+마진) → 기본판매가
   if NEW.rep_price is null then
+    -- 1) 사용자별 특별단가 (제품 예외 — 최우선)
     select rep_price into v_rep from public.user_prices
     where user_id = NEW.created_by and product_name = NEW.product
       and ((color is null and NEW.color is null) or color = NEW.color) limit 1;
     if v_rep is null then
-      select role into v_role from public.profiles where id = NEW.created_by;
-      -- 관리자 직접 입력: 받은 금액 ÷ 수량 = 개당 가격 (네고·할인 자동 반영)
+      -- 사람별 역할 + 정산방식 조회 (settle_basis: 'rep'=판매가, 'cost'=원가+마진)
+      select role, coalesce(settle_basis,'rep'), coalesce(settle_margin,0)
+        into v_role, v_basis, v_margin
+      from public.profiles where id = NEW.created_by;
+      -- 2) 관리자 직접 입력: 받은 금액 ÷ 수량 (네고·할인 자동 반영)
       if v_role = 'admin' and NEW.amount is not null and coalesce(NEW.qty,1) > 0 then
         v_rep := (NEW.amount::float / coalesce(NEW.qty,1))::int;
+      -- 3) ⭐ 원가 정산: 그 시점 원가 + 마진 (원가는 위에서 이미 스냅샷됨 → '그 시점' 고정)
+      elsif v_basis = 'cost' then
+        v_rep := coalesce(NEW.cost_price, 0) + coalesce(v_margin, 0);
+      -- 4) 기본 판매가
       else
         select default_rep_price into v_rep from public.products
         where name = NEW.product
