@@ -336,39 +336,47 @@ async function registerOrder(page, order, idx) {
       console.log(`    검색후 클릭가능 요소 (max 25):`);
       for (const x of clickableDump) console.log(`      <${x.tag} class="${x.cls}"> "${x.txt}"`);
 
-      // 🎯 결과 클릭 — 5자리 우편번호(\d{5}) 포함된 클릭 요소가 진짜 주소 결과. 그것 우선.
-      const allClickable = searchFrame.locator('a, button, [role="button"], [onclick]');
-      const N = await allClickable.count().catch(() => 0);
+      // 🎯 결과 클릭 — 카카오 postcode 결과는 <button class="link_post"> (덤프로 확인).
+      //   다만 같은 클래스에 link_english/link_btn_map/link_fold 같은 보조 버튼 섞여있어 제외 필요.
+      //   진짜 주소 결과 텍스트에는 우편번호가 안 보임 → 도로명 패턴(로/길/동 + 숫자)으로 매칭.
+      const candidates = searchFrame.locator('button.link_post');
+      const N = await candidates.count().catch(() => 0);
       let clicked = false;
-      // 1순위: 우편번호(5자리) + 로/길/동 패턴 모두 포함
-      for (let i = 0; i < Math.min(N, 50); i++) {
-        const el = allClickable.nth(i);
+      for (let i = 0; i < Math.min(N, 30); i++) {
+        const el = candidates.nth(i);
         const visible = await el.isVisible().catch(() => false);
         if (!visible) continue;
+        const cls = (await el.getAttribute('class').catch(() => '')) || '';
+        // 보조 버튼 스킵 — 영문보기/지도에서 확인/지번 더보기 등 (link_post에 modifier 붙음)
+        if (/link_english|link_btn_map|link_fold|ico_post/.test(cls)) continue;
         const txt = (await el.textContent().catch(() => '') || '').replace(/\s+/g,' ').trim();
-        if (/\d{5}/.test(txt) && /(로|길|동)\s*\d/.test(txt)) {
-          console.log(`    결과 클릭: 우편번호+도로명 매칭 idx=${i} "${txt.slice(0,50)}"`);
+        // 안내 문구 스킵
+        if (/주소.*(영문|한글|지도|더보기|확인하기)/.test(txt)) continue;
+        // 도로명/지번 패턴 포함 (로/길/동 다음 숫자) — 진짜 주소 결과
+        if (/(로|길|동)\s*\S*\d/.test(txt)) {
+          console.log(`    결과 클릭: button.link_post idx=${i} cls="${cls}" "${txt.slice(0,50)}"`);
           try { await el.click({ timeout: 4000 }); clicked = true; break; }
           catch(e) { console.log(`      ↳ 클릭 실패: ${e.message.slice(0,60)}`); }
         }
       }
-      // 2순위: 우편번호(5자리)만 포함
+      // 폴백: 보조 버튼 제외한 첫 link_post
       if (!clicked) {
-        for (let i = 0; i < Math.min(N, 50); i++) {
-          const el = allClickable.nth(i);
+        for (let i = 0; i < Math.min(N, 30); i++) {
+          const el = candidates.nth(i);
           const visible = await el.isVisible().catch(() => false);
           if (!visible) continue;
+          const cls = (await el.getAttribute('class').catch(() => '')) || '';
+          if (/link_english|link_btn_map|link_fold|ico_post/.test(cls)) continue;
           const txt = (await el.textContent().catch(() => '') || '').replace(/\s+/g,' ').trim();
-          if (/\d{5}/.test(txt) && txt.length > 8) {
-            console.log(`    결과 클릭 (2순위): 우편번호 idx=${i} "${txt.slice(0,50)}"`);
-            try { await el.click({ timeout: 4000 }); clicked = true; break; }
-            catch(e) { console.log(`      ↳ 클릭 실패: ${e.message.slice(0,60)}`); }
-          }
+          if (txt.length < 6) continue;
+          console.log(`    결과 클릭 (폴백): button.link_post idx=${i} "${txt.slice(0,50)}"`);
+          try { await el.click({ timeout: 4000 }); clicked = true; break; }
+          catch(e) { console.log(`      ↳ 클릭 실패: ${e.message.slice(0,60)}`); }
         }
       }
       if (!clicked) {
         await popup.screenshot({ path: `screenshots/${tag}-2-no-result-click.png`, fullPage: true }).catch(()=>{});
-        throw new Error(`주소 검색 결과 없음 또는 클릭 실패 — 클릭가능 요소 중 우편번호 패턴 없음 (입력: "${base}"). 위 덤프 확인.`);
+        throw new Error(`주소 검색 결과 없음 또는 클릭 실패 — button.link_post 중 주소 매칭 없음 (입력: "${base}"). 위 덤프 확인.`);
       }
 
       // 🎯 oncomplete 콜백 대기 — 부모 페이지의 기본주소 input 채워질 때까지 폴링 (고정 800ms는 너무 짧음)
