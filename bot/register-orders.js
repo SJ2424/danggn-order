@@ -225,7 +225,7 @@ async function registerOrder(page, order, idx) {
   if (business) console.log(`  ⚠ 가게명 분리: "${business}" → 상세주소로 이동`);
   console.log(`  주소 분리: [기본] ${base}  [상세] ${detailFinal}`);
 
-  const baseInput = page.getByPlaceholder(/기본 주소/);
+  const baseInput = page.getByPlaceholder(/기본\s*주소/);
   let usedPopup = false;
 
   if (await baseInput.count() > 0) {
@@ -270,33 +270,88 @@ async function registerOrder(page, order, idx) {
       await popup.waitForTimeout(2000);
       await popup.screenshot({ path: `screenshots/${tag}-2-popup.png`, fullPage: true }).catch(()=>{});
 
-      // 진단: popup 내부 frame 구조
+      // 진단: popup 내부 frame 구조 — 카카오 우편번호 iframe 식별
       const frames = popup.frames();
       console.log(`  popup URL: ${popup.url()}, frames: ${frames.length}`);
       let searchFrame = null;
-      let searchLocator = null;
-      // 모든 프레임에서 input 찾기
+      // 카카오 postcode 도메인 우선 (about:blank 무시), 그게 없으면 input 있는 frame
       for (const f of frames) {
-        try {
-          const cnt = await f.locator('input').count();
-          console.log(`    frame ${f.url().slice(0,80)}: ${cnt} inputs`);
-          if (cnt > 0 && !searchFrame) {
-            searchFrame = f;
-            searchLocator = f.locator('input').first();
-          }
-        } catch(e) { /* cross-origin frame might error */ }
+        const u = f.url();
+        if (/postcode\.map\.kakao\.com/.test(u)) { searchFrame = f; break; }
       }
-      if (!searchLocator) throw new Error('카카오 우편번호 popup에 input 없음');
+      if (!searchFrame) {
+        for (const f of frames) {
+          try {
+            const cnt = await f.locator('input').count();
+            console.log(`    frame ${f.url().slice(0,80)}: ${cnt} inputs`);
+            if (cnt > 0) { searchFrame = f; break; }
+          } catch(_){}
+        }
+      }
+      if (!searchFrame) throw new Error('카카오 우편번호 frame 없음');
 
+      // 🎯 검색 input — 첫 input이 hidden/CSRF일 수 있어서 placeholder 매칭 우선,
+      //   매칭 실패시 visible text input fallback (.first() 절대 쓰지 말 것 — 54개 중 첫 게 숨김일 확률 큼)
+      let searchLocator = searchFrame.getByPlaceholder(/도로명|지번|건물|주소|찾을\s*주소|시\W*도/).first();
+      if (await searchLocator.count() === 0) {
+        searchLocator = searchFrame.locator('input[type="text"]:visible, input:not([type]):visible').first();
+        console.log('    검색 input: placeholder 매칭 실패 → visible text input fallback');
+      } else {
+        console.log('    검색 input: placeholder 매칭 성공');
+      }
       await searchLocator.waitFor({ state: 'visible', timeout: 8000 });
       await searchLocator.fill(base);
       await searchLocator.press('Enter');
       await popup.waitForTimeout(2500);
       await popup.screenshot({ path: `screenshots/${tag}-2-popup-results.png`, fullPage: true }).catch(()=>{});
 
-      // 검색 결과 첫 줄 (같은 frame에서)
-      await searchFrame.locator('li, dl, .result_item, [class*="result"]').first().click({ timeout: 8000 });
-      await page.waitForTimeout(1500);
+      // 🎯 결과 클릭 — anchor/button 우선 (oncomplete 콜백을 실제로 발생시키는 것).
+      //   예전엔 `li, dl, .result_item`을 그냥 .first() 클릭 → 컨테이너 클릭이라 콜백 미동작 → 부모 input 빈 채로 남음.
+      const resultSelectors = [
+        'a:has-text("로 ")',           // 도로명 결과
+        'a:has-text("길 ")',           // 도로명(길) 결과
+        'a:has-text("동 ")',           // 지번 결과
+        'a[class*="link"]',            // link_postcode 등
+        '[role="link"]:visible',
+        'button[class*="addr"], button[class*="result"]',
+        'li > a, dl a',                // anchor 강제
+      ];
+      let clicked = false;
+      for (const sel of resultSelectors) {
+        const cand = searchFrame.locator(sel);
+        const cnt = await cand.count().catch(() => 0);
+        if (cnt > 0) {
+          console.log(`    결과 클릭: "${sel}" 매칭 ${cnt}개 → 첫 항목 클릭`);
+          try {
+            await cand.first().click({ timeout: 4000 });
+            clicked = true;
+            break;
+          } catch(e) {
+            console.log(`      ↳ 클릭 실패: ${e.message.slice(0,60)} → 다음 selector`);
+          }
+        }
+      }
+      if (!clicked) {
+        await popup.screenshot({ path: `screenshots/${tag}-2-no-result-click.png`, fullPage: true }).catch(()=>{});
+        throw new Error(`주소 검색 결과 클릭 실패 — 카카오가 매칭 결과 안 돌려줌 (입력: "${base}"). 주소 형식 확인 필요.`);
+      }
+
+      // 🎯 oncomplete 콜백 대기 — 부모 페이지의 기본주소 input 채워질 때까지 폴링 (고정 800ms는 너무 짧음)
+      let popupFilled = false;
+      for (let i = 0; i < 12; i++) {  // 최대 6초 (500ms × 12)
+        await page.waitForTimeout(500);
+        const v = await page.getByPlaceholder(/기본\s*주소/).inputValue().catch(() => '');
+        if (v && v.trim()) { popupFilled = true; console.log(`    부모 input 채움 확인 (${(i+1)*500}ms): "${v.slice(0,30)}"`); break; }
+      }
+      if (!popupFilled) {
+        // 진단: 부모 페이지의 모든 visible input placeholder + value 덤프
+        const dump = await page.locator('input:visible').evaluateAll(els =>
+          els.slice(0, 20).map(e => `${e.placeholder || e.name || '?'}="${(e.value||'').slice(0,20)}"`).join(' | ')
+        ).catch(() => '(덤프 실패)');
+        console.log(`    부모 input 덤프: ${dump}`);
+        await page.screenshot({ path: `screenshots/${tag}-2-no-fill.png`, fullPage: true }).catch(()=>{});
+        throw new Error(`주소 oncomplete 미동작 — 결과는 클릭됐지만 부모 페이지에 주소가 안 들어옴.\n  부모 inputs: ${dump}`);
+      }
     } else if (iframeEl) {
       const frame = await iframeEl.contentFrame();
       if (frame) {
@@ -311,14 +366,10 @@ async function registerOrder(page, order, idx) {
       await page.screenshot({ path: `screenshots/${tag}-2-modal-fullpage.png`, fullPage: true });
       throw new Error(`주소 팝업/모달 못 찾음 (iframe=${iframeCount}, dialog=${dialogCount}, newPage=${newPage?'있음':'없음'}) — 캡처 확인 필요`);
     }
-    await page.waitForTimeout(800);
-
     // 🛡️ 안전장치: 카카오가 채운 기본주소를 읽어서 입력값과 비교
-    // 카카오가 비슷한 다른 주소(학연로 vs 학현로)로 자동매칭한 경우 캐치
-    const filledBase = await page.getByPlaceholder(/기본 주소/).inputValue().catch(() => '');
-    // 🛡️ [거짓 성공 방지·핵심] 팝업을 거쳤는데 기본주소가 비어있으면 = 주소를 못 채운 것.
-    //   예전엔 `if (filledBase)`라 빈 주소면 검증을 통째로 건너뛰고 그대로 발주 → 거짓 성공.
-    //   이제 빈 주소는 즉시 실패 처리 (주소 없이 발주되는 사고 차단).
+    //   기본주소 칸의 placeholder는 환경에 따라 "기본 주소"/"기본주소" 가능 → 공백 옵션화
+    const filledBase = await page.getByPlaceholder(/기본\s*주소/).inputValue().catch(() => '');
+    // (위 폴링 루프가 popupFilled=true 보장 → 여기 보통 안 걸리지만, iframeEl 경로 등 다른 분기 대비 방어선 유지)
     if (!filledBase || !filledBase.trim()) {
       throw new Error('🚨 주소 미입력 — 주소검색 팝업이 기본주소를 못 채웠습니다 (이대로면 주소 없이 발주됨). 앱에서 [주소 검색]으로 정확한 주소를 선택한 뒤 다시 발주하세요.');
     }
@@ -339,7 +390,7 @@ async function registerOrder(page, order, idx) {
   await page.getByPlaceholder(/상세 주소/).fill(detailFinal);
 
   // 🛡️ [제출 직전 최종 방어선] 기본주소가 비어있으면 절대 제출 안 함 (모든 경로 공통 — 거짓 성공 차단)
-  const finalBase = await page.getByPlaceholder(/기본 주소/).inputValue().catch(() => '');
+  const finalBase = await page.getByPlaceholder(/기본\s*주소/).inputValue().catch(() => '');
   if (!finalBase || !finalBase.trim()) {
     throw new Error('🚨 제출 중단 — 기본주소가 비어있음 (주소 없이 발주되는 것 방지). 앱에서 주소 확인 후 다시 발주하세요.');
   }
@@ -371,7 +422,7 @@ async function registerOrder(page, order, idx) {
   //   사례의 로그를 보고 안전한 양성검증(예: 판매목록 확인)을 설계할 수 있음.
   try {
     const afterUrl  = page.url();
-    const baseStill = await page.getByPlaceholder(/기본 주소/).inputValue().catch(() => '');
+    const baseStill = await page.getByPlaceholder(/기본\s*주소/).inputValue().catch(() => '');
     console.log(`  📋 제출후 상태: url=...${afterUrl.slice(-45)} · 기본주소잔존="${(baseStill || '').slice(0, 24)}"`);
   } catch {}
 
