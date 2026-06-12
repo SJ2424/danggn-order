@@ -714,7 +714,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.06.03-주소검색 자동복구</b></span>
+    <span>버전: <b id="appVersion">v2026.06.03-주소검색 무한팝업 차단·직접입력</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1639,22 +1639,28 @@ function getRoadBunji(s){
   return m ? { road: m[1], bunji: m[2] } : null;
 }
 
-// 카카오 주소검색 fallback (스크립트 안 떴거나 embed 실패시)
-function fallbackDirectAddr(prefill){
-  const cur = prefill || $('#pAddrBase').value || $('#pAddr').value || '';
-  const addr = prompt(
-    '카카오 주소 검색을 사용할 수 없습니다. 기본 주소를 직접 입력해주세요:\n' +
-    '(예: 서울특별시 동작구 상도로41다길 18)',
-    cur
-  );
-  if(addr && addr.trim()){
-    $('#pAddrBase').value = addr.trim();
-    syncAddr();
-    $('#addrWarn').innerHTML = '⚠️ 직접 입력함 — 오타 없는지 다시 한번 확인';
-    $('#addrWarn').style.color = '#b45309';
-    $('#addrWarn').style.display = '';
-    setTimeout(()=>$('#pAddrDetail').focus(), 100);
+// 주소검색을 못 띄울 때 — 직접입력 모드 (다이얼로그·재시도 루프 없이 인라인 안내만)
+// 기본주소 input은 원래 편집 가능하므로 사용자는 그냥 타이핑하면 됨 → 절대 막히지 않음.
+function enableManualAddr(){
+  const base = $('#pAddrBase');
+  if(base){
+    base.removeAttribute('readonly');
+    base.placeholder = '기본 주소 직접 입력 (예: 서울 동작구 상도로41다길 18)';
   }
+  const warn = $('#addrWarn');
+  if(warn){
+    warn.innerHTML = '⚠️ 주소 검색을 못 불러왔어요 — <b>기본 주소</b> 칸에 직접 입력하세요 (오타 주의). 잠시 후 [🔍 검색] 다시 눌러도 됩니다.';
+    warn.style.color = '#b45309';
+    warn.style.fontWeight = '500';
+    warn.style.display = '';
+  }
+  if(base) setTimeout(()=>base.focus(), 50);
+}
+
+// 카카오 주소검색 fallback (embed 자체가 던졌을 때) — 직접입력 모드로 전환
+// 예전엔 prompt() 다이얼로그를 썼지만 모바일 PWA에서 불안정 + 반복 노출 문제로 인라인 입력으로 대체.
+function fallbackDirectAddr(prefill){
+  enableManualAddr();
 }
 
 // Daum 스크립트 로드 보장 — 첫 로드 실패해도 동적 재주입으로 회복 (네트워크 일시오류·광고차단 우회 시도)
@@ -1683,14 +1689,13 @@ function ensureDaumLoaded(timeoutMs = 6000){
 // 카카오 주소검색 — embed 방식 (PWA·iOS 안에서도 안정적, 팝업 차단 없음)
 async function openAddrSearch(prefillQuery){
   if(typeof daum === 'undefined' || !daum.Postcode){
-    // 1차 자동복구 — 동적 재주입 시도 (네트워크 일시오류·기존 태그 실패 회복)
+    // 자동복구 1회 — 동적 재주입 시도 (네트워크 일시오류·기존 태그 실패 회복)
     const loaded = await ensureDaumLoaded(6000);
     if(!loaded){
-      if(confirm('주소 검색을 못 띄웠어요 (네트워크 또는 광고차단 의심).\n직접 입력하시겠어요?\n(취소 누르면 5초 후 자동 재시도)')){
-        fallbackDirectAddr(prefillQuery);
-      } else {
-        setTimeout(()=>openAddrSearch(prefillQuery), 5000);
-      }
+      // 재주입도 실패 = 이 기기/네트워크에서 카카오 검색을 못 씀(광고차단·차단망·CDN 장애).
+      // ❌ setTimeout 무한 재시도 금지 — 5초마다 다이얼로그가 다시 뜨던 게 "계속 떠있어"의 원인.
+      // ✅ 기본주소 칸에 직접 입력하도록 안내만 하고 끝낸다 (칸은 원래 편집 가능 → 절대 막히지 않음).
+      enableManualAddr();
       return;
     }
   }
@@ -4655,6 +4660,12 @@ $('#btnHardReload') && $('#btnHardReload').addEventListener('click', async () =>
 
 checkAuth();
 setInterval(checkDeadline, 20000);
+
+// 주소검색 스크립트 선제 로드 — <head> 동기 로드가 실패했어도 부팅 직후 조용히 재주입해서
+// 사용자가 [🔍 검색] 누를 때쯤엔 daum.Postcode가 살아있게 만든다 (첫 클릭 실패 체감 제거).
+if (typeof daum === 'undefined' || !daum.Postcode) {
+  setTimeout(() => { try { ensureDaumLoaded(8000); } catch(_){} }, 1200);
+}
 </script>
 </body>
 </html>
