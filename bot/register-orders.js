@@ -290,14 +290,34 @@ async function registerOrder(page, order, idx) {
       }
       if (!searchFrame) throw new Error('카카오 우편번호 frame 없음');
 
-      // 🎯 검색 input — 첫 input이 hidden/CSRF일 수 있어서 placeholder 매칭 우선,
-      //   매칭 실패시 visible text input fallback (.first() 절대 쓰지 말 것 — 54개 중 첫 게 숨김일 확률 큼)
-      let searchLocator = searchFrame.getByPlaceholder(/도로명|지번|건물|주소|찾을\s*주소|시\W*도/).first();
+      // 🔍 iframe 내부 input 덤프 (다음 실패 진단용) — placeholder/id/class/visible 다 출력
+      const inputDump = await searchFrame.locator('input').evaluateAll(els =>
+        els.map(e => ({
+          ph: e.placeholder || '',
+          id: e.id || '',
+          name: e.name || '',
+          cls: e.className || '',
+          type: e.type || '',
+          vis: e.offsetParent !== null
+        })).filter(x => x.vis && x.type !== 'hidden').slice(0, 10)
+      ).catch(() => []);
+      console.log(`    iframe visible inputs (max 10):`);
+      for (const x of inputDump) console.log(`      ph="${x.ph}" id="${x.id}" name="${x.name}" cls="${x.cls.slice(0,40)}" type="${x.type}"`);
+
+      // 🎯 검색 input — Kakao postcode 페이지의 실제 placeholder는 "예) 판교역로 235..." 같은 예시.
+      //   id/name 우선 매칭(`#search`,`q`,`address`,`addr`) → placeholder 예시 매칭 → visible text input fallback
+      let searchLocator = searchFrame.locator(
+        'input#search, input[name="q"], input[name="address"], input[name="addr"], input[name*="search"]'
+      ).first();
+      if (await searchLocator.count() === 0) {
+        searchLocator = searchFrame.getByPlaceholder(/예\)|판교|도로명|지번|건물|주소|찾을/).first();
+      }
       if (await searchLocator.count() === 0) {
         searchLocator = searchFrame.locator('input[type="text"]:visible, input:not([type]):visible').first();
-        console.log('    검색 input: placeholder 매칭 실패 → visible text input fallback');
+        console.log('    검색 input: id/placeholder 매칭 실패 → visible text input fallback');
       } else {
-        console.log('    검색 input: placeholder 매칭 성공');
+        const which = await searchLocator.evaluate(e => `ph="${e.placeholder}" id="${e.id}" name="${e.name}"`).catch(()=>'?');
+        console.log(`    검색 input 선택: ${which}`);
       }
       await searchLocator.waitFor({ state: 'visible', timeout: 8000 });
       await searchLocator.fill(base);
@@ -305,35 +325,50 @@ async function registerOrder(page, order, idx) {
       await popup.waitForTimeout(2500);
       await popup.screenshot({ path: `screenshots/${tag}-2-popup-results.png`, fullPage: true }).catch(()=>{});
 
-      // 🎯 결과 클릭 — anchor/button 우선 (oncomplete 콜백을 실제로 발생시키는 것).
-      //   예전엔 `li, dl, .result_item`을 그냥 .first() 클릭 → 컨테이너 클릭이라 콜백 미동작 → 부모 input 빈 채로 남음.
-      const resultSelectors = [
-        'a:has-text("로 ")',           // 도로명 결과
-        'a:has-text("길 ")',           // 도로명(길) 결과
-        'a:has-text("동 ")',           // 지번 결과
-        'a[class*="link"]',            // link_postcode 등
-        '[role="link"]:visible',
-        'button[class*="addr"], button[class*="result"]',
-        'li > a, dl a',                // anchor 강제
-      ];
+      // 🔍 결과 영역 덤프 — 모든 클릭 가능한 요소(a/button/[role=button]/[onclick])의 텍스트·class 출력
+      const clickableDump = await searchFrame.locator('a, button, [role="button"], [onclick]').evaluateAll(els =>
+        els.filter(e => e.offsetParent !== null).slice(0, 25).map(e => ({
+          tag: e.tagName,
+          cls: (e.className || '').slice(0, 50),
+          txt: (e.textContent || '').replace(/\s+/g,' ').trim().slice(0, 60)
+        }))
+      ).catch(() => []);
+      console.log(`    검색후 클릭가능 요소 (max 25):`);
+      for (const x of clickableDump) console.log(`      <${x.tag} class="${x.cls}"> "${x.txt}"`);
+
+      // 🎯 결과 클릭 — 5자리 우편번호(\d{5}) 포함된 클릭 요소가 진짜 주소 결과. 그것 우선.
+      const allClickable = searchFrame.locator('a, button, [role="button"], [onclick]');
+      const N = await allClickable.count().catch(() => 0);
       let clicked = false;
-      for (const sel of resultSelectors) {
-        const cand = searchFrame.locator(sel);
-        const cnt = await cand.count().catch(() => 0);
-        if (cnt > 0) {
-          console.log(`    결과 클릭: "${sel}" 매칭 ${cnt}개 → 첫 항목 클릭`);
-          try {
-            await cand.first().click({ timeout: 4000 });
-            clicked = true;
-            break;
-          } catch(e) {
-            console.log(`      ↳ 클릭 실패: ${e.message.slice(0,60)} → 다음 selector`);
+      // 1순위: 우편번호(5자리) + 로/길/동 패턴 모두 포함
+      for (let i = 0; i < Math.min(N, 50); i++) {
+        const el = allClickable.nth(i);
+        const visible = await el.isVisible().catch(() => false);
+        if (!visible) continue;
+        const txt = (await el.textContent().catch(() => '') || '').replace(/\s+/g,' ').trim();
+        if (/\d{5}/.test(txt) && /(로|길|동)\s*\d/.test(txt)) {
+          console.log(`    결과 클릭: 우편번호+도로명 매칭 idx=${i} "${txt.slice(0,50)}"`);
+          try { await el.click({ timeout: 4000 }); clicked = true; break; }
+          catch(e) { console.log(`      ↳ 클릭 실패: ${e.message.slice(0,60)}`); }
+        }
+      }
+      // 2순위: 우편번호(5자리)만 포함
+      if (!clicked) {
+        for (let i = 0; i < Math.min(N, 50); i++) {
+          const el = allClickable.nth(i);
+          const visible = await el.isVisible().catch(() => false);
+          if (!visible) continue;
+          const txt = (await el.textContent().catch(() => '') || '').replace(/\s+/g,' ').trim();
+          if (/\d{5}/.test(txt) && txt.length > 8) {
+            console.log(`    결과 클릭 (2순위): 우편번호 idx=${i} "${txt.slice(0,50)}"`);
+            try { await el.click({ timeout: 4000 }); clicked = true; break; }
+            catch(e) { console.log(`      ↳ 클릭 실패: ${e.message.slice(0,60)}`); }
           }
         }
       }
       if (!clicked) {
         await popup.screenshot({ path: `screenshots/${tag}-2-no-result-click.png`, fullPage: true }).catch(()=>{});
-        throw new Error(`주소 검색 결과 클릭 실패 — 카카오가 매칭 결과 안 돌려줌 (입력: "${base}"). 주소 형식 확인 필요.`);
+        throw new Error(`주소 검색 결과 없음 또는 클릭 실패 — 클릭가능 요소 중 우편번호 패턴 없음 (입력: "${base}"). 위 덤프 확인.`);
       }
 
       // 🎯 oncomplete 콜백 대기 — 부모 페이지의 기본주소 input 채워질 때까지 폴링 (고정 800ms는 너무 짧음)
