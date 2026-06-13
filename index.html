@@ -582,7 +582,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
 <div id="appView" style="display:none">
 <header>
-  <div>당근 발주 관리 <small id="headerVer">v2.5.2</small></div>
+  <div>당근 발주 관리 <small id="headerVer">v2.5.3</small></div>
   <div class="who">
     <button class="font-btn" id="btnFont" aria-label="글씨 크기">가</button>
     <span id="whoEmail"></span>
@@ -731,14 +731,9 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
 <section class="card" id="ordersSection">
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
-  <div id="nextSchedule" class="schedule-bar admin-only"></div>
-  <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
-  <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2.5.2</b></span>
-    <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
-  </div>
   <details class="admin-only" style="margin-bottom:10px">
-    <summary style="font-size:12px;color:var(--mut);font-weight:600;cursor:pointer;padding:2px 0">🤖 수동 발주·송장 수집 <span class="muted" style="font-weight:400">(평소엔 자동 — 급할 때만 펼치기)</span></summary>
+    <summary style="font-size:12px;color:var(--mut);font-weight:600;cursor:pointer;padding:2px 0">🤖 자동발주 시간표·수동 실행 <span class="muted" style="font-weight:400">(급할 때만)</span></summary>
+    <div id="nextSchedule" class="schedule-bar" style="margin-top:8px"></div>
     <div class="toolbar" style="margin-top:8px">
       <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문 즉시 발주">🤖 선반랙 발주</button>
       <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
@@ -749,6 +744,11 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div class="chips admin-only" id="ownerChips" style="display:none"></div>
   <div class="chips admin-only" id="filters"></div>
   <div class="order-list" id="list"></div>
+  <!-- 버전·새로받기 — 맨 아래 (캐시 꼬일 때 자력 복구용 · admin-only 아님) -->
+  <div style="font-size:11px;color:var(--mut);margin-top:12px;padding-top:10px;border-top:1px solid var(--line-2);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>버전: <b id="appVersion">v2.5.3</b></span>
+    <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
+  </div>
 </section>
 
 <section class="card" id="ledgerCard">
@@ -1121,7 +1121,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 업데이트할 때마다 이 숫자만 올리면 헤더·설정에 자동 표시됨.
 //   · 버그수정 → 끝자리 (2.5.0 → 2.5.1)   · 새 기능 → 가운데 (2.5.0 → 2.6.0)   · 큰 개편 → 앞자리 (2.x → 3.0.0)
 // 버전별 변경 내역은 OPERATIONS.md '버전 기록' 참고.
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.5.3';
 const APP_VERSION_DATE = '2026.06.13';
 (function showAppVersion(){
   const hv = document.getElementById('headerVer'); if(hv) hv.textContent = 'v' + APP_VERSION;
