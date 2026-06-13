@@ -529,6 +529,15 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
   .card-order:hover,.pill:hover{transform:none!important}
 }
+/* 📱 좁은 화면 — 단가/카탈로그 표를 2열로 (값 잘림·라벨 모호 해결).
+   헤더 라벨(택배단가/직거래단가/①②③)이 각 입력칸과 같은 열에 정렬되도록 함.
+   (이전 @media들이 소스순서로 서로 덮어써 깨지던 것을 마지막 규칙으로 확정) */
+@media (max-width:680px){
+  .cat-row, .pr-row{grid-template-columns:1fr 1fr !important; gap:6px 8px; align-items:center}
+  .cat-row .cat-label{grid-column:auto !important; font-size:12px; font-weight:600}
+  .cat-row input, .pr-row input{padding:8px; font-size:13.5px; min-width:0}
+  .cat-row .btn-sm, .pr-row .btn-sm{width:100%}
+}
 </style>
 <!-- 카카오 우편번호 (주소 오타 방지) -->
 <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
