@@ -770,7 +770,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div class="ledger-stats input-only grid">
     <div class="ls-row"><span>내 판매</span><span><b id="myCount">0</b> 건 · <b id="myQty">0</b> 개</span></div>
     <div class="ls-row big"><span>받은 총 금액</span><span><b id="myTotal">0</b> 원</span></div>
-    <div class="ls-row"><span>관리자에게 정산할 금액</span><span><b id="mySettleAmt">0</b> 원</span></div>
+    <div class="ls-row"><span>관리자에게 정산할 금액 <small class="muted" style="font-weight:400">(전체 미정산)</small></span><span><b id="mySettleAmt">0</b> 원</span></div>
     <div class="ls-row big" style="background:#e8f5e9;border-color:#137333"><span>내 마진 (받은 - 정산할)</span><span style="color:#137333"><b id="myMargin">0</b> 원</span></div>
     <div class="ls-row"><span>입금완료</span><span><b id="myPaid">0</b> 건</span></div>
     <div class="ls-row"><span>미입금</span><span><b id="myUnpaid">0</b> 건</span></div>
@@ -1419,6 +1419,9 @@ async function showApp(session){
   if(userRole === 'admin'){
     await loadAdminIds(); await loadInputUsers();
     await loadCatalog(); await loadUserPrices();
+  } else {
+    // 입력자: 본인 정산단가만 미리 로드 (거래방식 변경시 rep_price 재계산용 — 남의 단가는 안 받음)
+    await loadUserPrices();
   }
   await loadOrders();
   subscribeOrders();
@@ -1959,6 +1962,21 @@ async function saveEdit(){
       if(newCost > 0) updates.cost_price = newCost;
     }
   }
+  // ⭐ 거래방식(택배↔직거래) 변경 → 입력자 정산단가(rep_price)도 그 방식 단가로 재계산.
+  //    같은 사람도 택배/직거래 단가가 다를 수 있으므로(user_prices.rep_price_pickup),
+  //    type만 바꾸고 정산단가가 옛 방식에 멈춰 있던 버그를 막는다.
+  //    (관리자 본인 주문은 위에서 amount/qty로 이미 처리됨. user_prices 없으면 기본판매가=방식무관이라 그대로 둠)
+  if(editable && updates.type && updates.type !== o.type && !ADMIN_IDS.has(o.created_by)){
+    const prod = updates.product || o.product;
+    const col  = (updates.color != null ? updates.color : o.color) || '';
+    const up = USER_PRICES.find(u =>
+      u.user_id === o.created_by && u.product_name === prod && (u.color||'') === col);
+    if(up){
+      updates.rep_price = (updates.type === '직거래' && up.rep_price_pickup != null)
+        ? up.rep_price_pickup
+        : up.rep_price;
+    }
+  }
   const btn = $('#btnEditSave'); btn.disabled=true; btn.textContent='저장 중...';
   const { error } = await sb.from('orders').update(updates).eq('id', editingId);
   btn.disabled=false; btn.textContent='저장';
@@ -2430,7 +2448,10 @@ async function loadInputUsers(){
   ).join('');
 }
 async function loadUserPrices(){
-  const { data } = await sb.from('user_prices').select('*');
+  // 관리자는 전체, 입력자는 본인 단가만 (남의 정산단가 노출 방지 + 거래방식 변경 재계산용)
+  let q = sb.from('user_prices').select('*');
+  if(userRole !== 'admin' && myUserId) q = q.eq('user_id', myUserId);
+  const { data } = await q;
   USER_PRICES = data || [];
   renderUserPrices();
   renderUnsetPriceWarning();
@@ -3402,8 +3423,10 @@ function renderLedger(){
     const my = r.list;
     const myQty = my.reduce((s,o)=>s+(+o.qty||1), 0);
     const myTotal = my.reduce((s,o)=>s+(+o.amount||0), 0);  // 손님한테 받은 총액
-    // 관리자에게 정산할 금액 = rep_price × qty 합 (미정산만)
-    const mySettleAmt = my.filter(o => !o.settled).reduce(
+    // 관리자에게 정산할 금액 = rep_price × qty 합 (미정산만).
+    // ⚠️ 기간(오늘/이번달)과 무관하게 '전체 미정산'으로 — 정산은 누적 채무라
+    //    관리자 정산카드(computeSettle, 전체 기준)와 항상 같은 숫자가 나와야 신뢰가 생긴다.
+    const mySettleAmt = ORDERS.filter(o => !o.settled).reduce(
       (s,o) => s + (+o.rep_price||0) * (+o.qty||1), 0
     );
     // 내 마진 = 받은 - 정산해야 할 (단순화: 전체 기준)
