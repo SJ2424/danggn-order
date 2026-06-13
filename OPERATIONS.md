@@ -2,7 +2,7 @@
 
 > 이 단일 문서에 시스템 전체 구조, 운영 방법, 트러블슈팅, 모든 변경 이력,
 > AI/개발자 인계용 컨텍스트가 다 담겨 있습니다.
-> **마지막 업데이트**: 2026-05-29 (결제 상태 즉시갱신 + oms_paid 컬럼 진단 + 스케줄 문서 현행화)
+> **마지막 업데이트**: 2026-06-13 (다중 판매자 전체 점검·백테스트 + 거래방식변경 정산버그 픽스 + RLS 보안 강화 가이드 §18)
 
 ---
 
@@ -427,6 +427,13 @@ update profiles set role='input' where display_name='기존관리자이름';
   - 핵심 반복 작업인 `👥 주문자별 단가`·`📦 입고 기록`을 깊은 설정 메뉴에서 **최상위 카드로 승격**
   - 전문용어 라벨 순화 ("외부 cron 백업" → "봇 자동실행 이중 안전장치 (고급)")
 
+### 7차 — 다중 판매자 종합 점검 + 백테스트 (2026-06-13)
+- **거래방식변경 정산버그 FIX**: 입력자 주문 택배↔직거래 수정시 정산단가 미갱신 → `saveEdit` 재계산
+- **정산금 일치**: 입력자 "정산할 금액" = 전체 미정산(누적)으로 → 관리자 정산카드와 항상 동일
+- **백테스트 추가**: `sim-pricing.mjs` (7시나리오 28단언, 트리거+장부+정산 재현 검증)
+- **보안 가이드**: §18 — RLS 확인·강화(orders/profiles/user_prices), 재귀방지 헬퍼 + 역할승격 차단 트리거
+- 봇 다중판매자 정합성 재확인: 모든 판매자 접수분 발주(직거래 제외), 72H 미입금 푸시는 입력자 본인만
+
 ### 5차 — 새 입력자·단가 시나리오 전문가 점검
 - **CRITICAL**: 직거래 주문이 봇에 의해 OMS/카트사이트에 자동 등록되던 문제
   - 직거래는 손님 직접 만남이라 등록되면 안 됨
@@ -598,3 +605,110 @@ gh run list --limit 20
 - ✅ 72H 미입금 푸시는 입력자 본인에게만 (관리자 X)
 - ✅ 관리자가 주문 수정시 마진 재계산
 - ✅ 새 입력자 승인 즉시 realtime 화면 전환
+
+---
+
+## 18. 🔒 다중 판매자 보안 — RLS 확인 & 강화 (⚠️ 중요, 한 번만)
+
+### 왜 중요한가
+앱은 누구나 소스에서 볼 수 있는 **공개 anon 키**로 DB에 접근한다(Supabase 정상 구조).
+실제 보안은 전적으로 DB의 **RLS(Row Level Security, 행 수준 보안)**가 책임진다.
+앱 화면의 "입력자는 본인 주문만 보임"은 **자바스크립트 필터**일 뿐 —
+RLS가 꺼져 있으면, 입력자가 브라우저 콘솔에서 직접 쿼리해
+**다른 판매자의 손님 이름·전화·주소를 전부 보거나, 본인을 admin으로 승격**시킬 수 있다.
+
+> 가족·지인처럼 신뢰하는 소수 판매자면 위험이 낮지만, 그래도 한 번 잠가두는 걸 권장.
+
+### 1단계 — 현재 상태 확인 (읽기 전용, 안전)
+[Supabase SQL Editor](https://supabase.com/dashboard/project/zmvllgztbqymwwfeprxy/sql/new)에 붙여넣고 실행:
+
+```sql
+-- 각 테이블 RLS 켜짐 여부 (rowsecurity=true 면 켜짐)
+select tablename, rowsecurity from pg_tables
+where schemaname='public' and tablename in ('orders','profiles','user_prices','stock_receipts')
+order by tablename;
+-- 현재 정책 목록
+select tablename, policyname, cmd from pg_policies where schemaname='public' order by tablename;
+```
+
+`orders`·`profiles`·`user_prices`의 `rowsecurity`가 **false**면 → 아래 2단계로 잠근다.
+(대시보드 Table Editor에서 테이블별 RLS on/off 뱃지로도 확인 가능)
+
+### 2단계 — 강화 SQL (idempotent, 안전 패턴)
+⚠️ **적용 직후 반드시 3단계 테스트**. 봇은 service_role 키라 RLS 무관(안 깨짐).
+profiles 정책이 profiles를 직접 조회하면 **무한재귀** 에러가 나므로,
+관리자 판정은 `security definer` 헬퍼 함수로 처리한다(핵심).
+
+```sql
+-- 0) 관리자 판정 헬퍼 (security definer → RLS 우회 → 재귀 방지)
+create or replace function public.is_admin() returns boolean
+language sql security definer stable set search_path = public as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
+$$;
+
+-- 1) orders — 관리자 전체 / 입력자 본인만
+alter table public.orders enable row level security;
+drop policy if exists "orders admin all" on public.orders;
+create policy "orders admin all" on public.orders for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "orders own" on public.orders;
+create policy "orders own" on public.orders for all to authenticated
+  using (created_by = auth.uid()) with check (created_by = auth.uid());
+
+-- 2) user_prices — 관리자 관리 / 입력자 본인 단가 읽기만
+alter table public.user_prices enable row level security;
+drop policy if exists "user_prices admin all" on public.user_prices;
+create policy "user_prices admin all" on public.user_prices for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "user_prices own read" on public.user_prices;
+create policy "user_prices own read" on public.user_prices for select to authenticated
+  using (user_id = auth.uid());
+
+-- 3) profiles — 관리자 전체 / 본인 읽기·이름수정(역할승격은 트리거가 차단)
+alter table public.profiles enable row level security;
+drop policy if exists "profiles admin all" on public.profiles;
+create policy "profiles admin all" on public.profiles for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "profiles own read" on public.profiles;
+create policy "profiles own read" on public.profiles for select to authenticated
+  using (id = auth.uid());
+drop policy if exists "profiles own update" on public.profiles;
+create policy "profiles own update" on public.profiles for update to authenticated
+  using (id = auth.uid()) with check (id = auth.uid());
+-- ⭐ 본인이 자기 role을 못 바꾸게 (이름변경은 OK, admin 승격은 차단)
+create or replace function public.prevent_role_self_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if NEW.role is distinct from OLD.role and not public.is_admin() then
+    raise exception 'role change not allowed';
+  end if;
+  return NEW;
+end; $$;
+drop trigger if exists trg_prevent_role_self_change on public.profiles;
+create trigger trg_prevent_role_self_change before update on public.profiles
+  for each row execute function public.prevent_role_self_change();
+```
+
+### 3단계 — 적용 직후 테스트 (필수)
+1. **관리자 본인**으로 앱 새로고침 → 모든 주문 보임 + 승인대기/정산 정상 → OK
+2. **입력자 계정**으로 로그인 → 본인 주문만 보임 + 주문 추가/입금체크/이름변경 됨 → OK
+3. 둘 다 정상이면 완료. **하나라도 안 되면 즉시 롤백**(아래) 후 알려주기.
+
+### 롤백 (문제 생기면 한 줄씩)
+```sql
+alter table public.orders      disable row level security;
+alter table public.user_prices disable row level security;
+alter table public.profiles    disable row level security;
+```
+
+> 💡 비전문가가 단독 적용하다 관리자가 잠기면 곤란하니, **AI와 함께 1단계 결과를 보며 진행**하는 걸 권장.
+> (1단계 출력만 붙여주면 현재 상태에 맞춰 최소 SQL만 안내 가능)
+
+### 6차 보강 점검 — 거래방식 변경·정산 일치 (2026-06-13)
+- **FIX**: 입력자 주문의 거래방식(택배↔직거래)을 *나중에 수정*하면 정산단가(rep_price)가
+  옛 방식에 멈춰 있던 버그 → `saveEdit`에서 `user_prices` 기준 재계산 추가.
+  입력자도 본인 단가를 로드(`loadUserPrices` 본인 필터)해 자기 수정에도 반영.
+- **개선**: 입력자 "관리자에게 정산할 금액"을 기간(이번달)이 아닌 **전체 미정산**으로 —
+  관리자 정산카드(누적)와 항상 같은 숫자가 나오도록.
+- **백테스트**: `node sim-pricing.mjs` — 트리거 가격계산 + 장부/정산/마진을 재현해
+  7개 시나리오 28개 단언 검증(택배/직거래/미설정 소급/관리자 네고/거래방식변경/정산일치).
