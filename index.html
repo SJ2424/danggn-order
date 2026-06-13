@@ -318,7 +318,7 @@ details summary{cursor:pointer;font-weight:600;font-size:14px}
 .pend-actions button{padding:6px 10px;font-size:12px;margin-left:6px;border-radius:var(--r-xs)}
 .pend-approve{background:var(--ok);color:#fff}
 .pend-reject{background:var(--danger);color:#fff}
-body[data-role="input"] .admin-only{display:none !important}
+body:not([data-role="admin"]) .admin-only{display:none !important}  /* 관리자에게만 노출 — 기본 차단 */
 body[data-role="input"] .pill-status{pointer-events:none;cursor:default}
 /* 입금 알약은 입력자도 본인 주문 토글 가능 (수령 후 입금 구조) */
 body[data-role="input"] .oc-track{background:var(--surface-2);color:var(--mut);pointer-events:none}
@@ -1372,8 +1372,9 @@ async function loadProfileAndShow(session){
   userRole = role;
   userDisplayName = display || displayOf({ email: session.user.email });
   document.body.dataset.role = role;
-  if(role === 'pending') showPending(session);
-  else await showApp(session);
+  // 기본 차단: admin·input만 앱 진입. pending·banned·예상못한 role은 대기화면(앱 접근 X)
+  if(role === 'admin' || role === 'input') await showApp(session);
+  else showPending(session);
 }
 
 function showLogin(){
@@ -1552,8 +1553,8 @@ async function loadOrders(){
   let q = sb.from('orders').select('*')
     .order('date', {ascending:false})
     .order('created_at', {ascending:false});
-  // 입력자는 본인이 입력한 주문만 (관리자는 전부)
-  if(userRole === 'input' && myUserId) q = q.eq('created_by', myUserId);
+  // 관리자 외엔(입력자 등) 본인이 입력한 주문만 — 기본 차단(예상 못한 role도 못 보게)
+  if(userRole !== 'admin' && myUserId) q = q.eq('created_by', myUserId);
   const { data, error } = await q;
   if(error){ console.error(error); return; }
   ORDERS = data || [];
