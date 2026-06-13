@@ -341,6 +341,9 @@ body[data-font="large"] .font-btn{background:var(--pri);color:#fff;border-color:
 .type-tabs button{flex:1;background:transparent;color:var(--mut);border:0;padding:9px 0;font-size:13px;cursor:pointer;border-radius:var(--r-sm);font-weight:600;transition:all 0.15s}
 .type-tabs button.active[data-type="택배"]{background:var(--info-bg);color:var(--info-on);box-shadow:0 1px 3px rgba(30,64,175,0.15)}
 .type-tabs button.active[data-type="직거래"]{background:var(--warn-bg);color:var(--warn-on);box-shadow:0 1px 3px rgba(146,64,14,0.15)}
+/* 수량(좁게) + 거래방식(나머지)을 한 줄로 — 반칸 외톨이 방지, 한눈에 정렬 */
+.qty-type-row{display:grid;grid-template-columns:84px 1fr;gap:10px;align-items:start}
+.qty-type-row > div{min-width:0}
 /* 안내사항 footer */
 .help-note{background:var(--pri-50);border:1px solid var(--pri-200);border-radius:var(--r-sm);padding:11px 13px;font-size:12px;color:var(--pri-800);margin-top:14px;line-height:1.55}
 .help-note b{color:var(--pri-700)}
@@ -578,7 +581,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
 <div id="appView" style="display:none">
 <header>
-  <div>당근 발주 관리 <small>v2</small></div>
+  <div>당근 발주 관리 <small id="headerVer">v2.5.0</small></div>
   <div class="who">
     <button class="font-btn" id="btnFont" aria-label="글씨 크기">가</button>
     <span id="whoEmail"></span>
@@ -634,13 +637,15 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
       </select>
       <input id="pColor" type="hidden">
     </div>
-    <div><label>수량</label><input id="pQty" type="number" inputmode="numeric" min="1" placeholder="1" value="1"></div>
-    <div class="full"><label>거래방식</label>
-      <div class="type-tabs">
-        <button type="button" class="active" data-type="택배">📦 택배</button>
-        <button type="button" data-type="직거래">🤝 직거래</button>
+    <div class="full qty-type-row">
+      <div><label>수량</label><input id="pQty" type="number" inputmode="numeric" min="1" placeholder="1" value="1"></div>
+      <div><label>거래방식</label>
+        <div class="type-tabs">
+          <button type="button" class="active" data-type="택배">📦 택배</button>
+          <button type="button" data-type="직거래">🤝 직거래</button>
+        </div>
+        <input id="pType" type="hidden" value="택배">
       </div>
-      <input id="pType" type="hidden" value="택배">
     </div>
     <div class="full"><label>판매금액 (원, 손님이 보낸 총액)</label><input id="pAmount" type="number" inputmode="numeric" placeholder="37000"></div>
     <div class="row2 full" style="margin-top:6px">
@@ -729,7 +734,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.06.13-주문자별 직거래·택배 단가 + 미설정 정정 + 메뉴 정리</b></span>
+    <span>버전: <b id="appVersion">v2.5.0</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -1109,6 +1114,17 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = 'https://zmvllgztbqymwwfeprxy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptdmxsZ3p0YnF5bXd3ZmVwcnh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjY5MTYsImV4cCI6MjA5NTEwMjkxNn0.aOAA_XEwDJ3CGDeBWMr6JsRJXMv9uWZc9FEwMLGMz_4';
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ===== 앱 버전 (애플식 숫자: 큰변화.기능.버그수정) =====
+// 업데이트할 때마다 이 숫자만 올리면 헤더·설정에 자동 표시됨.
+//   · 버그수정 → 끝자리 (2.5.0 → 2.5.1)   · 새 기능 → 가운데 (2.5.0 → 2.6.0)   · 큰 개편 → 앞자리 (2.x → 3.0.0)
+// 버전별 변경 내역은 OPERATIONS.md '버전 기록' 참고.
+const APP_VERSION = '2.5.0';
+const APP_VERSION_DATE = '2026.06.13';
+(function showAppVersion(){
+  const hv = document.getElementById('headerVer'); if(hv) hv.textContent = 'v' + APP_VERSION;
+  const av = document.getElementById('appVersion'); if(av) av.textContent = 'v' + APP_VERSION + ' · ' + APP_VERSION_DATE;
+})();
 
 const $ = s => document.querySelector(s);
 const load = (k,d) => { try{return JSON.parse(localStorage.getItem('dg_'+k)) ?? d}catch(e){return d} };
