@@ -582,7 +582,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
 <div id="appView" style="display:none">
 <header>
-  <div>당근 발주 관리 <small id="headerVer">v2.5.1</small></div>
+  <div>당근 발주 관리 <small id="headerVer">v2.5.2</small></div>
   <div class="who">
     <button class="font-btn" id="btnFont" aria-label="글씨 크기">가</button>
     <span id="whoEmail"></span>
@@ -731,22 +731,23 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 
 <section class="card" id="ordersSection">
   <h2>주문 목록 <span id="cnt" class="muted"></span></h2>
-  <div id="summary" class="muted admin-only" style="margin-bottom:8px"></div>
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2.5.1</b></span>
+    <span>버전: <b id="appVersion">v2.5.2</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
-  <div class="toolbar admin-only">
-    <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문 즉시 발주">🤖 선반랙 발주</button>
-    <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
-    <button class="btn-pri-sm" id="btnRunTracking" title="송장 자동 수집">🚚 송장 수집</button>
-  </div>
+  <details class="admin-only" style="margin-bottom:10px">
+    <summary style="font-size:12px;color:var(--mut);font-weight:600;cursor:pointer;padding:2px 0">🤖 수동 발주·송장 수집 <span class="muted" style="font-weight:400">(평소엔 자동 — 급할 때만 펼치기)</span></summary>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="btn-pri-sm" id="btnRunBot" title="접수 상태 선반랙 주문 즉시 발주">🤖 선반랙 발주</button>
+      <button class="btn-pri-sm" id="btnRunCart" title="접수 상태 카트 상품을 카트사이트에 즉시 등록">🛒 카트 발주</button>
+      <button class="btn-pri-sm" id="btnRunTracking" title="송장 자동 수집">🚚 송장 수집</button>
+    </div>
+  </details>
   <div class="list-tools"><input id="search" placeholder="🔍 이름·연락처·닉네임·상품·주소·메모·송장 검색 (부분일치)"></div>
   <div class="chips admin-only" id="ownerChips" style="display:none"></div>
   <div class="chips admin-only" id="filters"></div>
-  <p class="muted admin-only" style="font-size:11.5px;margin:6px 0">↕ 최신 날짜순 (상태 알약 클릭해도 카드 위치 안 바뀜)</p>
   <div class="order-list" id="list"></div>
 </section>
 
@@ -1120,7 +1121,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 업데이트할 때마다 이 숫자만 올리면 헤더·설정에 자동 표시됨.
 //   · 버그수정 → 끝자리 (2.5.0 → 2.5.1)   · 새 기능 → 가운데 (2.5.0 → 2.6.0)   · 큰 개편 → 앞자리 (2.x → 3.0.0)
 // 버전별 변경 내역은 OPERATIONS.md '버전 기록' 참고.
-const APP_VERSION = '2.5.1';
+const APP_VERSION = '2.5.2';
 const APP_VERSION_DATE = '2026.06.13';
 (function showAppVersion(){
   const hv = document.getElementById('headerVer'); if(hv) hv.textContent = 'v' + APP_VERSION;
@@ -2272,13 +2273,6 @@ function renderList(){
   $('#list').innerHTML = items.length ? listHtml : emptyMsg;
   $('#cnt').textContent = ownerBase.length
     ? '('+items.length+(items.length===ownerBase.length?'':'/'+ownerBase.length)+'건)'
-    : '';
-  const recv=ownerBase.filter(o=>(o.status||'접수')==='접수').length;
-  const pend=ownerBase.filter(o=>o.status==='발주대기').length;
-  const unpaid=ownerBase.filter(o=>!o.paid).length;
-  const overdue=ownerBase.filter(o=>!o.paid && o.status==='발송완료' && o.shipped_at && (Date.now()-new Date(o.shipped_at).getTime())>7*24*3600*1000).length;
-  $('#summary').textContent = ownerBase.length
-    ? ('접수 '+recv+'건 · 발주대기 '+pend+'건 · 미입금 '+unpaid+'건'+(overdue?' (🚨 '+overdue+'건 7일+)':''))
     : '';
   renderLedger();
 }
