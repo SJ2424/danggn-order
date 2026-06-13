@@ -469,7 +469,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
 .sub-section h3:first-of-type{margin-top:0}
 /* 카탈로그/가격 관리 */
 .cat-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr auto auto;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
-.pr-row{display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.pr-row{display:grid;grid-template-columns:1.7fr 1.4fr 1fr 1fr auto auto;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .cat-row:last-child,.pr-row:last-child{border-bottom:0}
 .cat-row input,.pr-row input{padding:5px 7px;font-size:12px;min-width:0}
 .cat-label{font-weight:600;font-size:12.5px}
@@ -714,7 +714,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   <div id="nextSchedule" class="schedule-bar admin-only"></div>
   <!-- ⚠️ admin-only 아님 — 입력자도 캐시 문제시 자력 복구 필요 -->
   <div style="font-size:11px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>버전: <b id="appVersion">v2026.06.03-주소검색 무한팝업 차단·직접입력</b></span>
+    <span>버전: <b id="appVersion">v2026.06.13-주문자별 직거래·택배 단가 + 미설정 정정 + 메뉴 정리</b></span>
     <button id="btnHardReload" class="btn-sec btn-sm" title="새 버전이 안 보이거나 앱이 이상할 때만 — 캐시 비우고 최신 코드 새로 받기 (당겨서 새로고침은 데이터만 갱신)" style="font-size:11px;padding:3px 8px">🔄 앱 새로받기</button>
   </div>
   <div class="toolbar admin-only">
@@ -820,6 +820,42 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </div>
 </details>
 
+<!-- 👥 주문자별 단가 — 핵심: 사람마다·거래방식(택배/직거래)마다 다른 정산단가 -->
+<details class="card admin-only">
+  <summary>👥 주문자별 단가 <span class="muted" style="font-weight:400;font-size:11.5px">(사람마다 다른 가격)</span></summary>
+  <p class="muted" style="margin:8px 0;font-size:11.5px;line-height:1.6">
+    입력자가 <b>나에게 정산할 개당 가격</b>을 사람마다 다르게 지정. 같은 사람도
+    <b>택배 / 직거래</b> 단가를 따로 정할 수 있어요 (<b>직거래 칸 비우면 택배 단가</b> 적용).<br>
+    미설정자는 카탈로그 ③ 기본 판매가가 적용돼요.
+  </p>
+  <div id="unsetPriceWarn"></div>
+  <div id="priceList"></div>
+  <div class="pr-add">
+    <select id="newPrUser"><option value="">주문자 선택</option></select>
+    <select id="newPrProduct"><option value="">상품 선택</option></select>
+    <input id="newPrPrice" type="number" placeholder="택배 단가">
+    <input id="newPrPricePickup" type="number" placeholder="직거래 단가 (선택)">
+    <button id="btnAddPrice">+ 추가</button>
+  </div>
+</details>
+
+<!-- 📦 입고 기록 — 매입가/물류비 → 단위원가 자동 → 카탈로그 택배 원가 갱신 (반복 작업) -->
+<details class="card admin-only">
+  <summary>📦 입고 기록 <span class="muted" style="font-weight:400;font-size:11.5px">(배치별 단위원가)</span></summary>
+  <p class="muted" style="margin:8px 0;font-size:11.5px">100개 입고시 매입가+물류비 입력하면 단위원가 자동 계산되어 카탈로그의 ① 택배 원가 갱신.</p>
+  <div id="receiptList"></div>
+  <div class="rcp-add">
+    <input id="newRcpDate" type="date">
+    <select id="newRcpProduct"><option value="">상품 선택</option></select>
+    <input id="newRcpQty" type="number" placeholder="수량">
+    <input id="newRcpUnit" type="number" placeholder="매입가 (개당)">
+    <input id="newRcpLogiTot" type="number" placeholder="물류비 (총액)">
+    <input id="newRcpNote" type="text" placeholder="메모 (선택)">
+    <div id="rcpPreview">상품·수량·매입가 입력하면 단위원가 자동 계산</div>
+    <button id="btnAddRcp">+ 입고 기록</button>
+  </div>
+</details>
+
 <!-- 🔧 설정 · 도구 — 그 외 모든 것 (접혀 있음) -->
 <details class="card admin-only">
   <summary>🔧 설정 · 도구 <span class="muted" style="font-weight:400;font-size:11.5px">(필요할 때만)</span></summary>
@@ -838,7 +874,7 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
   </details>
 
   <details class="sub-section" id="cronBackupSection">
-    <summary>🛡 외부 cron 백업 <span id="cronBackupStatus" class="muted" style="font-size:11px;font-weight:400"></span></summary>
+    <summary>🛡 봇 자동실행 이중 안전장치 <span class="muted" style="font-weight:400;font-size:11px">(한 번만 설정 · 고급)</span> <span id="cronBackupStatus" class="muted" style="font-size:11px;font-weight:400"></span></summary>
     <p class="muted" style="margin:8px 0;font-size:11.5px;line-height:1.55">
       GitHub Actions cron이 지연되어도 cron-job.org이 우리 서버를 직접 호출해서 봇 트리거.
       <b>한 번 설정</b>이면 평생 자동 백업. 무료.
@@ -924,34 +960,6 @@ body[data-mode="manage"][data-role="admin"] #marginFixBanner.has-issues{display:
       <button class="btn-sec btn-sm" id="btnCsvImport" disabled style="margin-top:6px">가져오기 실행</button>
       <div id="csvMsg" style="margin-top:6px;font-size:11.5px"></div>
     </details>
-  </details>
-
-  <details class="sub-section">
-    <summary>📦 입고 기록 (배치별 단위원가)</summary>
-    <p class="muted" style="margin:8px 0;font-size:11.5px">100개 입고시 매입가+물류비 입력하면 단위원가 자동 계산되어 카탈로그의 ① 택배 원가 갱신.</p>
-    <div id="receiptList"></div>
-    <div class="rcp-add">
-      <input id="newRcpDate" type="date">
-      <select id="newRcpProduct"><option value="">상품 선택</option></select>
-      <input id="newRcpQty" type="number" placeholder="수량">
-      <input id="newRcpUnit" type="number" placeholder="매입가 (개당)">
-      <input id="newRcpLogiTot" type="number" placeholder="물류비 (총액)">
-      <input id="newRcpNote" type="text" placeholder="메모 (선택)">
-      <div id="rcpPreview">상품·수량·매입가 입력하면 단위원가 자동 계산</div>
-      <button id="btnAddRcp">+ 입고 기록</button>
-    </div>
-  </details>
-
-  <details class="sub-section">
-    <summary>👥 사용자별 특별 단가 (다른 입력자 있을 때)</summary>
-    <p class="muted" style="margin:8px 0;font-size:11.5px">입력자가 본인한테 정산할 가격이 사람마다 다를 때만 등록. 미설정자는 카탈로그 ③ 기본 판매가 적용.</p>
-    <div id="priceList"></div>
-    <div class="pr-add">
-      <select id="newPrUser"><option value="">사용자 선택</option></select>
-      <select id="newPrProduct"><option value="">상품 선택</option></select>
-      <input id="newPrPrice" type="number" placeholder="특별 단가">
-      <button id="btnAddPrice">+ 추가</button>
-    </div>
   </details>
 
   <details class="sub-section">
@@ -1406,9 +1414,12 @@ async function showApp(session){
   myEmail = session.user.email || '';
   renderMyAccount();
   fillProductDropdown();  // 입력자도 상품 dropdown 사용 가능 (defaults)
-  // 관리자: 주문 렌더 전에 ADMIN_IDS·INPUT_USERS 먼저 로드
-  //   (첫 화면부터 마진 정확 + 거래처 칩 이름 정확 + 내 주문 안 사라짐)
-  if(userRole === 'admin'){ await loadAdminIds(); await loadInputUsers(); }
+  // 관리자: 주문 렌더 전에 ADMIN_IDS·INPUT_USERS·카탈로그·단가 먼저 로드
+  //   (첫 화면부터 마진 정확 + 거래처 칩 이름 정확 + 내 주문 안 사라짐 + 단가 미설정 경고 정확)
+  if(userRole === 'admin'){
+    await loadAdminIds(); await loadInputUsers();
+    await loadCatalog(); await loadUserPrices();
+  }
   await loadOrders();
   subscribeOrders();
   setMode('input');
@@ -1416,8 +1427,6 @@ async function showApp(session){
   if(userRole === 'admin'){
     await refreshPendingCount();
     subscribePending();
-    await loadCatalog();
-    await loadUserPrices();
     await loadReceipts();
     renderLedgerFilters();
   }
@@ -1546,6 +1555,7 @@ async function loadOrders(){
   if(error){ console.error(error); return; }
   ORDERS = data || [];
   renderList();
+  renderUnsetPriceWarning();  // 주문 로드 후 단가 미설정 주문자 안내 갱신 (관리자만)
 }
 let realtimeChan=null;
 // realtime 변경 폭주(봇 다건 처리 등) 시 마지막 1회만 전체 재조회 — 네트워크 스톰·렉 방지
@@ -2415,7 +2425,7 @@ async function loadInputUsers(){
   const { data } = await sb.from('profiles').select('id, email, display_name').in('role',['input','admin']).order('display_name');
   INPUT_USERS = data || [];
   const sel=$('#newPrUser');
-  if(sel) sel.innerHTML='<option value="">사용자 선택</option>'+INPUT_USERS.map(u =>
+  if(sel) sel.innerHTML='<option value="">주문자 선택</option>'+INPUT_USERS.map(u =>
     '<option value="'+u.id+'">'+esc(displayOf(u))+'</option>'
   ).join('');
 }
@@ -2423,35 +2433,96 @@ async function loadUserPrices(){
   const { data } = await sb.from('user_prices').select('*');
   USER_PRICES = data || [];
   renderUserPrices();
+  renderUnsetPriceWarning();
+}
+// 단가 미설정인데 주문이 들어온 입력자 안내 (가입 먼저 → 단가 정하기 전 주문 = 기본가로 들어간 케이스)
+function renderUnsetPriceWarning(){
+  const box = $('#unsetPriceWarn'); if(!box) return;
+  if(userRole !== 'admin'){ box.innerHTML=''; return; }
+  const priced = new Set(USER_PRICES.map(p=>p.user_id));
+  const counts = {};
+  for(const o of (ORDERS||[])){
+    if(!o.created_by || ADMIN_IDS.has(o.created_by)) continue;  // 관리자 본인 주문 제외
+    if(o.settled === true) continue;  // 이미 정산 끝난 건 제외 (정정 대상 아님)
+    counts[o.created_by] = (counts[o.created_by]||0) + 1;
+  }
+  const unset = Object.keys(counts).filter(uid => !priced.has(uid));
+  if(!unset.length){ box.innerHTML=''; return; }
+  const names = unset.map(uid => {
+    const u = INPUT_USERS.find(x=>x.id===uid);
+    return (u?displayOf(u):uid.slice(0,8)) + ' (주문 '+counts[uid]+'건)';
+  });
+  box.innerHTML = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 11px;margin:0 0 10px;font-size:11.5px;line-height:1.6;color:#78350f">'
+    + '⚠️ <b>단가 미설정 주문자</b>: ' + esc(names.join(', '))
+    + '<br>지금은 <b>기본 판매가</b>로 들어가 있어요. 아래에서 단가를 정하면 <b>기존 주문도 정정</b>할지 물어봐요.'
+    + '</div>';
 }
 function renderUserPrices(){
   const list=$('#priceList'); if(!list) return;
-  list.innerHTML = USER_PRICES.length===0
-    ? '<div class="empty">설정된 특별 단가 없음</div>'
-    : USER_PRICES.map(p => {
-        const u = INPUT_USERS.find(x=>x.id===p.user_id);
-        return '<div class="pr-row" data-id="'+p.id+'">'
-          +'<span>'+esc(u?displayOf(u):p.user_id.slice(0,8))+'</span>'
-          +'<span>'+esc(p.product_name)+' / '+esc(p.color||'-')+'</span>'
-          +'<input type="number" class="pr-price" value="'+p.rep_price+'">'
-          +'<button class="btn-sec btn-sm" data-pract="save">저장</button>'
-          +'<button class="btn-sec btn-sm" data-pract="del">삭제</button>'
-          +'</div>';
-      }).join('');
+  if(USER_PRICES.length===0){ list.innerHTML='<div class="empty">설정된 주문자별 단가 없음</div>'; return; }
+  const header='<div class="pr-row" style="border-bottom:2px solid var(--line);background:#f9fafb;font-size:11px;color:var(--mut);font-weight:600;padding:6px 0">'
+    +'<span>주문자</span><span>상품 / 색상</span><span>택배 단가</span><span>직거래 단가</span><span></span><span></span></div>';
+  list.innerHTML = header + USER_PRICES.map(p => {
+    const u = INPUT_USERS.find(x=>x.id===p.user_id);
+    return '<div class="pr-row" data-id="'+p.id+'">'
+      +'<span>'+esc(u?displayOf(u):p.user_id.slice(0,8))+'</span>'
+      +'<span>'+esc(p.product_name)+' / '+esc(p.color||'-')+'</span>'
+      +'<input type="number" class="pr-price" value="'+(p.rep_price ?? '')+'" title="택배 단가">'
+      +'<input type="number" class="pr-price-pickup" value="'+(p.rep_price_pickup ?? '')+'" placeholder="택배가 적용" title="직거래 단가 (비우면 택배 단가 적용)">'
+      +'<button class="btn-sec btn-sm" data-pract="save">저장</button>'
+      +'<button class="btn-sec btn-sm" data-pract="del">삭제</button>'
+      +'</div>';
+  }).join('');
 }
 async function addUserPrice(){
   const uid=$('#newPrUser').value, pv=$('#newPrProduct').value, price=+$('#newPrPrice').value;
-  if(!uid||!pv||!price) return alert('사용자·상품·단가 모두 입력하세요');
+  const pickupRaw=$('#newPrPricePickup').value;
+  if(!uid||!pv||!price) return alert('주문자·상품·택배 단가를 입력하세요');
   const [name, color] = pv.split('|');
-  const { error } = await sb.from('user_prices').insert({ user_id:uid, product_name:name, color:color||null, rep_price:price });
-  if(error) return alert('추가 실패: '+error.message);
-  $('#newPrPrice').value='';
+  const row = { user_id:uid, product_name:name, color:color||null, rep_price:price };
+  // 직거래 단가는 입력했을 때만 포함 (컬럼 없는 환경에서도 택배 단가만은 안전하게 저장)
+  if(pickupRaw !== '' && pickupRaw != null) row.rep_price_pickup = +pickupRaw;
+  const { error } = await sb.from('user_prices').insert(row);
+  if(error){
+    if(/rep_price_pickup/.test(error.message)) return alert('직거래 단가를 쓰려면 먼저 DB 업데이트가 필요해요.\n\nSupabase SQL Editor에서 한 줄 실행:\nalter table public.user_prices add column if not exists rep_price_pickup int;\n\n(택배 단가만 쓸 거면 직거래 칸을 비우고 다시 추가하세요)');
+    return alert('추가 실패: '+error.message);
+  }
+  $('#newPrPrice').value=''; $('#newPrPricePickup').value='';
   await loadUserPrices();
+  await maybeRecalcUserOrders(uid);
 }
-async function saveUserPriceRow(id, price){
-  const { error } = await sb.from('user_prices').update({ rep_price:+price }).eq('id', id);
+async function saveUserPriceRow(id, price, pickup){
+  const updates = { rep_price:+price };
+  updates.rep_price_pickup = (pickup === '' || pickup == null) ? null : +pickup;
+  const uid = (USER_PRICES.find(p=>String(p.id)===String(id))||{}).user_id;  // 재조회 전에 캡처
+  let { error } = await sb.from('user_prices').update(updates).eq('id', id);
+  // 컬럼 없는 환경: 직거래 단가 빼고 재시도 (택배 단가만이라도 저장)
+  if(error && /rep_price_pickup/.test(error.message)){
+    ({ error } = await sb.from('user_prices').update({ rep_price:+price }).eq('id', id));
+    if(!error) toast('⚠️ 택배 단가만 저장됨 — 직거래 단가는 DB 업데이트 후 가능', 'warn', 5000);
+  }
   if(error){ toast('❌ 단가 저장 실패: '+error.message, 'error', 5000); return; }
   await loadUserPrices();
+  if(uid) await maybeRecalcUserOrders(uid);
+}
+// 주문자 단가를 새로 정하거나 바꿨을 때 — 그 사람의 '미정산' 기존 주문도 새 단가로 정정 제안
+async function maybeRecalcUserOrders(uid){
+  if(!uid) return;
+  const { data, error } = await sb.from('orders').select('*')
+    .eq('created_by', uid).or('settled.is.null,settled.eq.false');
+  if(error || !data || !data.length) return;
+  const changes = computeRecalc(data).filter(c => !c.skip);
+  if(!changes.length) return;  // 이미 단가가 맞음 → 조용히 끝
+  const u = INPUT_USERS.find(x=>x.id===uid);
+  const who = u ? displayOf(u) : '이 주문자';
+  if(!confirm(`${who}님의 정산 안 된 기존 주문 ${changes.length}건이 새 단가와 달라요.\n지금 새 단가로 정정할까요?\n(입금·송장·상태는 안 건드림)`)) return;
+  let ok=0, fail=0;
+  for(const c of changes){
+    const { error } = await sb.from('orders').update({ cost_price:c.newCost, rep_price:c.newRep }).eq('id', c.order.id);
+    if(error) fail++; else ok++;
+  }
+  toast(`✅ ${who}님 기존 주문 ${ok}건 단가 정정`+(fail?` / ❌ ${fail}건 실패`:''), fail?'warn':'success', 4000);
+  await loadOrders();
 }
 async function deleteUserPrice(id){
   if(!confirm('삭제할까요?')) return;
@@ -2583,7 +2654,10 @@ function computeRecalc(orders){
     let newRep;
     const qty = +o.qty || 1;
     if(userPrice){
-      newRep = userPrice.rep_price;
+      // 직거래면 직거래 단가 우선 (없으면 택배 단가)
+      newRep = (o.type === '직거래' && userPrice.rep_price_pickup != null)
+        ? userPrice.rep_price_pickup
+        : userPrice.rep_price;
     } else if(ADMIN_IDS.has(o.created_by) && o.amount && qty > 0){
       // 관리자 직접 입력 → 개당 가격 = 총액 / 수량 (할인도 자동 반영)
       newRep = Math.round((+o.amount) / qty);
@@ -4614,7 +4688,8 @@ $('#priceList').addEventListener('click', e=>{
   const row=b.closest('.pr-row'); const id=row.dataset.id;
   if(b.dataset.pract==='save'){
     const price=row.querySelector('.pr-price').value;
-    saveUserPriceRow(id, price);
+    const pickup=row.querySelector('.pr-price-pickup').value;
+    saveUserPriceRow(id, price, pickup);
   } else if(b.dataset.pract==='del') deleteUserPrice(id);
 });
 // 장부 기간 칩 — 이벤트 위임 (DOM 동적 변경에도 안전)

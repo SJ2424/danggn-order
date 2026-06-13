@@ -132,7 +132,8 @@ products
 
 user_prices
 ├── user_id, product_name, color
-└── rep_price (입력자별 특별 단가)
+├── rep_price (입력자별 택배 정산단가)
+└── rep_price_pickup (입력자별 직거래 정산단가 — 비우면 rep_price 사용)
 
 stock_receipts (입고 기록)
 ├── date, product, color, qty
@@ -162,6 +163,8 @@ alter table public.orders   add column if not exists bot_claimed_at timestamptz;
 -- ⭐ 사람별 정산방식 — settle_basis: 'rep'(기본판매가, 기본값) | 'cost'(원가+마진). settle_margin: 원가정산 시 내 마진(원)
 alter table public.profiles add column if not exists settle_basis text not null default 'rep';
 alter table public.profiles add column if not exists settle_margin int not null default 0;
+-- ⭐ 주문자별 직거래 정산단가 — 비우면(null) rep_price(택배가) 사용. 같은 사람도 직거래/택배 단가 다르게.
+alter table public.user_prices add column if not exists rep_price_pickup int;
 
 -- 2) 기본 상품
 insert into public.products (name, color, default_cost, default_rep_price)
@@ -220,8 +223,10 @@ begin
   end if;
   -- rep_price (개당): 특별단가(제품예외) → 관리자 amount/qty → 사람별 정산방식(원가+마진) → 기본판매가
   if NEW.rep_price is null then
-    -- 1) 사용자별 특별단가 (제품 예외 — 최우선)
-    select rep_price into v_rep from public.user_prices
+    -- 1) 사용자별 특별단가 (제품 예외 — 최우선); 직거래면 rep_price_pickup 우선(없으면 rep_price)
+    select case when NEW.type = '직거래' then coalesce(rep_price_pickup, rep_price)
+                else rep_price end
+      into v_rep from public.user_prices
     where user_id = NEW.created_by and product_name = NEW.product
       and ((color is null and NEW.color is null) or color = NEW.color) limit 1;
     if v_rep is null then
@@ -410,6 +415,18 @@ update profiles set role='input' where display_name='기존관리자이름';
 - **HIGH**: renderTodaySummary 폰 timezone 의존 → KST 강제
 - **HIGH**: 푸시 메시지 발주대기 참조 (이미 죽은 상태) → 발주완료-미입금으로 정정
 
+### 6차 — 주문자별 직거래/택배 단가 + 단가 미설정 정정 + 관리자 메뉴 정리 (2026-06-13)
+- **주문자별 단가를 거래방식(택배/직거래)별로 분리**
+  - `user_prices.rep_price_pickup` 컬럼 추가 (비우면 rep_price=택배가 사용)
+  - 트리거 `snapshot_prices`: 직거래 주문이면 `coalesce(rep_price_pickup, rep_price)` 적용
+  - ⚠️ **DB 마이그레이션 필요**: §4 SQL의 `alter table ... add ... rep_price_pickup` + 트리거 재실행
+- **가입 먼저 → 단가 늦게 정한 경우 소급 정정**
+  - 주문자 단가 추가/수정 시, 그 사람의 *미정산* 기존 주문을 새 단가로 정정할지 물어봄 (`maybeRecalcUserOrders`)
+  - 👥 주문자별 단가 카드 상단에 "단가 미설정 주문자" 경고 (주문은 있는데 단가 안 정한 사람 안내)
+- **관리자 모드 UI 정리 (사용자 관점 미니멀)**
+  - 핵심 반복 작업인 `👥 주문자별 단가`·`📦 입고 기록`을 깊은 설정 메뉴에서 **최상위 카드로 승격**
+  - 전문용어 라벨 순화 ("외부 cron 백업" → "봇 자동실행 이중 안전장치 (고급)")
+
 ### 5차 — 새 입력자·단가 시나리오 전문가 점검
 - **CRITICAL**: 직거래 주문이 봇에 의해 OMS/카트사이트에 자동 등록되던 문제
   - 직거래는 손님 직접 만남이라 등록되면 안 됨
@@ -545,8 +562,10 @@ gh run list --limit 20
    role='input' 자동 전환 (realtime — 박서진 화면 자동 새로고침)
 
 3. 관리자가 박서진 단가 설정:
-   🎛 관리 모드 → 🔧 설정·도구 → 👥 사용자별 특별 단가
-   사용자: 박서진 / 상품: 선반랙·화이트 / 단가: 31,000 → 추가
+   🎛 관리 모드 → 👥 주문자별 단가 (최상위 카드)
+   주문자: 박서진 / 상품: 선반랙·화이트 / 택배 단가: 31,000 / 직거래 단가: 29,000(선택) → 추가
+   · 직거래 칸 비우면 택배 단가가 직거래에도 적용
+   · 단가 정하면 "기존 주문도 정정?" 물어봄 (가입 먼저 + 단가 늦게 정한 경우 소급 정정)
 
 4. 박서진 로그인 → 주문 입력
    - 손님한테 받은 amount: 36,000
